@@ -259,8 +259,6 @@ export interface Settings {
   fetchAircraftPhotos: boolean;
   /** When the airports database was last imported (reference data, not backed up). */
   airportsImportedAt?: Timestamp | null;
-  /** Show OpenStreetMap tiles behind the flight map (off by default; device-local). */
-  mapBackground?: boolean;
   /** Name printed on the PDF logbook. */
   pilotName?: string;
   /** Expiry date of the SEP (land) class rating, for the revalidation check. */

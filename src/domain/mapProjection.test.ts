@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleGreatCircle, distanceKm } from './geo';
 import {
-  DEFAULT_VIEW, TILE, clampZoom, fitView, graticuleStep, panBy, project, scaleOf, splitAtAntimeridian, toScreen, unproject, visibleTiles, wrapNear, zoomAt,
+  DEFAULT_VIEW, TILE, clampZoom, fitView, graticuleStep, panBy, project, scaleOf, splitAtAntimeridian, toScreen, unproject, wrapNear, zoomAt,
 } from './mapProjection';
 import { mulberry32 } from './testUtils';
 
@@ -115,38 +115,6 @@ describe('panning and zooming', () => {
     expect(p.cy).toBe(v.cy);
     expect(panBy(v, 0, 1e9).cy).toBe(0);
     expect(panBy(v, 0, -1e9).cy).toBe(1);
-  });
-});
-
-describe('background tiles', () => {
-  const size = { w: 400, h: 600 };
-  it('covers the whole viewport with tiles of the nearest whole zoom, scaled to the exact zoom', () => {
-    const v = { cx: 0.5123, cy: 0.3367, zoom: 8.3 };
-    const tiles = visibleTiles(v, size);
-    expect(tiles.length).toBeGreaterThan(0);
-    expect(new Set(tiles.map((t) => t.z))).toEqual(new Set([8]));
-    const left = Math.min(...tiles.map((t) => t.left)), right = Math.max(...tiles.map((t) => t.left + t.size));
-    const top = Math.min(...tiles.map((t) => t.top)), bottom = Math.max(...tiles.map((t) => t.top + t.size));
-    expect(left).toBeLessThanOrEqual(0); expect(right).toBeGreaterThanOrEqual(size.w);
-    expect(top).toBeLessThanOrEqual(0); expect(bottom).toBeGreaterThanOrEqual(size.h);
-    expect(tiles[0]!.size).toBeCloseTo(TILE * 2 ** 0.3, 6);
-  });
-  it('tiles are placed where the same point is drawn by the projection', () => {
-    const v = { cx: 0.5123, cy: 0.3367, zoom: 8 };
-    const p = project({ lat: 51.2, lon: 2.87 });
-    const screen = toScreen(p, v, size);
-    const t = visibleTiles(v, size).find((t) => screen.x >= t.left && screen.x < t.left + t.size && screen.y >= t.top && screen.y < t.top + t.size)!;
-    expect(t).toBeTruthy();
-    expect([t.wrapX, t.y]).toEqual([Math.floor(p.x * 256), Math.floor(p.y * 256)]);
-  });
-  it('wraps the column near the date line and never asks for tiles beyond the poles', () => {
-    const tiles = visibleTiles({ cx: 0.001, cy: 0.5, zoom: 5 }, { w: 1000, h: 400 });
-    expect(tiles.some((t) => t.x < 0)).toBe(true);
-    expect(tiles.every((t) => t.wrapX >= 0 && t.wrapX < 32 && t.y >= 0 && t.y < 32)).toBe(true);
-    expect(visibleTiles({ cx: 0.5, cy: 0, zoom: 6 }, size).every((t) => t.y >= 0)).toBe(true);
-  });
-  it('never asks for an unreasonable number of tiles', () => {
-    expect(visibleTiles({ cx: 0.5, cy: 0.5, zoom: 12 }, { w: 4000, h: 3000 }, 80).length).toBeLessThanOrEqual(80);
   });
 });
 

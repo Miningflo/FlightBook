@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppContext, type AppContextValue, type AppData } from './AppContext';
 import { applyImport, applyReplace, readBundle } from './db/importer';
 import { OnlinePhotoStore } from './features/photos/photoStore';
@@ -15,7 +15,8 @@ import { Snackbar } from './ui/components';
 import { NavBar } from './ui/NavBar';
 import { TotalsScreen } from './features/totals/TotalsScreen';
 import { CurrencyScreen } from './features/currency/CurrencyScreen';
-import { MapScreen } from './features/map/MapScreen';
+// the map (with its coastline data) loads when first opened; it is still precached for offline use
+const MapScreen = lazy(() => import('./features/map/MapScreen').then((m) => ({ default: m.MapScreen })));
 import { FstdForm, FstdList } from './features/fstd/FstdScreens';
 import { ExperienceForm, ExperienceList } from './features/experience/ExperienceScreens';
 import { FlightList } from './features/flights/FlightList';
@@ -149,7 +150,7 @@ export function App() {
   } else if (route.name === 'totals') {
     title = 'Totals'; showNav = true; body = <TotalsScreen />;
   } else if (route.name === 'map') {
-    title = 'Map'; showNav = true; body = <MapScreen />;
+    title = 'Map'; showNav = true; body = <Suspense fallback={<div className="empty"><p className="hint">Loading the map…</p></div>}><MapScreen /></Suspense>;
   } else if (route.name === 'currency') {
     title = 'Currency'; showNav = true; body = <CurrencyScreen />;
   } else if (route.name === 'fstd') {

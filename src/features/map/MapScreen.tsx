@@ -3,13 +3,13 @@ import { useApp } from '../../AppContext';
 import { sampleGreatCircle } from '../../domain/geo';
 import { type MapAirport, type PlaceInfo, buildMapData, connectionsOf, markerRadius, placeCodes, routeWidth } from '../../domain/mapData';
 import {
-  type Size, type View, fitView, graticuleStep, panBy, project, scaleOf, splitAtAntimeridian, toScreen, unproject, visibleTiles, wrapNear, zoomAt,
+  type Size, type View, fitView, graticuleStep, panBy, project, scaleOf, splitAtAntimeridian, toScreen, unproject, wrapNear, zoomAt,
 } from '../../domain/mapProjection';
+import { PATH_WORLD_WIDTH, basemapPaths } from './basemap';
 import { type RangePreset, presetRange } from '../../domain/totals';
 import { utcDateOf } from '../../domain/time';
 
 const PRESETS: [RangePreset, string][] = [['all', 'All time'], ['year', 'This year'], ['12m', 'Last 12 months'], ['90d', 'Last 90 days']];
-const TILE_URL = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 
 /** A projected line as an SVG path, kept in one piece even when the map is centred near the date line. */
 function pathFor(points: { x: number; y: number }[], view: View, size: Size): string {
@@ -22,7 +22,7 @@ function pathFor(points: { x: number; y: number }[], view: View, size: Size): st
 }
 
 export function MapScreen() {
-  const { data, airports, go, updateSettings } = useApp();
+  const { data, airports, go } = useApp();
   const [preset, setPreset] = useState<RangePreset>('all');
   const [places, setPlaces] = useState<Map<string, PlaceInfo> | null>(null);
   const [dbCount, setDbCount] = useState<number | null>(null);
@@ -32,7 +32,7 @@ export function MapScreen() {
   const wrap = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ moved: 0, startDist: 0, startZoom: 0 });
-  const background = data.settings.mapBackground === true;
+  const base = useMemo(() => basemapPaths(), []);
 
   const today = utcDateOf(Date.now());
   const range = useMemo(() => presetRange(preset, today), [preset, today]);
@@ -113,7 +113,18 @@ export function MapScreen() {
   };
   const onUp = (e: React.PointerEvent) => { pointers.current.delete(e.pointerId); };
   const zoomBy = (d: number) => setView((v) => (v ? zoomAt(v, size, { x: size.w / 2, y: size.h / 2 }, v.zoom + d) : v));
-  const pick = (icao: string) => { if (gesture.current.moved < 6) setSelected((s) => (s === icao ? null : icao)); };
+  // Selecting shows a card over the lower part of the map, so move the airport up if it would end up underneath.
+  const select = useCallback((icao: string | null) => {
+    setSelected(icao);
+    const a = icao ? byIcao.get(icao) : null;
+    if (!a) return;
+    setView((v) => {
+      if (!v) return v;
+      const y = toScreen(project(a), v, size).y;
+      return y > size.h * 0.45 || y < 0 ? panBy(v, 0, size.h * 0.28 - y) : v;
+    });
+  }, [byIcao, size]);
+  const pick = (icao: string) => { if (gesture.current.moved < 6) select(selected === icao ? null : icao); };
 
   // ---- what to draw ----
   const lines = useMemo(() => {
@@ -125,10 +136,8 @@ export function MapScreen() {
     });
   }, [map.routes, places, view, size, maxRoute]);
 
-  const tiles = useMemo(() => (background && view && size.w > 0 ? visibleTiles(view, size) : []), [background, view, size]);
-
   const grid = useMemo(() => {
-    if (background || !view || size.w === 0) return { lats: [] as { y: number; label: string }[], lons: [] as { x: number; label: string }[] };
+    if (!view || size.w === 0) return { lats: [] as { y: number; label: string }[], lons: [] as { x: number; label: string }[] };
     const step = graticuleStep(view.zoom);
     const s = scaleOf(view.zoom);
     const topLat = unproject({ x: view.cx, y: view.cy - size.h / 2 / s }).lat, botLat = unproject({ x: view.cx, y: view.cy + size.h / 2 / s }).lat;
@@ -140,7 +149,7 @@ export function MapScreen() {
       lons.push({ x: toScreen({ x: (lon + 180) / 360, y: view.cy }, view, size).x, label: `${Math.abs(wl).toFixed(step < 1 ? 1 : 0)}°${wl >= 0 ? 'E' : 'W'}` });
     }
     return { lats: lats.slice(0, 40), lons: lons.slice(0, 40) };
-  }, [background, view, size]);
+  }, [view, size]);
 
   // biggest circles first, so the small ones stay on top and can be tapped
   const markers = useMemo(() => (view && size.w > 0 ? [...map.airports].reverse().map((a) => ({ a, p: toScreen(project(a), view, size), r: markerRadius(a.flights) })) : []), [map.airports, view, size]);
@@ -170,13 +179,19 @@ export function MapScreen() {
       <div className="map-wrap" ref={wrap} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onUp}>
         {view && size.w > 0 && (
           <svg width={size.w} height={size.h} role="group" aria-label="Map of your flights" className="map-svg">
-            {tiles.map((t) => <image key={`${t.z}/${t.x}/${t.y}`} href={TILE_URL(t.z, t.wrapX, t.y)} x={t.left} y={t.top} width={t.size + 0.6} height={t.size + 0.6} preserveAspectRatio="none" />)}
-            {!background && (
-              <g className="map-grid" aria-hidden="true">
-                {grid.lats.map((l) => <g key={`la${l.label}`}><line x1={0} x2={size.w} y1={l.y} y2={l.y} /><text x={4} y={l.y - 3}>{l.label}</text></g>)}
-                {grid.lons.map((l) => <g key={`lo${l.label}${l.x}`}><line y1={0} y2={size.h} x1={l.x} x2={l.x} /><text x={l.x + 3} y={size.h - 5}>{l.label}</text></g>)}
-              </g>
-            )}
+            {/* coastlines and borders: one path in world units, positioned with a transform, plus a copy of the world either side */}
+            <g className="map-base" aria-hidden="true" transform={`translate(${(size.w / 2 - view.cx * scaleOf(view.zoom)).toFixed(2)} ${(size.h / 2 - view.cy * scaleOf(view.zoom)).toFixed(2)}) scale(${2 ** view.zoom})`}>
+              {[-1, 0, 1].map((c) => (
+                <g key={c} transform={`translate(${c * PATH_WORLD_WIDTH} 0)`}>
+                  <path className="map-land" d={base.land} />
+                  <path className="map-border" d={base.borders} />
+                </g>
+              ))}
+            </g>
+            <g className="map-grid" aria-hidden="true">
+              {grid.lats.map((l) => <g key={`la${l.label}`}><line x1={0} x2={size.w} y1={l.y} y2={l.y} /><text x={4} y={l.y - 3}>{l.label}</text></g>)}
+              {grid.lons.map((l) => <g key={`lo${l.label}${l.x}`}><line y1={0} y2={size.h} x1={l.x} x2={l.x} /><text x={l.x + 3} y={size.h - 5}>{l.label}</text></g>)}
+            </g>
             <g className="map-routes">
               {lines.map((l) => {
                 const on = sel && (l.route.a === sel.icao || l.route.b === sel.icao);
@@ -191,7 +206,7 @@ export function MapScreen() {
                 return (
                   <g key={a.icao} transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`} className={`map-airport${isSel ? ' selected' : ''}`} role="button" tabIndex={0}
                     aria-label={`${a.icao}, ${a.name}, ${a.flights} flight${a.flights === 1 ? '' : 's'}`} aria-pressed={isSel}
-                    onClick={() => pick(a.icao)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected((s) => (s === a.icao ? null : a.icao)); } }}>
+                    onClick={() => pick(a.icao)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(selected === a.icao ? null : a.icao); } }}>
                     {isSel && <circle r={r + 5} className="ring" />}
                     <circle r={r} className="dot" />
                     <text className="count" fontSize={fs} textAnchor="middle" dominantBaseline="central">{a.flights}</text>
@@ -209,11 +224,10 @@ export function MapScreen() {
         </div>
         {sel && (
           <div className="map-info" onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
-            <AirportPanel airport={sel} map={map} byIcao={byIcao} onPick={setSelected} />
-            <button type="button" className="icon-btn map-info-close" aria-label="Close airport details" onClick={() => setSelected(null)}>×</button>
+            <AirportPanel airport={sel} map={map} byIcao={byIcao} onPick={select} />
+            <button type="button" className="icon-btn map-info-close" aria-label="Close airport details" onClick={() => select(null)}>×</button>
           </div>
         )}
-        {background && <div className="map-attribution">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors</div>}
       </div>
 
       {map.unplaced.flights > 0 && (
@@ -223,22 +237,12 @@ export function MapScreen() {
         </p>
       )}
 
-      {!sel && <p className="hint" style={{ margin: '0 4px 12px' }}>Tap an airport to see its connections. Drag to move the map, pinch or scroll to zoom.</p>}
-
-      <div className="card">
-        <label className="switch-row">
-          <div>
-            <div>Show map background</div>
-            <div className="hint">Streets and coastlines from OpenStreetMap. Off by default: turning it on sends the visible map area and your IP address to OpenStreetMap. Your airports and routes always work without it, offline.</div>
-          </div>
-          <input type="checkbox" aria-label="Show map background" checked={background} onChange={(e) => void updateSettings({ mapBackground: e.target.checked })} />
-        </label>
-      </div>
+      <p className="hint" style={{ margin: '0 4px 12px' }}>{!sel && 'Tap an airport to see its connections. Drag to move the map, pinch or scroll to zoom. '}Coastlines and borders: Natural Earth (public domain).</p>
     </div>
   );
 }
 
-function AirportPanel({ airport, map, byIcao, onPick }: { airport: MapAirport; map: ReturnType<typeof buildMapData>; byIcao: Map<string, MapAirport>; onPick: (icao: string) => void }) {
+function AirportPanel({ airport, map, byIcao, onPick }: { airport: MapAirport; map: ReturnType<typeof buildMapData>; byIcao: Map<string, MapAirport>; onPick: (icao: string | null) => void }) {
   const conns = connectionsOf(map, airport.icao);
   return (
     <div>

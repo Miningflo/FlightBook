@@ -1,8 +1,7 @@
 import type { LatLon } from './geo';
 
 /**
- * Web Mercator maths for the map screen: the same projection and tile numbering as OpenStreetMap,
- * so the optional background tiles line up exactly with the airports and routes drawn on top.
+ * Web Mercator maths for the map screen (the same projection as web map tiles).
  * World coordinates run 0..1 in both directions (x west to east, y north to south).
  * Pixels per world unit at zoom z are 256 * 2^z, so zoom z shows ordinary 256 px tiles of zoom z.
  */
@@ -94,40 +93,6 @@ export function zoomAt(v: View, size: Size, at: { x: number; y: number }, zoom: 
 export function panBy(v: View, dxPx: number, dyPx: number): View {
   const s = scaleOf(v.zoom);
   return { ...v, cx: v.cx - dxPx / s, cy: Math.max(0, Math.min(1, v.cy - dyPx / s)) };
-}
-
-// ---------------- background tiles ----------------
-
-export interface TilePlacement {
-  z: number;
-  /** Tile column as it appears on screen (may be outside 0..2^z-1 near the edges of a repeating map). */
-  x: number;
-  y: number;
-  /** Column to request (wrapped into range). */
-  wrapX: number;
-  left: number;
-  top: number;
-  size: number;
-}
-
-/** The tiles covering the viewport: tile zoom is the nearest whole zoom, scaled to the view's exact zoom. */
-export function visibleTiles(v: View, size: Size, max = 80): TilePlacement[] {
-  const z = Math.max(0, Math.min(17, Math.round(v.zoom)));
-  const n = 2 ** z;
-  const s = scaleOf(v.zoom);
-  const left = v.cx - size.w / 2 / s, right = v.cx + size.w / 2 / s;
-  const top = v.cy - size.h / 2 / s, bottom = v.cy + size.h / 2 / s;
-  const x0 = Math.floor(left * n), x1 = Math.floor(right * n);
-  const y0 = Math.max(0, Math.floor(top * n)), y1 = Math.min(n - 1, Math.floor(bottom * n));
-  const out: TilePlacement[] = [];
-  const px = s / n;
-  for (let x = x0; x <= x1; x++) {
-    for (let y = y0; y <= y1; y++) {
-      out.push({ z, x, y, wrapX: ((x % n) + n) % n, left: (x / n - v.cx) * s + size.w / 2, top: (y / n - v.cy) * s + size.h / 2, size: px });
-      if (out.length >= max) return out;
-    }
-  }
-  return out;
 }
 
 /** Spacing in degrees for the grid drawn when no background is shown, so lines are at least ~80 px apart. */
