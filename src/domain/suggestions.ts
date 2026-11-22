@@ -70,3 +70,19 @@ export function defaultsFromHistory(
     depPlace: last.arrPlace,
   };
 }
+
+/**
+ * Airports used recently, most recent first, each once (for quick-pick buttons). An arrival comes before the
+ * departure of the same flight, because the next flight usually starts where the last one ended.
+ */
+export function recentPlaces(flights: Flight[], limit = 6): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const f of newestFirst(flights)) {
+    for (const raw of [f.arrPlace, f.depPlace]) {
+      const p = raw.trim().toUpperCase();
+      if (p && !seen.has(p)) { seen.add(p); out.push(p); if (out.length >= limit) return out; }
+    }
+  }
+  return out;
+}

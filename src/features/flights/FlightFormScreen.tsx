@@ -26,10 +26,13 @@ import { computeNight } from '../../domain/night';
 import {
   defaultsFromHistory,
   findAircraftByRegistration,
+  normalizeRegistration,
+  personKey,
+  recentPlaces,
   recentAircraft,
   recentPersons,
 } from '../../domain/suggestions';
-import { Dialog, DurationField, Field, Stepper } from '../../ui/components';
+import { Dialog, DurationField, Field, Stepper, SuggestionChips, keepFocus } from '../../ui/components';
 import { MoonIcon } from '../../ui/Icons';
 
 export function FlightFormScreen({ flight }: { flight?: Flight }) {
@@ -99,11 +102,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
 
   const aircraftOptions = useMemo(() => recentAircraft(data.flights, data.aircraft), [data]);
   const personOptions = useMemo(() => recentPersons(data.flights, data.persons), [data]);
-  const placeOptions = useMemo(() => {
-    const seen = new Set<string>();
-    for (const f of data.flights) { seen.add(f.depPlace); seen.add(f.arrPlace); }
-    return [...seen].sort();
-  }, [data.flights]);
+  const placeOptions = useMemo(() => recentPlaces(data.flights, 6), [data.flights]);
 
   if (!writer) return <div className="empty">This device is not the master logbook, so editing is disabled.</div>;
 
@@ -179,23 +178,28 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
       <div className="card">
         <div className="grid2">
           <Field label="From (ICAO)" error={err('depPlace')} warning={warn('depPlace')} hint={airportInfo?.dep?.name} htmlFor="f-from">
-            <input id="f-from" className="input" list="places" autoCapitalize="characters" autoComplete="off" value={form.depPlace}
+            <input id="f-from" className="input" autoCapitalize="characters" autoComplete="off" value={form.depPlace}
               onChange={(e) => patch({ depPlace: e.target.value.toUpperCase() })} />
+            <SuggestionChips label="Recent airports for From" items={placeOptions.slice(0, 4).map((x) => ({ key: x, text: x }))}
+              selected={form.depPlace.trim().toUpperCase()} onPick={(k) => patch({ depPlace: k })} />
           </Field>
           <Field label="To (ICAO)" error={err('arrPlace')} warning={warn('arrPlace')} hint={airportInfo?.arr?.name} htmlFor="f-to">
-            <input id="f-to" className="input" list="places" autoCapitalize="characters" autoComplete="off" value={form.arrPlace}
+            <input id="f-to" className="input" autoCapitalize="characters" autoComplete="off" value={form.arrPlace}
               onChange={(e) => patch({ arrPlace: e.target.value.toUpperCase() })} />
+            <SuggestionChips label="Recent airports for To" items={placeOptions.slice(0, 4).map((x) => ({ key: x, text: x }))}
+              selected={form.arrPlace.trim().toUpperCase()} onPick={(k) => patch({ arrPlace: k })} />
           </Field>
         </div>
-        <datalist id="places">{placeOptions.map((p) => <option key={p} value={p} />)}</datalist>
       </div>
 
       <div className="card">
+        <SuggestionChips label="Known aircraft" items={aircraftOptions.slice(0, 8).map((a) => ({ key: a.registration, text: `${a.registration} · ${a.make} ${a.model}` }))}
+          selected={normalizeRegistration(form.registration)}
+          onPick={(k) => { const a = aircraftOptions.find((x) => x.registration === k); if (a) setForm((st) => applyAircraft(st, a)); }} />
         <Field label="Registration" error={err('registration')} htmlFor="f-reg">
-          <input id="f-reg" className="input" list="regs" autoCapitalize="characters" autoComplete="off" value={form.registration}
+          <input id="f-reg" className="input" autoCapitalize="characters" autoComplete="off" value={form.registration}
             onChange={(e) => onRegistration(e.target.value)} />
         </Field>
-        <datalist id="regs">{aircraftOptions.map((a) => <option key={a.id} value={a.registration}>{a.make} {a.model}</option>)}</datalist>
         <div className="grid2">
           <Field label="Make" error={err('make')} htmlFor="f-make">
             <input id="f-make" className="input" value={form.make} onChange={(e) => patch({ make: e.target.value })} />
@@ -217,7 +221,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
           <span className="label">Pilot time category</span>
           <div className="chips" role="group" aria-label="Pilot time category">
             {ENGINE_CLASSES.map((c) => (
-              <button key={c} type="button" className="chip" aria-pressed={form.engineClass === c} onClick={() => patch({ engineClass: c })}>{c}</button>
+              <button key={c} type="button" className="chip" aria-pressed={form.engineClass === c} onMouseDown={keepFocus} onClick={() => patch({ engineClass: c })}>{c}</button>
             ))}
           </div>
         </div>
@@ -225,16 +229,18 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
 
       <div className="card">
         <Field label="Name of PIC" error={err('picName')} htmlFor="f-pic">
-          <input id="f-pic" className="input" list="pics" autoComplete="off" value={form.picName} onChange={(e) => patch({ picName: e.target.value })} />
+          <input id="f-pic" className="input" autoComplete="off" value={form.picName} onChange={(e) => patch({ picName: e.target.value })} />
+          <SuggestionChips label="Recent pilots in command" items={personOptions.slice(0, 6).map((p) => ({ key: p.id, text: p.name }))}
+            selected={personOptions.find((p) => personKey(p.name) === personKey(form.picName))?.id ?? null}
+            onPick={(k) => { const p = personOptions.find((x) => x.id === k); if (p) patch({ picName: p.name }); }} />
         </Field>
-        <datalist id="pics">{personOptions.map((p) => <option key={p.id} value={p.name} />)}</datalist>
         <div className="field">
           <span className="label">My function (tap to select; time defaults to total)</span>
           {ROLES.map((r) => {
             const e = form.roles[r];
             return (
               <div className="role-row" key={r}>
-                <button type="button" className={`chip role-${r}`} aria-pressed={e.on} onClick={() => onRole(r)}>{r}</button>
+                <button type="button" className={`chip role-${r}`} aria-pressed={e.on} onMouseDown={keepFocus} onClick={() => onRole(r)}>{r}</button>
                 {e.on && (
                   <DurationField label={`${r} time`} value={e.min} onChange={(m) => setForm((s) => updateForm(s, { roles: setRoleMinutes(s.roles, r, m) }))} />
                 )}
@@ -245,8 +251,8 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
           {warn('roles') && <div className="msg warning">{warn('roles')}</div>}
         </div>
         <div className="chips">
-          <button type="button" className="chip" aria-pressed={form.isPicus} onClick={() => patch({ isPicus: !form.isPicus })}>PICUS</button>
-          <button type="button" className="chip" aria-pressed={form.isSpic} onClick={() => patch({ isSpic: !form.isSpic })}>SPIC</button>
+          <button type="button" className="chip" aria-pressed={form.isPicus} onMouseDown={keepFocus} onClick={() => patch({ isPicus: !form.isPicus })}>PICUS</button>
+          <button type="button" className="chip" aria-pressed={form.isSpic} onMouseDown={keepFocus} onClick={() => patch({ isSpic: !form.isSpic })}>SPIC</button>
         </div>
         {warn('isPicus') && form.isPicus && <div className="msg warning">{warn('isPicus')}</div>}
       </div>

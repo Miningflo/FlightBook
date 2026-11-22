@@ -259,6 +259,8 @@ export interface Settings {
   fetchAircraftPhotos: boolean;
   /** When the airports database was last imported (reference data, not backed up). */
   airportsImportedAt?: Timestamp | null;
+  /** Colour of airports and routes on the map (device-local; see features/map/mapColors.ts). */
+  mapColor?: string;
   /** Name printed on the PDF logbook. */
   pilotName?: string;
   /** Expiry date of the SEP (land) class rating, for the revalidation check. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  recentPlaces,
   defaultsFromHistory,
   findAircraftByRegistration,
   normalizeRegistration,
@@ -41,5 +42,18 @@ describe('suggestions', () => {
   });
   it('defaults to SELF with no history', () => {
     expect(defaultsFromHistory([], [], [pe('s', 'SELF', true)]).picName).toBe('SELF');
+  });
+});
+
+describe('recentPlaces', () => {
+  const f = (dep: number, depPlace: string, arrPlace: string) => ({ id: String(dep), depTimeUtc: dep, createdAt: dep, depPlace, arrPlace } as Flight);
+  it('lists each place once, most recent first, arrival before departure', () => {
+    expect(recentPlaces([f(1, 'EBOS', 'EBAW'), f(2, 'EBAW', 'EBKT'), f(3, 'EBKT', 'EBOS')])).toEqual(['EBOS', 'EBKT', 'EBAW']);
+  });
+  it('normalises case and spacing, skips empties, and respects the limit', () => {
+    expect(recentPlaces([f(1, ' ebos ', ''), f(2, 'ebaw', 'EBOS')])).toEqual(['EBOS', 'EBAW']);
+    const many = Array.from({ length: 20 }, (_, i) => f(i + 1, `AA${String(i).padStart(2, '0')}`, `BB${String(i).padStart(2, '0')}`));
+    expect(recentPlaces(many, 5)).toHaveLength(5);
+    expect(recentPlaces([])).toEqual([]);
   });
 });

@@ -24,6 +24,7 @@ import { FlightDetail } from './features/flights/FlightDetail';
 import { FlightFormScreen } from './features/flights/FlightFormScreen';
 import { SettingsScreen, SetupScreen } from './features/settings/SettingsScreen';
 import { DriveBanners, ViewerGate } from './features/drive/DriveBanners';
+import { applyMapColor } from './features/map/mapColors';
 
 const onlinePhotos = new OnlinePhotoStore(db);
 const airports = new AirportStore(db);
@@ -97,6 +98,9 @@ export function App() {
     if (t === 'system') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', t);
   }, [data?.settings.theme]);
+
+  // Map colours are a device preference, applied as CSS variables on <html>.
+  useEffect(() => { applyMapColor(data?.settings.mapColor); }, [data?.settings.mapColor]);
 
   const ctx = useMemo<AppContextValue | null>(() => {
     if (!data) return null;

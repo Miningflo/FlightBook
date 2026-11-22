@@ -396,7 +396,8 @@ button.chip.role-PIC, button.chip.role-COPI, button.chip.role-DUAL, button.chip.
   background: transparent; color: var(--on-surface-variant); border: 1.5px solid var(--outline);
 }
 button.chip[aria-pressed='true'] { font-weight: 700; border-width: 2px; }
-button.chip[aria-pressed='true']::before { content: '\2713\00a0'; font-weight: 700; }
+/* the check mark is decoration: the second declaration gives it empty alternative text so it is not read as part of the name */
+button.chip[aria-pressed='true']::before { content: '\2713\00a0'; content: '\2713\00a0' / ''; font-weight: 700; }
 button.chip.role-PIC[aria-pressed='true'] { background: var(--role-pic-bg); color: var(--role-pic-fg); border-color: var(--role-pic-fg); }
 button.chip.role-COPI[aria-pressed='true'] { background: var(--role-copi-bg); color: var(--role-copi-fg); border-color: var(--role-copi-fg); }
 button.chip.role-DUAL[aria-pressed='true'] { background: var(--role-dual-bg); color: var(--role-dual-fg); border-color: var(--role-dual-fg); }
@@ -412,12 +413,12 @@ button.chip[aria-pressed='true']:not([class*='role-']) { border-color: var(--pri
 .map-svg { display: block; }
 .map-grid line { stroke: var(--outline-variant); stroke-width: 1; opacity: 0.7; }
 .map-grid text { fill: var(--on-surface-variant); font-size: 10px; opacity: 0.8; }
-.map-route { fill: none; stroke: var(--primary); stroke-opacity: 0.6; stroke-linecap: round; stroke-linejoin: round; }
+.map-route { fill: none; stroke: var(--map-route); stroke-opacity: 0.6; stroke-linecap: round; stroke-linejoin: round; }
 .map-route.on { stroke-opacity: 1; }
 .map-route.dim { stroke-opacity: 0.18; }
 .map-airport { cursor: pointer; }
-.map-airport .dot { fill: var(--primary); stroke: var(--surface); stroke-width: 2; }
-.map-airport .count { fill: var(--on-primary); font-weight: 700; pointer-events: none; }
+.map-airport .dot { fill: var(--map-dot); stroke: var(--surface); stroke-width: 2; }
+.map-airport .count { fill: var(--map-dot-text); font-weight: 700; pointer-events: none; }
 .map-airport .ring { fill: none; stroke: var(--on-surface); stroke-width: 2.5; }
 .map-airport .code { fill: var(--on-surface); font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 .map-airport:focus-visible .dot { stroke: var(--on-surface); stroke-width: 3; }
@@ -436,6 +437,12 @@ button.chip[aria-pressed='true']:not([class*='role-']) { border-color: var(--pri
 .map-info-close { position: absolute; top: 2px; right: 2px; width: 40px; height: 40px; padding: 0; }
 .map-info-close svg { width: 22px; height: 22px; display: block; }
 
+/* colours of the airports and routes drawn over the basemap (one place to change them) */
+:root {
+  --map-route: var(--primary);
+  --map-dot: var(--primary);
+  --map-dot-text: var(--on-primary);
+}
 /* map basemap: muted, no labels, so airports and routes are what stand out (works in light and dark) */
 :root {
   --map-ocean: light-dark(#d9e6ef, #14202a);
@@ -498,3 +505,16 @@ html.map-lock, html.map-lock body { overflow: hidden; overscroll-behavior: none;
   .map-controls .icon-btn { width: 40px; height: 40px; }
   .map-controls .icon-btn svg { width: 22px; height: 22px; }
 }
+
+/* map colour picker in Settings */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin-top: 8px; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px 10px; border: 1.5px solid var(--outline-variant); border-radius: 16px; background: transparent; color: var(--on-surface); }
+.swatch[aria-checked='true'] { border: 2.5px solid var(--primary); background: var(--primary-container); }
+.swatch-bg { fill: var(--map-ocean); }
+.swatch-dot { stroke: var(--surface); stroke-width: 1.5; }
+.swatch-label { font-size: 13px; font-weight: 500; text-align: center; line-height: 1.2; }
+.swatch[aria-checked='true'] .swatch-label { font-weight: 700; }
+
+/* quick-pick chips under form fields */
+.chips.suggest { margin-top: 8px; gap: 6px; }
+.chips.suggest .chip { min-height: 36px; padding: 0 12px; font-size: 14px; }

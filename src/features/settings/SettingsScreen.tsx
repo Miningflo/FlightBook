@@ -4,6 +4,7 @@ import type { ThemePreference } from '../../domain/types';
 import { Dialog } from '../../ui/components';
 import { AirportsCard } from './AirportsCard';
 import { DriveCard } from '../drive/DriveCard';
+import { MapColorCard } from './MapColorCard';
 import { TakeOverDialog } from '../drive/TakeOverDialog';
 import { ChevronIcon } from '../../ui/Icons';
 import { persistenceStatus, requestPersistence, type PersistenceStatus } from '../../pwa/storage';
@@ -69,6 +70,8 @@ export function SettingsScreen() {
       <button type="button" className="card tappable link-card" onClick={() => go({ name: 'export' })}>
         <div><div className="main">Export, import &amp; backup</div><div className="hint">PDF logbook, CSV, full JSON backup, restore</div></div><ChevronIcon />
       </button>
+
+      <MapColorCard />
 
       <DriveCard />
 

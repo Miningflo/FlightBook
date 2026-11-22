@@ -39,6 +39,30 @@ export function DurationField({
   );
 }
 
+/**
+ * Pass as `onMouseDown` on buttons used while typing in a form. Without it a tap moves focus to the button, which
+ * closes the on-screen keyboard and shifts the layout under the finger, so the tap can be lost (the "tap twice" problem).
+ * The click still happens; the text field simply keeps its focus.
+ */
+export const keepFocus = (e: React.MouseEvent): void => e.preventDefault();
+
+export interface Suggestion { key: string; text: string }
+
+/**
+ * Quick-pick buttons (recent aircraft, people, airports). Used instead of a native dropdown, which only lists entries
+ * matching what is already typed (so a pre-filled field shows just one choice) and swallows the next tap.
+ */
+export function SuggestionChips({ label, items, selected, onPick }: { label: string; items: Suggestion[]; selected?: string | null; onPick: (key: string) => void }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="chips suggest" role="group" aria-label={label}>
+      {items.map((i) => (
+        <button key={i.key} type="button" className="chip" aria-pressed={selected === i.key} onMouseDown={keepFocus} onClick={() => onPick(i.key)}>{i.text}</button>
+      ))}
+    </div>
+  );
+}
+
 export function Stepper({
   value, onChange, label,
 }: { value: number; onChange: (n: number) => void; label: string }) {
@@ -46,9 +70,9 @@ export function Stepper({
     <div className="field">
       <span className="label">{label}</span>
       <div className="stepper">
-        <button type="button" aria-label={`${label}: decrease`} onClick={() => onChange(Math.max(0, value - 1))}>−</button>
+        <button type="button" aria-label={`${label}: decrease`} onMouseDown={keepFocus} onClick={() => onChange(Math.max(0, value - 1))}>−</button>
         <span className="val" aria-live="polite">{value}</span>
-        <button type="button" aria-label={`${label}: increase`} onClick={() => onChange(value + 1)}>+</button>
+        <button type="button" aria-label={`${label}: increase`} onMouseDown={keepFocus} onClick={() => onChange(value + 1)}>+</button>
       </div>
     </div>
   );
