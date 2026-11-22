@@ -202,7 +202,7 @@ export function App() {
 
   return (
     <AppContext.Provider value={ctx}>
-      <div className={`app${showNav ? ' has-nav' : ''}${route.name === 'map' && !gated ? ' map-route' : ''}`}>
+      <div className={`app${showNav ? ' has-nav' : ''}${route.name === 'map' && !gated ? ' map-fixed' : ''}`}>
         <header className="topbar">
           {back && <button type="button" className="icon-btn back" aria-label="Back" onClick={() => go(parentRoute(route) ?? { name: 'list' }, { replace: true })}><BackIcon /></button>}
           <h1>{title}</h1>
