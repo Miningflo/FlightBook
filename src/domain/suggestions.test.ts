@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterSuggestions,
   recentPlaces,
   defaultsFromHistory,
   findAircraftByRegistration,
@@ -55,5 +56,36 @@ describe('recentPlaces', () => {
     const many = Array.from({ length: 20 }, (_, i) => f(i + 1, `AA${String(i).padStart(2, '0')}`, `BB${String(i).padStart(2, '0')}`));
     expect(recentPlaces(many, 5)).toHaveLength(5);
     expect(recentPlaces([])).toEqual([]);
+  });
+});
+
+describe('filterSuggestions', () => {
+  const fleet = [
+    { reg: 'OO-ABC', text: 'OO-ABC Cessna 172S' },
+    { reg: 'PH-LDF', text: 'PH-LDF Piper PA-28' },
+    { reg: 'N172SP', text: 'N172SP Cessna 172SP' },
+    { reg: 'OO-DEF', text: 'OO-DEF Diamond DA40' },
+  ];
+  const f = (q: string, limit?: number) => filterSuggestions(fleet, q, (x) => x.text, limit).map((x) => x.reg);
+  it('an empty or blank query returns the list as it is (most recent first), up to the limit', () => {
+    expect(f('')).toEqual(['OO-ABC', 'PH-LDF', 'N172SP', 'OO-DEF']);
+    expect(f('   ', 2)).toEqual(['OO-ABC', 'PH-LDF']);
+  });
+  it('matches anywhere, in any case, and all words must match', () => {
+    expect(f('cessna')).toEqual(['OO-ABC', 'N172SP']);
+    expect(f('CESSNA 172SP')).toEqual(['N172SP']);
+    expect(f('da40 oo')).toEqual(['OO-DEF']);
+    expect(f('zzz')).toEqual([]);
+  });
+  it('puts matches that start with the first word first, keeping recency order otherwise', () => {
+    expect(f('oo')).toEqual(['OO-ABC', 'OO-DEF']);
+    expect(f('172')).toEqual(['N172SP', 'OO-ABC'].sort((a, b) => ['OO-ABC', 'N172SP'].indexOf(a) - ['OO-ABC', 'N172SP'].indexOf(b)));
+    expect(f('n17')).toEqual(['N172SP']);
+  });
+  it('copes with hundreds of entries and respects the limit', () => {
+    const many = Array.from({ length: 500 }, (_, i) => ({ t: `OO-${String(i).padStart(3, '0')} Cessna 172` }));
+    expect(filterSuggestions(many, 'oo-4', (x) => x.t, 40)).toHaveLength(40);
+    expect(filterSuggestions(many, 'oo-499', (x) => x.t)).toEqual([{ t: 'OO-499 Cessna 172' }]);
+    expect(filterSuggestions(many, '', (x) => x.t, 40)).toHaveLength(40);
   });
 });

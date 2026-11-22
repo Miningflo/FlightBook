@@ -86,3 +86,21 @@ export function recentPlaces(flights: Flight[], limit = 6): string[] {
   }
   return out;
 }
+
+/**
+ * Narrow a list of suggestions by what the user has typed. Every word typed must appear somewhere in an item's
+ * search text (any order, any case); items whose search text starts with the first word come first. The input
+ * order (most recent first) is otherwise kept. An empty query returns the first `limit` items.
+ */
+export function filterSuggestions<T>(items: readonly T[], query: string, searchText: (item: T) => string, limit = 40): T[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return items.slice(0, limit);
+  const starts: T[] = [];
+  const contains: T[] = [];
+  for (const item of items) {
+    const text = searchText(item).toLowerCase();
+    if (!words.every((w) => text.includes(w))) continue;
+    (text.startsWith(words[0]!) ? starts : contains).push(item);
+  }
+  return [...starts, ...contains].slice(0, limit);
+}

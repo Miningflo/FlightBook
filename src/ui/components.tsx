@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { filterSuggestions } from '../domain/suggestions';
 import type { Role } from '../domain/types';
 
 export function RoleChip({ role }: { role: Role }) {
@@ -46,19 +47,75 @@ export function DurationField({
  */
 export const keepFocus = (e: React.MouseEvent): void => e.preventDefault();
 
-export interface Suggestion { key: string; text: string }
+export interface SuggestItem {
+  /** Unique within the list. */
+  key: string;
+  /** What is put in the field when picked, and the main text of the row. */
+  value: string;
+  /** Smaller text beside it. */
+  detail?: string;
+  /** Text the typed words are matched against. */
+  search: string;
+}
 
 /**
- * Quick-pick buttons (recent aircraft, people, airports). Used instead of a native dropdown, which only lists entries
- * matching what is already typed (so a pre-filled field shows just one choice) and swallows the next tap.
+ * A text field with a search-as-you-type list under it, for things picked from a long history (aircraft, people,
+ * airports). Tapping the field shows the most recent entries in a short scrollable list; typing narrows it across the
+ * whole history. Used instead of a native dropdown (which only matches what is typed, so a pre-filled field showed one
+ * entry) and instead of rows of buttons (which stop working with hundreds of entries). Picking an entry is a single tap:
+ * the list never takes focus away from the field, so the keyboard does not close and move things under the finger.
  */
-export function SuggestionChips({ label, items, selected, onPick }: { label: string; items: Suggestion[]; selected?: string | null; onPick: (key: string) => void }) {
-  if (items.length === 0) return null;
+export function SuggestInput({
+  value, onChange, onPick, items, listLabel, maxRows = 40, ...input
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onPick: (item: SuggestItem) => void;
+  items: readonly SuggestItem[];
+  listLabel: string;
+  maxRows?: number;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'role' | 'list'>) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState(false); // typed since the field got focus: only then is the list narrowed
+  const [active, setActive] = useState(-1);
+  const listId = useId();
+  const listRef = useRef<HTMLUListElement>(null);
+  const shown = open ? filterSuggestions(items, typed ? value : '', (i) => i.search, maxRows) : [];
+  const visible = open && shown.length > 0;
+  const current = value.trim().toUpperCase();
+
+  useEffect(() => { if (visible) listRef.current?.scrollIntoView({ block: 'nearest' }); }, [visible]);
+
+  const pick = (item: SuggestItem) => { onPick(item); setOpen(false); setTyped(false); setActive(-1); };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') { setOpen(false); return; }
+    if (!visible) { if (e.key === 'ArrowDown') { setOpen(true); e.preventDefault(); } return; }
+    if (e.key === 'ArrowDown') { setActive((a) => Math.min(shown.length - 1, a + 1)); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { setActive((a) => Math.max(0, a - 1)); e.preventDefault(); }
+    else if (e.key === 'Enter' && active >= 0) { pick(shown[active]!); e.preventDefault(); } // do not submit the form
+  };
+
   return (
-    <div className="chips suggest" role="group" aria-label={label}>
-      {items.map((i) => (
-        <button key={i.key} type="button" className="chip" aria-pressed={selected === i.key} onMouseDown={keepFocus} onClick={() => onPick(i.key)}>{i.text}</button>
-      ))}
+    <div className="suggest-box">
+      <input {...input} value={value} role="combobox" aria-expanded={visible} aria-controls={listId} aria-autocomplete="list"
+        aria-activedescendant={visible && active >= 0 ? `${listId}-${active}` : undefined}
+        onChange={(e) => { setTyped(true); setActive(-1); setOpen(true); onChange(e.target.value); }}
+        onFocus={(e) => { e.target.select(); setTyped(false); setActive(-1); setOpen(true); }}
+        onClick={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={onKeyDown} />
+      {visible && (
+        <ul id={listId} ref={listRef} className="suggest-list" role="listbox" aria-label={listLabel}>
+          {shown.map((item, i) => (
+            <li key={item.key} id={`${listId}-${i}`} role="option" aria-selected={i === active}
+              className={`suggest-row${i === active ? ' active' : ''}${item.value.toUpperCase() === current ? ' current' : ''}`}
+              onMouseDown={keepFocus} onClick={() => pick(item)}>
+              <span className="main">{item.value}</span>
+              {item.detail && <span className="detail">{item.detail}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
