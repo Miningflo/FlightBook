@@ -282,3 +282,32 @@ describe('landing on another UTC date', () => {
     expect(() => formToFlightInput(s)).toThrow();
   });
 });
+
+describe('class and pilot-time category agree', () => {
+  const w = (cls: Parameters<typeof updateForm>[1]['aircraftClass'], eng: Parameters<typeof updateForm>[1]['engineClass']) =>
+    validateForm(updateForm(base(), { aircraftClass: cls, engineClass: eng })).filter((i) => i.field === 'engineClass');
+  it('warns (never blocks) when an MEP class is logged as single-engine time', () => {
+    for (const cls of ['MEP_LAND', 'MEP_SEA'] as const) {
+      const issues = w(cls, 'SP-SE');
+      expect(issues).toHaveLength(1);
+      expect(issues[0]!.severity).toBe('warning');
+    }
+    expect(w('MEP_LAND', 'SP-ME')).toEqual([]);
+  });
+  it('warns when a single-engine class (SEP, SET, TMG) is logged as multi-engine time', () => {
+    for (const cls of ['SEP_LAND', 'SEP_SEA', 'SET_LAND', 'SET_SEA', 'TMG'] as const) {
+      expect(w(cls, 'SP-ME')).toHaveLength(1);
+      expect(w(cls, 'SP-SE')).toEqual([]);
+    }
+  });
+  it('leaves multi-pilot and "Other" alone', () => {
+    for (const cls of ['SEP_LAND', 'MEP_LAND', 'SET_LAND', 'OTHER'] as const) expect(w(cls, 'MP')).toEqual([]);
+    expect(w('OTHER', 'SP-SE')).toEqual([]);
+    expect(w('OTHER', 'SP-ME')).toEqual([]);
+  });
+  it('the warning does not stop a flight from being saved', () => {
+    const s = updateForm(base(), { aircraftClass: 'MEP_LAND', engineClass: 'SP-SE', roles: toggleRole(base().roles, 'PIC', 95) });
+    expect(hasErrors(validateForm(s))).toBe(false);
+    expect(() => formToFlightInput(s)).not.toThrow();
+  });
+});

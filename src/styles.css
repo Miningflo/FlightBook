@@ -143,7 +143,7 @@ button.chip[aria-pressed='true']:not([class*='role-']) { background: var(--prima
 .field { display: block; margin-bottom: 14px; }
 .field > .label { display: block; font-size: 13px; color: var(--on-surface-variant); margin: 0 4px 4px; }
 .input {
-  width: 100%; min-height: 52px; padding: 8px 14px;
+  width: 100%; min-width: 0; min-height: 52px; padding: 8px 14px;
   background: var(--surface-2); border: 1px solid var(--outline-variant); border-radius: var(--radius-field);
 }
 .input:focus { outline: 2px solid var(--primary); border-color: transparent; }
@@ -152,7 +152,9 @@ textarea.input { min-height: 96px; resize: vertical; }
 .msg { margin: 4px 4px 0; font-size: 13px; }
 .msg.error { color: var(--error); }
 .msg.warning { color: var(--warn); }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* a date picker needs more room than half a phone screen: stack date pairs on narrow screens instead of clipping them */
+@media (max-width: 520px) { .grid2:has(input[type='date']) { grid-template-columns: minmax(0, 1fr); } }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .duration { display: flex; align-items: center; gap: 6px; }
 .duration .input { width: 4.5em; text-align: center; padding: 8px 4px; }
@@ -167,7 +169,9 @@ textarea.input { min-height: 96px; resize: vertical; }
 .role-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 .role-row .chip { min-width: 112px; justify-content: center; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; }
-.switch-row input[type='checkbox'] { width: 28px; height: 28px; accent-color: var(--primary); }
+.switch-row input[type='checkbox'] { flex: none; width: 28px; height: 28px; accent-color: var(--primary); }
+.switch-row input[type='radio'] { flex: none; }
+label.switch-row { cursor: pointer; }
 
 .actionbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
@@ -518,3 +522,5 @@ html.map-lock, html.map-lock body { overflow: hidden; overscroll-behavior: none;
 
 /* "+1": the flight landed on a later UTC date than it took off */
 .day-offset { font-size: 0.65em; font-weight: 700; color: var(--primary); vertical-align: super; line-height: 0; }
+
+.block { display: block; }

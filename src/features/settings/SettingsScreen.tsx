@@ -44,14 +44,14 @@ export function SettingsScreen() {
           <input id="s-name" className="input" value={name} onChange={(e) => setName(e.target.value)}
             onBlur={() => name.trim() && name !== s.deviceName && void update({ deviceName: name.trim() })} />
         </label>
-        <div className="switch-row">
-          <div>
-            <div>This device is the master logbook</div>
-            <div className="hint">Only the master can add or edit flights. Never inferred from screen size.</div>
-          </div>
+        <label className="switch-row">
+          <span>
+            <span className="block">This device is the master logbook</span>
+            <span className="hint block">Only the master can add or edit flights. Never inferred from screen size.</span>
+          </span>
           <input type="checkbox" aria-label="This device is the master logbook" checked={s.isMaster}
             onChange={(e) => (e.target.checked ? void requestMaster() : setConfirmOff(true))} />
-        </div>
+        </label>
         <p className="hint">Only one device should be the master. With Google Drive connected, taking the role from another device asks you to confirm first.</p>
         {masterNote && <div className="msg error" role="alert">{masterNote}</div>}
       </div>
@@ -78,17 +78,17 @@ export function SettingsScreen() {
       <AirportsCard />
 
       <div className="card">
-        <div className="switch-row">
-          <div>
-            <div>Look up aircraft photos online</div>
-            <div className="hint">
+        <label className="switch-row">
+          <span>
+            <span className="block">Look up aircraft photos online</span>
+            <span className="hint block">
               Looks for a photo of each registration on Planespotters.net, then Wikimedia Commons. Only the registration is sent,
               plus your IP address as with any website. Turn this off and every aircraft shows a plain placeholder.
-            </div>
-          </div>
+            </span>
+          </span>
           <input type="checkbox" aria-label="Look up aircraft photos online" checked={s.fetchAircraftPhotos}
             onChange={(e) => void update({ fetchAircraftPhotos: e.target.checked })} />
-        </div>
+        </label>
         <button type="button" className="btn text" onClick={() => void onlinePhotos.clear().then(() => update({}))}>Clear photo cache</button>
       </div>
 
@@ -128,7 +128,7 @@ export function SetupScreen() {
     <div className="content">
       <div className="empty">
         <h2>Welcome to FlightBook</h2>
-        <p>Is this device your master logbook? The master is the only device that can edit, and later the only one that writes backups.</p>
+        <p>Is this device your master logbook? The master is the only device that can edit, and the only one that writes backups to Google Drive.</p>
       </div>
       <div style={{ display: 'grid', gap: 12 }}>
         <button type="button" className="btn filled" onClick={() => void choose(true)}>This device is the master logbook</button>

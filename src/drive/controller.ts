@@ -142,6 +142,7 @@ export class DriveController {
   }
 
   async listSnapshots(): Promise<SnapshotFileInfo[]> { return this.writerService().listSnapshots({ interactive: true }); }
+  async listSafetyCopies(): Promise<SnapshotFileInfo[]> { return this.writerService().listSafetyCopies({ interactive: true }); }
   async downloadSnapshot(id: string): Promise<Snapshot> { return this.writerService().download(id, { interactive: true }); }
   async saveSafetyCopy(): Promise<SnapshotFileInfo> { return this.writerService().saveSafetyCopy({ interactive: true }); }
 

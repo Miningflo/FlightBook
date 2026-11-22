@@ -64,4 +64,25 @@ describe('OnlinePhotoStore', () => {
     expect(await s.resolve('OO-ABC', { allowNetwork: true, now: 2000 })).toMatchObject({ status: 'found' });
     expect(calls).toBe(1);
   });
+  it('runs at most two lookups at a time and queues the rest (a long logbook never floods the photo services)', async () => {
+    let active = 0, peak = 0, calls = 0;
+    const s = new OnlinePhotoStore(db, (async (r: string, _f: unknown, now: number) => {
+      calls++; active++; peak = Math.max(peak, active);
+      await new Promise((x) => setTimeout(x, 5));
+      active--;
+      return found(r, now);
+    }) as never);
+    const regs = Array.from({ length: 12 }, (_, i) => `OO-${100 + i}`);
+    const out = await Promise.all(regs.map((r) => s.resolve(r, { allowNetwork: true, now: 1 })));
+    expect(out.every((e) => e?.status === 'found')).toBe(true);
+    expect(calls).toBe(12);
+    expect(peak).toBe(2);
+  });
+  it('a failing lookup frees its slot for the next one', async () => {
+    let calls = 0;
+    const s = new OnlinePhotoStore(db, (async (r: string, _f: unknown, now: number) => { calls++; if (r.endsWith('1')) throw new Error('blocked'); return found(r, now); }) as never, 1);
+    const out = await Promise.all(['OO-1', 'OO-2', 'OO-3'].map((r) => s.resolve(r, { allowNetwork: true, now: 1 })));
+    expect(out.map((e) => e?.status)).toEqual([undefined, 'found', 'found']);
+    expect(calls).toBe(3);
+  });
 });

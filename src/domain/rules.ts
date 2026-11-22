@@ -63,6 +63,7 @@ export const SEP_REVALIDATION: SepRule = {
     'TODO(verify): the training flight must be with an FI or CRI; the logbook has no instructor flag, so DUAL time is used as a stand-in.',
     'TODO(verify): the alternative (proficiency check with an examiner) and renewal rules once the rating has expired are not evaluated.',
     'TODO(verify): flights before the app was used (previous experience carry-ins) have no dates and are not counted.',
+    'TODO(verify): only SEP (land) flights are counted; whether time in a TMG (or SEP sea) may count towards SEP (land) revalidation is not checked.',
   ],
 };
 

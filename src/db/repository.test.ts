@@ -81,14 +81,32 @@ describe('DexieRepository', () => {
     expect(await db.flights.count()).toBe(0);
   });
 
-  it('keeps the aircraft snapshot on the flight and does not rewrite the aircraft record', async () => {
-    await repo.saveFlight(input());
-    const f = await repo.saveFlight(input({ make: 'Reims', model: 'F172' }));
-    expect(f.aircraftMake).toBe('Reims');
-    const [aircraft] = await repo.listAircraft();
-    expect(aircraft!.make).toBe('Cessna');
+  it('keeps each flight\'s own aircraft details; the aircraft record follows its most recent flight', async () => {
+    const first = await repo.saveFlight(input());
+    // a newer flight with corrected details: remembered for next time
+    const later = await repo.saveFlight(input({ date: '2025-06-08', make: 'Reims', model: 'F172', aircraftClass: 'SEP_LAND', engineClass: 'SP-SE' }));
+    let [aircraft] = await repo.listAircraft();
+    expect(aircraft!.make).toBe('Reims');
+    expect(aircraft!.model).toBe('F172');
+    expect((await repo.listAircraft()).length).toBe(1);
+    // the earlier flight still has what was logged on it
+    expect((await repo.getFlight(first.id))!.aircraftMake).toBe('Cessna');
+    // editing the OLDER flight with other details does not change what is remembered
+    await repo.saveFlight(input({ make: 'Cessna', model: '172N' }), first.id);
+    [aircraft] = await repo.listAircraft();
+    expect(aircraft!.model).toBe('F172');
+    // editing the most recent flight does
+    await repo.saveFlight(input({ date: '2025-06-08', make: 'Reims', model: 'F172N', variant: 'Rocket', aircraftClass: 'SEP_LAND' }), later.id);
+    [aircraft] = await repo.listAircraft();
+    expect([aircraft!.model, aircraft!.variant]).toEqual(['F172N', 'Rocket']);
+    expect((await repo.getFlight(first.id))!.aircraftModel).toBe('172N');
   });
-
+  it('remembers a corrected class for the next flight in that aircraft', async () => {
+    await repo.saveFlight(input({ registration: 'HB-PCX', make: 'Pilatus', model: 'PC-6', aircraftClass: 'SEP_LAND' }));
+    await repo.saveFlight(input({ date: '2025-06-02', registration: 'HB-PCX', make: 'Pilatus', model: 'PC-6', aircraftClass: 'SET_LAND' }));
+    const [aircraft] = await repo.listAircraft();
+    expect(aircraft!.classRating).toBe('SET_LAND');
+  });
   it('deletes a flight and its attachments', async () => {
     const f = await repo.saveFlight(input());
     await db.attachments.add({ id: 'att', flightId: f.id, mime: 'image/png', blob: new Blob(['x']), name: 'sig.png', createdAt: 1, updatedAt: 1 });

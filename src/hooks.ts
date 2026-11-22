@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export type Route =
   | { name: 'list' }
@@ -104,4 +104,39 @@ export function useMediaQuery(query: string): boolean {
     return () => mq.removeEventListener('change', on);
   }, [query]);
   return match;
+}
+
+/** Overview screens you come back to: returning to one restores where you were scrolled. Every other screen opens at the top. */
+const RETURN_TO: ReadonlySet<Route['name']> = new Set<Route['name']>(['list', 'totals', 'currency', 'settings', 'export', 'fstd', 'experience']);
+
+/** Which scroll position a route uses. On wide screens the list stays on screen beside the selected flight. */
+export function scrollKey(r: Route, wide: boolean): string {
+  if (wide && (r.name === 'list' || r.name === 'flight')) return 'list';
+  return routeToHash(r);
+}
+
+/** What to do with the page's scroll position when the screen changes: restore a remembered position, or go to the top. */
+export function scrollTarget(r: Route, saved: number | undefined): number {
+  return RETURN_TO.has(r.name) && saved !== undefined ? saved : 0;
+}
+
+/**
+ * A new screen opens at the top instead of wherever the previous screen was scrolled to, and going back to an
+ * overview screen (the logbook list, Totals, Settings...) returns to where you were on it.
+ */
+export function useScrollMemory(route: Route, wide: boolean): void {
+  const key = scrollKey(route, wide);
+  const memory = useRef(new Map<string, number>());
+  const current = useRef(key);
+  useEffect(() => {
+    const on = () => { memory.current.set(current.current, window.scrollY); };
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  useLayoutEffect(() => {
+    if (current.current === key) return;
+    current.current = key;
+    window.scrollTo(0, scrollTarget(route, memory.current.get(key)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 }

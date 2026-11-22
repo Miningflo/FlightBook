@@ -14,6 +14,7 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
   const { drive, portability, reload } = useApp();
   const ref = useRef<HTMLDialogElement>(null);
   const [files, setFiles] = useState<SnapshotFileInfo[] | null>(null);
+  const [copies, setCopies] = useState<SnapshotFileInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [step, setStep] = useState<Step>({ kind: 'list' });
   const [error, setError] = useState<string | null>(null);
@@ -24,12 +25,14 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
   useEffect(() => { ref.current?.showModal(); }, []);
   useEffect(() => {
     let live = true;
-    drive.controller.listSnapshots().then((l) => { if (live) { setFiles(l); setSelected(l[0]?.id ?? null); } }).catch((e) => live && setError(errorText(e)));
+    Promise.all([drive.controller.listSnapshots(), drive.controller.listSafetyCopies()])
+      .then(([l, c]) => { if (live) { setFiles(l); setCopies(c); setSelected(l[0]?.id ?? c[0]?.id ?? null); } })
+      .catch((e) => live && setError(errorText(e)));
     return () => { live = false; };
   }, [drive.controller]);
 
   const preview = async () => {
-    const info = files?.find((f) => f.id === selected);
+    const info = [...(files ?? []), ...copies].find((f) => f.id === selected);
     if (!info) return;
     setBusy('preview'); setError(null);
     try {
@@ -60,7 +63,7 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
     });
   };
 
-  const d = (n: number, label: string) => (n > 0 ? <li>{n} {label}</li> : null);
+  const d = (n: number, one: string, many: string) => (n > 0 ? <li>{n} {n === 1 ? one : many}</li> : null);
 
   return (
     <dialog ref={ref} onClose={onClose} onCancel={onClose} style={{ maxWidth: 'min(94vw, 520px)' }}>
@@ -68,25 +71,37 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
       {step.kind === 'list' && (
         <>
           {!files && !error && <p className="hint">Loading snapshots…</p>}
-          {files && files.length === 0 && <p>There are no snapshots in Google Drive yet.</p>}
+          {files && files.length === 0 && copies.length === 0 && <p>There are no snapshots in Google Drive yet.</p>}
           {files && files.map((f) => (
             <label key={f.id} className="switch-row">
               <span><div>{formatWhen(f.createdTime)}</div><div className="hint">{f.deviceName ?? 'unknown device'}{f.size ? ` · ${formatSize(f.size)}` : ''}</div></span>
               <input type="radio" name="snap" checked={selected === f.id} onChange={() => setSelected(f.id)} />
             </label>
           ))}
+          {copies.length > 0 && (
+            <details className="rules">
+              <summary><span>Undo a restore: {copies.length} safety cop{copies.length === 1 ? 'y' : 'ies'}</span></summary>
+              <p className="hint">Each one is what was on this device just before a "replace everything" restore. Restoring one puts that logbook back.</p>
+              {copies.map((f) => (
+                <label key={f.id} className="switch-row">
+                  <span><div>Before the restore of {formatWhen(f.createdTime)}</div><div className="hint">{f.deviceName ?? 'unknown device'}{f.size ? ` · ${formatSize(f.size)}` : ''}</div></span>
+                  <input type="radio" name="snap" checked={selected === f.id} onChange={() => setSelected(f.id)} />
+                </label>
+              ))}
+            </details>
+          )}
         </>
       )}
       {step.kind === 'preview' && (
         <>
-          <p>Snapshot from <b>{formatWhen(step.info.createdTime)}</b>, written by {step.info.deviceName ?? 'an unknown device'}.</p>
+          <p>{copies.some((c) => c.id === step.info.id) ? 'Safety copy' : 'Snapshot'} from <b>{formatWhen(step.info.createdTime)}</b>, written by {step.info.deviceName ?? 'an unknown device'}.</p>
           {step.problems.length > 0 && <div className="msg error" role="alert">This snapshot has records that cannot be restored, so it cannot replace your logbook:<ul>{step.problems.slice(0, 4).map((p) => <li key={p}>{p}</li>)}</ul></div>}
           <div className="sub-form">
             <div className="main">If you replace everything on this device</div>
             <ul className="hint">
-              {d(step.plan.flights.added + step.plan.fstd.added + step.plan.experience.added, 'records will be added')}
-              {d(step.plan.flights.changed + step.plan.fstd.changed + step.plan.experience.changed, 'records will be changed back to the snapshot version')}
-              {d(step.plan.flights.removed + step.plan.fstd.removed + step.plan.experience.removed, 'records on this device are NOT in the snapshot and will be removed')}
+              {d(step.plan.flights.added + step.plan.fstd.added + step.plan.experience.added, 'record will be added', 'records will be added')}
+              {d(step.plan.flights.changed + step.plan.fstd.changed + step.plan.experience.changed, 'record will be changed back to the snapshot version', 'records will be changed back to the snapshot version')}
+              {d(step.plan.flights.removed + step.plan.fstd.removed + step.plan.experience.removed, 'record on this device is NOT in the snapshot and will be removed', 'records on this device are NOT in the snapshot and will be removed')}
               {!step.plan.destructive && step.plan.flights.added + step.plan.fstd.added + step.plan.experience.added === 0 && <li>nothing would change</li>}
             </ul>
             <p className="hint">Flights: +{step.plan.flights.added} / changed {step.plan.flights.changed} / removed {step.plan.flights.removed} · Simulator: +{step.plan.fstd.added} / {step.plan.fstd.changed} / −{step.plan.fstd.removed} · Previous experience: +{step.plan.experience.added} / {step.plan.experience.changed} / −{step.plan.experience.removed}</p>

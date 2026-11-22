@@ -106,6 +106,26 @@ describe('retention: keep the last 30', () => {
     expect(pre).toHaveLength(KEEP_PRE_RESTORE);
     expect(ours()).toHaveLength(1); // regular snapshots untouched
   });
+  it('safety copies are listed on their own (newest first) so a restore can be undone, and never appear as snapshots', async () => {
+    const svc = master();
+    await svc.runBackup();
+    const a = await svc.saveSafetyCopy();
+    const b = await svc.saveSafetyCopy();
+    const copies = await svc.listSafetyCopies();
+    expect(copies.map((c) => c.id)).toEqual([b.id, a.id]);
+    expect(copies.every((c) => c.name.startsWith('flightbook-prerestore-'))).toBe(true);
+    const snaps = await svc.listSnapshots();
+    expect(snaps).toHaveLength(1);
+    expect(snaps.some((x) => x.name.startsWith('flightbook-prerestore-'))).toBe(false);
+    // a safety copy downloads and parses like any snapshot
+    expect((await svc.download(b.id)).app).toBe('flightbook');
+  });
+  it('lists no safety copies before any restore, and none when there is no backup folder yet', async () => {
+    expect(await master().listSafetyCopies()).toEqual([]);
+    const svc = master();
+    await svc.runBackup();
+    expect(await svc.listSafetyCopies()).toEqual([]);
+  });
 });
 
 describe('one master only', () => {

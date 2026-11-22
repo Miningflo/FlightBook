@@ -6,7 +6,7 @@ import { AirportStore } from './features/airports/airportStore';
 import { snapshotFromDb } from './features/export/backup';
 import { ExportScreen } from './features/export/ExportScreen';
 import { bridge, db, drive, repo } from './driveRuntime';
-import { parentRoute, useMediaQuery, useRoute } from './hooks';
+import { parentRoute, useMediaQuery, useRoute, useScrollMemory } from './hooks';
 import { registerServiceWorker } from './pwa/register';
 import { newestFirst } from './domain/suggestions';
 import { snapshotRecords, snapshotToBundle } from './domain/snapshot';
@@ -43,6 +43,7 @@ export function App() {
   const [route, go] = useRoute();
   const [updateApply, setUpdateApply] = useState<(() => void) | null>(null);
   const wide = useMediaQuery('(min-width: 900px)');
+  useScrollMemory(route, wide);
   const driveState = useSyncExternalStore(drive.subscribe, drive.getState);
 
   const reload = useCallback(async () => {

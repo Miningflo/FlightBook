@@ -13,14 +13,18 @@ export type PhotoState =
   | { kind: 'fallback' }
   | { kind: 'online'; src: string; credit: PhotoCredit };
 
-/** Online photo (if enabled) with its credit, else a generated placeholder. Nothing image-sized is stored locally. */
-export function useAircraftPhoto(registration: string): PhotoState {
+/**
+ * Online photo (if enabled) with its credit, else a generated placeholder. Nothing image-sized is stored locally.
+ * Nothing is looked up until `wanted` is true (a list passes "the card is near the screen").
+ */
+export function useAircraftPhoto(registration: string, wanted = true): PhotoState {
   const { onlinePhotos, data } = useApp();
   const allowOnline = data.settings.fetchAircraftPhotos;
   const [state, setState] = useState<PhotoState>({ kind: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
+    if (!wanted) return;
     if (!allowOnline) {
       setState({ kind: 'fallback' });
       return;
@@ -37,7 +41,7 @@ export function useAircraftPhoto(registration: string): PhotoState {
       })
       .catch(() => { if (!cancelled) setState({ kind: 'fallback' }); });
     return () => { cancelled = true; };
-  }, [onlinePhotos, registration, allowOnline]);
+  }, [onlinePhotos, registration, allowOnline, wanted]);
 
   return state;
 }

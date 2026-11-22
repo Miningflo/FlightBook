@@ -133,6 +133,12 @@ export class BackupService {
     return folder ? sortNewestFirst((await this.writer.listFolder(folder, opts)).map(toInfo)) : [];
   }
 
+  /** The safety copies taken just before earlier restores (newest first), so a restore can itself be undone. */
+  async listSafetyCopies(opts: DriveOptions = {}): Promise<SnapshotFileInfo[]> {
+    const folder = await this.folder(opts, false);
+    return folder ? sortNewestFirst((await this.writer.listFolder(folder, opts)).map(toInfo), PRE_RESTORE_PREFIX) : [];
+  }
+
   /** Download and parse one snapshot (migrations run in memory). */
   async download(fileId: string, opts: DriveOptions = {}): Promise<Snapshot> {
     return parseSnapshot(await this.writer.downloadText(fileId, opts));

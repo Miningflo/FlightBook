@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parentRoute, parseHash, routeToHash, type Route } from './hooks';
+import { parentRoute, parseHash, routeToHash, scrollKey, scrollTarget, type Route } from './hooks';
 
 describe('parentRoute: the Back button goes UP, not through browser history', () => {
   it('a saved flight goes back to the home list, and an edit form goes back to its flight', () => {
@@ -30,5 +30,24 @@ describe('parentRoute: the Back button goes UP, not through browser history', ()
   });
   it('routes round-trip through the hash', () => {
     for (const r of [{ name: 'list' }, { name: 'flight', id: 'abc' }, { name: 'export' }, { name: 'map' }, { name: 'fstd-edit', id: 'q' }] as Route[]) expect(parseHash(routeToHash(r))).toEqual(r);
+  });
+});
+
+describe('scroll position when the screen changes', () => {
+  it('overview screens restore where you were; everything else opens at the top', () => {
+    for (const name of ['list', 'totals', 'currency', 'settings', 'export', 'fstd', 'experience'] as const) {
+      expect(scrollTarget({ name } as Route, 1234)).toBe(1234);
+      expect(scrollTarget({ name } as Route, undefined)).toBe(0);
+    }
+    expect(scrollTarget({ name: 'flight', id: 'a' }, 900)).toBe(0);
+    expect(scrollTarget({ name: 'edit', id: 'a' }, 900)).toBe(0);
+    expect(scrollTarget({ name: 'new' }, 900)).toBe(0);
+    expect(scrollTarget({ name: 'experience-new' }, 900)).toBe(0);
+  });
+  it('each screen has its own position; on wide screens the list and a selected flight share one', () => {
+    expect(scrollKey({ name: 'flight', id: 'a' }, false)).not.toBe(scrollKey({ name: 'list' }, false));
+    expect(scrollKey({ name: 'flight', id: 'a' }, true)).toBe(scrollKey({ name: 'list' }, true));
+    expect(scrollKey({ name: 'flight', id: 'a' }, true)).toBe(scrollKey({ name: 'flight', id: 'b' }, true));
+    expect(scrollKey({ name: 'totals' }, true)).toBe('#/totals');
   });
 });

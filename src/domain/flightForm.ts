@@ -322,6 +322,12 @@ export function validateForm(s: FlightFormState): ValidationIssue[] {
   if (!anyRole) warn('roles', 'No pilot function selected (PIC / COPI / DUAL / INS).');
   if (s.roles.PIC.on && s.roles.DUAL.on) warn('roles', 'PIC and DUAL are both selected; check this is intended.');
   if (s.isPicus && s.engineClass !== 'MP') warn('isPicus', 'PICUS is normally logged on multi-pilot flights.');
+  // Class and pilot-time category describe the same aircraft; a contradiction is almost always a slip.
+  // Only the engine count is checked (single-pilot SE vs ME); multi-pilot is left alone.
+  const multiEngineClass = s.aircraftClass === 'MEP_LAND' || s.aircraftClass === 'MEP_SEA';
+  const singleEngineClass = s.aircraftClass !== 'OTHER' && !multiEngineClass;
+  if (multiEngineClass && s.engineClass === 'SP-SE') warn('engineClass', 'MEP is a multi-engine class, but the time is logged as single-engine (SP-SE). Check the class or the category.');
+  if (singleEngineClass && s.engineClass === 'SP-ME') warn('engineClass', 'This is a single-engine class, but the time is logged as multi-engine (SP-ME). Check the class or the category.');
   return issues;
 }
 

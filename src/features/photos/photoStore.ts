@@ -12,17 +12,32 @@ export function isFresh(e: PhotoCacheEntry, now: number): boolean {
 
 /**
  * Online photo lookup with a device-local cache. Concurrent requests for the same
- * registration (many cards, one aircraft) share a single network call. Failures are
- * not cached as "no photo"; they are only remembered for this session to avoid hammering.
+ * registration (many cards, one aircraft) share a single network call, and at most
+ * `maxConcurrent` lookups run at once (the rest wait their turn), so a long logbook never
+ * floods the free photo services. Failures are not cached as "no photo"; they are only
+ * remembered for this session to avoid hammering.
  */
 export class OnlinePhotoStore {
   private inflight = new Map<string, Promise<PhotoCacheEntry | undefined>>();
   private failedThisSession = new Set<string>();
+  private active = 0;
+  private waiting: (() => void)[] = [];
 
   constructor(
     private readonly db: LogbookDB,
     private readonly lookup: typeof lookupOnlinePhoto = lookupOnlinePhoto,
+    private readonly maxConcurrent = 2,
   ) {}
+
+  /** Run one network lookup when a slot is free. */
+  private async limited<T>(job: () => Promise<T>): Promise<T> {
+    if (this.active >= this.maxConcurrent) await new Promise<void>((go) => this.waiting.push(go));
+    this.active++;
+    try { return await job(); } finally {
+      this.active--;
+      this.waiting.shift()?.();
+    }
+  }
 
   cached(registration: string): Promise<PhotoCacheEntry | undefined> {
     return this.db.photoCache.get(registration);
@@ -38,7 +53,7 @@ export class OnlinePhotoStore {
       if (hit && isFresh(hit, now)) return hit;
       if (!opts.allowNetwork || this.failedThisSession.has(registration)) return hit?.status === 'found' ? hit : undefined;
       try {
-        const fresh = await this.lookup(registration, fetch, now);
+        const fresh = await this.limited(() => this.lookup(registration, fetch, now));
         await this.db.photoCache.put(fresh);
         return fresh;
       } catch {

@@ -228,6 +228,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
               <button key={c} type="button" className="chip" aria-pressed={form.engineClass === c} onMouseDown={keepFocus} onClick={() => patch({ engineClass: c })}>{c}</button>
             ))}
           </div>
+          {warn('engineClass') && <div className="msg warning">{warn('engineClass')}</div>}
         </div>
       </div>
 
@@ -315,7 +316,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
           <button type="button" className="btn text" onClick={() => setConfirmDelete(false)}>Cancel</button>
           <button type="button" className="btn danger" onClick={() => void remove()}>Delete</button>
         </>}>
-        This permanently removes the flight and its attachments from this device. It cannot be undone, except by restoring a backup.
+        This permanently removes the flight from this device. It cannot be undone, except by restoring a backup.
       </Dialog>
     </form>
   );

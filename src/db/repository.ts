@@ -127,11 +127,22 @@ export class DexieRepository implements WritableLogbookRepository {
       const existing = existingId ? await db.flights.get(existingId) : undefined;
       if (existingId && !existing) throw new Error(`Flight ${existingId} not found; refusing to create a duplicate`);
 
-      // Aircraft: reuse by registration. A known aircraft record is never silently modified;
-      // the flight keeps its own snapshot of make/model/variant.
+      // Aircraft: reuse by registration. Every flight keeps its own copy of make/model/variant/class, so the
+      // aircraft record is only what the form fills in next time. It follows the details of the aircraft's most
+      // recent flight: correcting an older entry never changes what is filled in today.
       const reg = normalizeRegistration(input.registration);
       let aircraft = await db.aircraft.where('registration').equals(reg).first();
-      if (!aircraft) {
+      if (aircraft) {
+        const details = { make: input.aircraftMake, model: input.aircraftModel, variant: input.aircraftVariant, engineClass: input.engineClass, classRating: input.aircraftClass };
+        const changed = (Object.keys(details) as (keyof typeof details)[]).some((k) => aircraft![k] !== details[k]);
+        if (changed) {
+          const later = await db.flights.where('aircraftId').equals(aircraft.id).filter((f) => f.id !== existingId && f.depTimeUtc > input.depTimeUtc).count();
+          if (later === 0) {
+            aircraft = { ...aircraft, ...details, updatedAt: now };
+            await db.aircraft.put(aircraft);
+          }
+        }
+      } else {
         aircraft = {
           id: uuid(),
           registration: reg,
