@@ -5,6 +5,19 @@ The Android phone is the master logbook; the same app in a desktop browser is a 
 
 **Status:** all five phases are implemented: scaffold, core flight logging (with aircraft photos), airports + automatic night time, totals + currency, export / import / PDF, and Google Drive backup with a read-only viewer. Drive needs a Google client ID before it does anything (see [docs/google-cloud-setup.md](docs/google-cloud-setup.md)); without one the app works fully offline and the Drive screens say so.
 
+## Screenshots
+All screenshots show an invented logbook: a fictional pilot with 46 flights from 2025–2026, simulator sessions and one block of previous experience. The flights never happened. The airports and routes are real, and so are the four aircraft registrations (chosen because Wikimedia Commons has a photo of each); the flights, times, remarks and people are made up. Night time and the day/night take-offs and landings were calculated by the app itself. The aircraft photos were looked up by the app on Wikimedia Commons, which is also how the app credits them: the Cessna 172 OO-CEU is by Ad Meskens (CC BY-SA 4.0) and the Archer OO-ILS by Alan Wilson (CC BY-SA 2.0). Some screens are in dark mode and the map uses the "Aviation magenta" colour, to show the theme and colour settings.
+
+| Logbook | Flight | New flight |
+|---|---|---|
+| <img src="docs/screenshots/logbook.png" alt="Logbook list with total hours, flight count and recent flights" width="260"> | <img src="docs/screenshots/flight.png" alt="Detail of one flight: route, times, PIC time, take-offs, landings and night time" width="260"> | <img src="docs/screenshots/new-flight.png" alt="New flight form with off-blocks, on-blocks and total time filled in, and the airport names looked up" width="260"> |
+| **Totals** | **Currency** | **Map** |
+| <img src="docs/screenshots/totals.png" alt="Totals: flight time, pilot function breakdown and simulator time" width="260"> | <img src="docs/screenshots/currency.png" alt="Currency: passenger and night-passenger currency with progress bars" width="260"> | <img src="docs/screenshots/map.png" alt="Map of airports and routes flown, on the built-in basemap" width="260"> |
+
+The PDF logbook (A4 landscape, AMC1 FCL.050 columns, per-page totals, totals brought forward from the previous experience):
+
+<img src="docs/screenshots/pdf-logbook.png" alt="First page of the PDF logbook with the totals brought forward" width="720">
+
 ## Setup
 ```
 npm install
