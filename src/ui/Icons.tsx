@@ -26,3 +26,7 @@ export const ChartIcon = () => <svg {...base}><path d="M4 20V10M10 20V4M16 20v-7
 export const ShieldIcon = () => <svg {...base}><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></svg>;
 export const ChevronIcon = () => <svg {...base}><path d="M9 6l6 6-6 6" /></svg>;
 export const MapIcon = () => <svg {...base}><path d="M9 3L3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3zM9 3v15M15 6v15" /></svg>;
+export const MinusIcon = () => <svg {...base}><path d="M5 12h14" /></svg>;
+export const CloseIcon = () => <svg {...base}><path d="M6 6l12 12M18 6L6 18" /></svg>;
+/** Four corner brackets: "show everything". */
+export const FitIcon = () => <svg {...base}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>;

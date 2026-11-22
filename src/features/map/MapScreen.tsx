@@ -6,6 +6,7 @@ import {
   type Size, type View, fitView, graticuleStep, panBy, project, scaleOf, splitAtAntimeridian, toScreen, unproject, wrapNear, zoomAt,
 } from '../../domain/mapProjection';
 import { PATH_WORLD_WIDTH, basemapPaths } from './basemap';
+import { CloseIcon, FitIcon, MinusIcon, PlusIcon } from '../../ui/Icons';
 import { type RangePreset, presetRange } from '../../domain/totals';
 import { utcDateOf } from '../../domain/time';
 
@@ -168,14 +169,14 @@ export function MapScreen() {
 
   return (
     <div>
+      <section className="map-hero" aria-label="Airports">
+        <div className="num" aria-live="polite">{map.airports.length}</div>
+        <div className="label">{map.airports.length === 1 ? 'airport' : 'airports'}</div>
+        <div className="sub">{map.routes.length} route{map.routes.length === 1 ? '' : 's'} · {map.totalFlights} flight{map.totalFlights === 1 ? '' : 's'}</div>
+      </section>
       <div className="range-chips" role="group" aria-label="Date range">
         {PRESETS.map(([k, label]) => <button key={k} type="button" className="chip" aria-pressed={preset === k} onClick={() => setPreset(k)}>{label}</button>)}
       </div>
-      <p className="hint" style={{ margin: '0 4px 8px' }}>
-        {map.airports.length} airport{map.airports.length === 1 ? '' : 's'} · {map.routes.length} route{map.routes.length === 1 ? '' : 's'} · {map.totalFlights} flight{map.totalFlights === 1 ? '' : 's'}.
-        The number in a circle is how many flights started or ended there; thicker lines are routes flown more often.
-      </p>
-
       <div className="map-wrap" ref={wrap} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onUp}>
         {view && size.w > 0 && (
           <svg width={size.w} height={size.h} role="group" aria-label="Map of your flights" className="map-svg">
@@ -218,14 +219,14 @@ export function MapScreen() {
           </svg>
         )}
         <div className="map-controls">
-          <button type="button" className="icon-btn" aria-label="Zoom in" onClick={() => zoomBy(1)}>+</button>
-          <button type="button" className="icon-btn" aria-label="Zoom out" onClick={() => zoomBy(-1)}>−</button>
-          <button type="button" className="icon-btn fit" aria-label="Show all airports" onClick={fit}>⤢</button>
+          <button type="button" className="icon-btn" aria-label="Zoom in" onClick={() => zoomBy(1)}><PlusIcon /></button>
+          <button type="button" className="icon-btn" aria-label="Zoom out" onClick={() => zoomBy(-1)}><MinusIcon /></button>
+          <button type="button" className="icon-btn" aria-label="Show all airports" onClick={fit}><FitIcon /></button>
         </div>
         {sel && (
           <div className="map-info" onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
             <AirportPanel airport={sel} map={map} byIcao={byIcao} onPick={select} />
-            <button type="button" className="icon-btn map-info-close" aria-label="Close airport details" onClick={() => select(null)}>×</button>
+            <button type="button" className="icon-btn map-info-close" aria-label="Close airport details" onClick={() => select(null)}><CloseIcon /></button>
           </div>
         )}
       </div>
@@ -237,7 +238,7 @@ export function MapScreen() {
         </p>
       )}
 
-      <p className="hint" style={{ margin: '0 4px 12px' }}>{!sel && 'Tap an airport to see its connections. Drag to move the map, pinch or scroll to zoom. '}Coastlines and borders: Natural Earth (public domain).</p>
+      <p className="hint" style={{ margin: '0 4px 12px' }}>The number in a circle is how many flights started or ended there; thicker lines are routes flown more often. {!sel && 'Tap an airport to see its connections. Drag to move the map, pinch or scroll to zoom. '}Coastlines and borders: Natural Earth (public domain).</p>
     </div>
   );
 }
