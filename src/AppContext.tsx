@@ -1,13 +1,14 @@
 import { createContext, useContext } from 'react';
 import type { Aircraft, Flight, FstdSession, Person, PreviousExperience, Settings } from './domain/types';
 import type { LogbookRepository, WritableLogbookRepository } from './db/repository';
-import type { Route } from './hooks';
+import type { GoOptions, Route } from './hooks';
 import type { OnlinePhotoStore } from './features/photos/photoStore';
 import type { AirportStore } from './features/airports/airportStore';
 import type { ImportBundle } from './domain/records';
 import type { Snapshot } from './domain/snapshot';
 import type { ConflictPolicy, ImportPlan } from './domain/importPlan';
 import type { ImportExtras, ImportResult } from './db/importer';
+import type { DriveController, DriveState } from './drive/controller';
 
 export interface AppData {
   flights: Flight[];
@@ -34,13 +35,17 @@ export interface AppContextValue {
     readBundle: () => Promise<ImportBundle>;
     snapshot: () => Promise<Snapshot>;
     apply: (plan: ImportPlan, policy: ConflictPolicy, extras?: ImportExtras) => Promise<ImportResult>;
+    /** "Replace everything" restore from a snapshot (master only). */
+    replace: (snapshot: Snapshot) => Promise<{ flights: number; fstd: number; experience: number }>;
   };
+  /** Google Drive: backup on the master, snapshot loading on a viewer. */
+  drive: { controller: DriveController; state: DriveState };
   /** Airports reference data (OurAirports), used to compute night time. */
   airports: AirportStore;
   /** Device-local online photo lookup + cache (not logbook data). */
   onlinePhotos: OnlinePhotoStore;
   reload: () => Promise<void>;
-  go: (r: Route) => void;
+  go: (r: Route, opts?: GoOptions) => void;
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);

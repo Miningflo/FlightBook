@@ -7,6 +7,7 @@ import type {
   FstdSession,
   Person,
   PhotoCacheEntry,
+  ViewerCacheEntry,
   PreviousExperience,
   Settings,
 } from '../domain/types';
@@ -22,7 +23,7 @@ import { uuid } from '../domain/id';
  *  - Bump this constant and `SNAPSHOT_SCHEMA_VERSION` (backups, phase 5) together
  *    and add a fixture test that opens a database written by the previous version.
  */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export class LogbookDB extends Dexie {
   flights!: Table<Flight, string>;
@@ -34,6 +35,7 @@ export class LogbookDB extends Dexie {
   airports!: Table<Airport, string>;
   settings!: Table<Settings, string>;
   photoCache!: Table<PhotoCacheEntry, string>;
+  viewerCache!: Table<ViewerCacheEntry, string>;
 
   constructor(name = 'flightbook') {
     super(name);
@@ -61,6 +63,10 @@ export class LogbookDB extends Dexie {
           if (s.fetchAircraftPhotos === undefined) s.fetchAircraftPhotos = true;
         });
       });
+
+    // v3: the viewer's local copy of the last snapshot it downloaded (device-local, never backed up).
+    // Nothing existing changes.
+    this.version(3).stores({ viewerCache: 'key' });
 
     // Fresh database only: create the owner ("SELF") and default settings.
     this.on('populate', (tx) => {

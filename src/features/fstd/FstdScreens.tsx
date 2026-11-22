@@ -53,10 +53,10 @@ export function FstdForm({ session }: { session?: FstdSession }) {
     try {
       await writer.saveFstd(normalizeFstd(d), session?.id);
       await reload();
-      go({ name: 'fstd' });
+      go({ name: 'fstd' }, { replace: true });
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  const remove = async () => { if (session) { await writer.deleteFstd(session.id); await reload(); go({ name: 'fstd' }); } };
+  const remove = async () => { if (session) { await writer.deleteFstd(session.id); await reload(); go({ name: 'fstd' }, { replace: true }); } };
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void save(); }} noValidate>

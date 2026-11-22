@@ -72,10 +72,10 @@ export function ExperienceForm({ record }: { record?: PreviousExperience }) {
     try {
       await writer.savePreviousExperience(normalizeExperience(d), record?.id);
       await reload();
-      go({ name: 'experience' });
+      go({ name: 'experience' }, { replace: true });
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  const remove = async () => { if (record) { await writer.deletePreviousExperience(record.id); await reload(); go({ name: 'experience' }); } };
+  const remove = async () => { if (record) { await writer.deletePreviousExperience(record.id); await reload(); go({ name: 'experience' }, { replace: true }); } };
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void save(); }} noValidate>

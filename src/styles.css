@@ -165,7 +165,7 @@ textarea.input { min-height: 96px; resize: vertical; }
 .total-box .big { font-size: 40px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .hint { font-size: 13px; color: var(--on-surface-variant); }
 .role-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-.role-row .chip { min-width: 84px; justify-content: center; }
+.role-row .chip { min-width: 112px; justify-content: center; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; }
 .switch-row input[type='checkbox'] { width: 28px; height: 28px; accent-color: var(--primary); }
 
@@ -381,3 +381,24 @@ dialog .switch-row input[type='radio'] { width: 24px; height: 24px; accent-color
 
 /* the four function chips share one width and centre their text, so PIC / COPI / DUAL / INS line up */
 .role-line .chip { width: 100%; justify-content: center; padding: 0; }
+
+/* phase 5: Drive banners */
+.viewer-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.banner .row { margin-top: 6px; }
+.banner .hint { margin-top: 4px; }
+dialog ul { margin: 6px 0; padding-left: 20px; }
+
+/* Selectable chips (function PIC/COPI/DUAL/INS, PICUS/SPIC, engine class): the state must be obvious.
+   Unselected = plain outline; selected = filled, bold, with a check mark, so it does not rely on colour alone.
+   (Display-only <span class="chip role-X"> chips keep their colours.) */
+button.chip { transition: background-color 0.12s, border-color 0.12s; font-weight: 500; }
+button.chip.role-PIC, button.chip.role-COPI, button.chip.role-DUAL, button.chip.role-INS {
+  background: transparent; color: var(--on-surface-variant); border: 1.5px solid var(--outline);
+}
+button.chip[aria-pressed='true'] { font-weight: 700; border-width: 2px; }
+button.chip[aria-pressed='true']::before { content: '\2713\00a0'; font-weight: 700; }
+button.chip.role-PIC[aria-pressed='true'] { background: var(--role-pic-bg); color: var(--role-pic-fg); border-color: var(--role-pic-fg); }
+button.chip.role-COPI[aria-pressed='true'] { background: var(--role-copi-bg); color: var(--role-copi-fg); border-color: var(--role-copi-fg); }
+button.chip.role-DUAL[aria-pressed='true'] { background: var(--role-dual-bg); color: var(--role-dual-fg); border-color: var(--role-dual-fg); }
+button.chip.role-INS[aria-pressed='true'] { background: var(--role-ins-bg); color: var(--role-ins-fg); border-color: var(--role-ins-fg); }
+button.chip[aria-pressed='true']:not([class*='role-']) { border-color: var(--primary); }

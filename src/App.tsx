@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppContext, type AppContextValue, type AppData } from './AppContext';
-import { LogbookDB } from './db/db';
-import { DexieRepository } from './db/repository';
+import { applyImport, applyReplace, readBundle } from './db/importer';
 import { OnlinePhotoStore } from './features/photos/photoStore';
 import { AirportStore } from './features/airports/airportStore';
-import { applyImport, readBundle } from './db/importer';
 import { snapshotFromDb } from './features/export/backup';
 import { ExportScreen } from './features/export/ExportScreen';
-import { useMediaQuery, useRoute } from './hooks';
+import { bridge, db, drive, repo } from './driveRuntime';
+import { parentRoute, useMediaQuery, useRoute } from './hooks';
 import { registerServiceWorker } from './pwa/register';
 import { newestFirst } from './domain/suggestions';
+import { snapshotRecords, snapshotToBundle } from './domain/snapshot';
 import { BackIcon, EditIcon, PlusIcon, SettingsIcon } from './ui/Icons';
 import { Snackbar } from './ui/components';
 import { NavBar } from './ui/NavBar';
@@ -21,35 +21,73 @@ import { FlightList } from './features/flights/FlightList';
 import { FlightDetail } from './features/flights/FlightDetail';
 import { FlightFormScreen } from './features/flights/FlightFormScreen';
 import { SettingsScreen, SetupScreen } from './features/settings/SettingsScreen';
+import { DriveBanners, ViewerGate } from './features/drive/DriveBanners';
 
-const db = new LogbookDB();
-const repo = new DexieRepository(db);
 const onlinePhotos = new OnlinePhotoStore(db);
 const airports = new AirportStore(db);
-const portability = {
+
+const masterPortability: AppContextValue['portability'] = {
   readBundle: () => readBundle(db),
   snapshot: () => snapshotFromDb(db),
-  apply: (...args: Parameters<typeof applyImport> extends [unknown, ...infer R] ? R : never) => applyImport(db, ...args),
+  apply: (...args) => applyImport(db, ...args),
+  replace: (snapshot) => applyReplace(db, snapshot),
 };
+const viewerRefusal = () => Promise.reject(new Error('This device is a read-only viewer; it cannot change the logbook.'));
 
 export function App() {
-  const [data, setData] = useState<AppData | null>(null);
+  const [local, setLocal] = useState<AppData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [route, go] = useRoute();
   const [updateApply, setUpdateApply] = useState<(() => void) | null>(null);
   const wide = useMediaQuery('(min-width: 900px)');
+  const driveState = useSyncExternalStore(drive.subscribe, drive.getState);
 
   const reload = useCallback(async () => {
     const [flights, aircraft, persons, fstd, previousExperience, settings] = await Promise.all([
       repo.listFlights(), repo.listAircraft(), repo.listPersons(), repo.listFstd(), repo.listPreviousExperience(), repo.getSettings(),
     ]);
-    setData({ flights: newestFirst(flights), aircraft, persons, fstd, previousExperience, settings });
+    bridge.settings = settings; // the Drive controller reads the current settings from here
+    setLocal({ flights: newestFirst(flights), aircraft, persons, fstd, previousExperience, settings });
+    drive.settingsChanged();
   }, []);
 
   useEffect(() => {
+    bridge.reload = reload;
     reload().catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
     registerServiceWorker((apply) => setUpdateApply(() => apply));
   }, [reload]);
+
+  const isMaster = local?.settings.isMaster ?? false;
+  const setupDone = local?.settings.setupDone ?? false;
+
+  // On start (and whenever the role changes): the master considers a backup, a viewer loads the logbook from Drive.
+  useEffect(() => {
+    if (!setupDone) return;
+    if (isMaster) drive.scheduler.appOpened();
+    else void drive.startViewer();
+  }, [isMaster, setupDone]);
+
+  useEffect(() => {
+    const on = () => drive.scheduler.backOnline();
+    window.addEventListener('online', on);
+    return () => window.removeEventListener('online', on);
+  }, []);
+
+  // A viewer shows the downloaded snapshot; the master shows its own database. Local settings always come from this device.
+  const viewerSnap = drive.getViewerSnapshot();
+  const viewerRecords = useMemo(() => (viewerSnap ? snapshotRecords(viewerSnap) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [viewerSnap, driveState.viewerRevision]);
+  const data = useMemo<AppData | null>(() => {
+    if (!local) return null;
+    if (local.settings.isMaster) return local;
+    return {
+      flights: newestFirst(viewerRecords?.flights ?? []),
+      aircraft: viewerSnap?.aircraft ?? [], persons: viewerSnap?.persons ?? [],
+      fstd: viewerRecords?.fstd ?? [], previousExperience: viewerRecords?.experience ?? [],
+      settings: { ...local.settings, pilotName: viewerSnap?.settings.pilotName ?? local.settings.pilotName, sepLandExpiry: viewerSnap ? viewerSnap.settings.sepLandExpiry ?? null : local.settings.sepLandExpiry },
+    };
+  }, [local, viewerRecords, viewerSnap]);
 
   // Theme preference is applied on <html>; "system" leaves the OS to decide.
   useEffect(() => {
@@ -65,8 +103,13 @@ export function App() {
       await repo.updateSettings(patch);
       await reload();
     };
-    return { data, repo, writer: canEdit ? repo : null, canEdit, updateSettings, airports, onlinePhotos, portability, reload, go };
-  }, [data, reload, go]);
+    const portability: AppContextValue['portability'] = canEdit ? masterPortability : {
+      readBundle: async () => (viewerSnap ? snapshotToBundle(viewerSnap).bundle : { flights: [], fstd: [], experience: [] }),
+      snapshot: async () => { if (!viewerSnap) throw new Error('No logbook has been loaded from Google Drive yet.'); return viewerSnap; },
+      apply: viewerRefusal, replace: viewerRefusal,
+    };
+    return { data, repo, writer: canEdit ? repo : null, canEdit, updateSettings, airports, onlinePhotos, portability, drive: { controller: drive, state: driveState }, reload, go };
+  }, [data, reload, go, viewerSnap, driveState]);
 
   if (loadError) {
     return (
@@ -149,11 +192,15 @@ export function App() {
   }
   if (showNav && wide) contentWide = true;
 
+  // A viewer with nothing loaded yet sees a status screen on the main routes instead of an empty logbook.
+  const gated = !data.settings.isMaster && !viewerSnap && ['list', 'flight', 'totals', 'currency'].includes(route.name);
+  if (gated) { body = <ViewerGate />; showFab = false; }
+
   return (
     <AppContext.Provider value={ctx}>
       <div className={`app${showNav ? ' has-nav' : ''}`}>
         <header className="topbar">
-          {back && <button type="button" className="icon-btn back" aria-label="Back" onClick={() => history.length > 1 ? history.back() : go({ name: 'list' })}><BackIcon /></button>}
+          {back && <button type="button" className="icon-btn back" aria-label="Back" onClick={() => go(parentRoute(route) ?? { name: 'list' }, { replace: true })}><BackIcon /></button>}
           <h1>{title}</h1>
           {showNav && wide && <NavBar route={route} go={go} />}
           {!back && !data.settings.isMaster && <span className="chip">Read-only</span>}
@@ -162,7 +209,10 @@ export function App() {
             <button type="button" className="icon-btn" aria-label="Edit flight" onClick={() => go({ name: 'edit', id: flight.id })}><EditIcon /></button>
           )}
         </header>
-        <main className={`content${contentWide ? ' wide' : ''}`}>{body}</main>
+        <main className={`content${contentWide ? ' wide' : ''}`}>
+          {!gated && <DriveBanners hiddenRecords={viewerRecords?.hidden ?? 0} />}
+          {body}
+        </main>
         {showNav && !wide && <NavBar route={route} go={go} />}
         {showFab && (
           <button type="button" className="fab" aria-label="New flight" onClick={() => go({ name: 'new' })}><PlusIcon /></button>

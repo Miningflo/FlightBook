@@ -3,15 +3,35 @@ import { useApp } from '../../AppContext';
 import type { ThemePreference } from '../../domain/types';
 import { Dialog } from '../../ui/components';
 import { AirportsCard } from './AirportsCard';
+import { DriveCard } from '../drive/DriveCard';
+import { TakeOverDialog } from '../drive/TakeOverDialog';
 import { ChevronIcon } from '../../ui/Icons';
 import { persistenceStatus, requestPersistence, type PersistenceStatus } from '../../pwa/storage';
 
 export function SettingsScreen() {
-  const { data, updateSettings: update, onlinePhotos, go } = useApp();
+  const { data, updateSettings: update, onlinePhotos, go, drive } = useApp();
   const s = data.settings;
   const [persist, setPersist] = useState<PersistenceStatus>('unknown');
   const [confirmOff, setConfirmOff] = useState(false);
   const [name, setName] = useState(s.deviceName);
+  const [takeOver, setTakeOver] = useState(false);
+  const [masterNote, setMasterNote] = useState<string | null>(null);
+
+  /**
+   * Turning the master role ON. With Drive connected, first look at who holds the role and whether Drive has newer
+   * data; only a clear situation (nobody is master, nothing newer elsewhere) proceeds without asking.
+   */
+  const requestMaster = async () => {
+    setMasterNote(null);
+    const becomeMaster = async () => { await update({ isMaster: true, setupDone: true }); void requestPersistence().then(setPersist); };
+    if (!drive.state.configured || !drive.state.enabled) { await becomeMaster(); return; }
+    try {
+      const i = await drive.controller.inspectMaster(true);
+      if (i.decision.kind === 'takeover' || i.staleness === 'other-device') { setTakeOver(true); return; }
+      await becomeMaster();
+      if (i.decision.kind === 'claim') { await drive.controller.claimMaster(); await drive.controller.backupNow(); }
+    } catch (e) { setMasterNote(`Could not check Google Drive: ${e instanceof Error ? e.message : String(e)}`); }
+  };
 
   useEffect(() => { void persistenceStatus().then(setPersist); }, []);
 
@@ -29,9 +49,10 @@ export function SettingsScreen() {
             <div className="hint">Only the master can add or edit flights. Never inferred from screen size.</div>
           </div>
           <input type="checkbox" aria-label="This device is the master logbook" checked={s.isMaster}
-            onChange={(e) => (e.target.checked ? void update({ isMaster: true, setupDone: true }).then(() => requestPersistence().then(setPersist)) : setConfirmOff(true))} />
+            onChange={(e) => (e.target.checked ? void requestMaster() : setConfirmOff(true))} />
         </div>
-        <p className="hint">Master hand-over between devices through Google Drive (with a take-over warning) is added in the backup phase.</p>
+        <p className="hint">Only one device should be the master. With Google Drive connected, taking the role from another device asks you to confirm first.</p>
+        {masterNote && <div className="msg error" role="alert">{masterNote}</div>}
       </div>
 
       <div className="card">
@@ -48,6 +69,8 @@ export function SettingsScreen() {
       <button type="button" className="card tappable link-card" onClick={() => go({ name: 'export' })}>
         <div><div className="main">Export, import &amp; backup</div><div className="hint">PDF logbook, CSV, full JSON backup, restore</div></div><ChevronIcon />
       </button>
+
+      <DriveCard />
 
       {data.settings.isMaster && <AirportsCard />}
 
@@ -78,6 +101,8 @@ export function SettingsScreen() {
           <button type="button" className="btn tonal" onClick={() => void requestPersistence().then(setPersist)}>Ask again</button>
         )}
       </div>
+
+      {takeOver && <TakeOverDialog onClose={() => setTakeOver(false)} onDone={() => setTakeOver(false)} />}
 
       <Dialog open={confirmOff} title="Stop being the master?" onClose={() => setConfirmOff(false)}
         actions={<>

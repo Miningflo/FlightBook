@@ -5,6 +5,7 @@ import { aircraftFromFlight, toFlightImports } from '../domain/records';
 import type { Aircraft, Attachment, Flight, Person, Settings } from '../domain/types';
 import { personKey } from '../domain/suggestions';
 import { uuid } from '../domain/id';
+import { type Snapshot, base64ToBytes, snapshotToBundle } from '../domain/snapshot';
 
 /** Everything in the logbook, as portable records. The "existing" side of an import plan. */
 export async function readBundle(db: LogbookDB): Promise<ImportBundle> {
@@ -77,5 +78,35 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
       }
     }
     return result;
+  });
+}
+
+export class ReplaceRefusedError extends Error {}
+
+/**
+ * "Replace everything": make this logbook exactly the snapshot. All logbook tables are cleared and refilled
+ * with the snapshot's records (original ids, aircraft and people included) in ONE transaction, so a failure
+ * leaves the logbook untouched. A snapshot with any invalid record is refused: a replace must be complete.
+ * Device settings (role, device name, theme, Drive state) and reference data (airports, photo cache) are not touched.
+ * Callers must make a safety copy of the current logbook first; see features/drive.
+ */
+export async function applyReplace(db: LogbookDB, snapshot: Snapshot): Promise<{ flights: number; fstd: number; experience: number }> {
+  const { bundle, problems } = snapshotToBundle(snapshot);
+  if (problems.length > 0) throw new ReplaceRefusedError(`The snapshot has ${problems.length} invalid record(s), e.g. ${problems[0]!.record}: ${problems[0]!.message}. Nothing was changed.`);
+  const now = Date.now();
+  return db.transaction('rw', [db.flights, db.aircraft, db.persons, db.fstdSessions, db.previousExperience, db.attachments, db.settings], async () => {
+    await Promise.all([db.flights.clear(), db.aircraft.clear(), db.persons.clear(), db.fstdSessions.clear(), db.previousExperience.clear(), db.attachments.clear()]);
+    await db.aircraft.bulkAdd(snapshot.aircraft);
+    const persons = [...snapshot.persons];
+    // the logbook always has its owner ("SELF")
+    if (!persons.some((p) => p.isSelf)) persons.push({ id: uuid(), name: 'SELF', nameKey: 'self', isSelf: true, createdAt: now, updatedAt: now });
+    await db.persons.bulkAdd(persons);
+    await db.flights.bulkAdd(snapshot.flights);
+    await db.fstdSessions.bulkAdd(snapshot.fstdSessions);
+    await db.previousExperience.bulkAdd(snapshot.previousExperience);
+    await db.attachments.bulkAdd(snapshot.attachments.map((a) => ({ id: a.id, flightId: a.flightId, mime: a.mime, name: a.name, createdAt: a.createdAt, updatedAt: a.updatedAt, blob: new Blob([base64ToBytes(a.data) as BlobPart], { type: a.mime }) })));
+    const cur = await db.settings.get('main');
+    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null });
+    return { flights: bundle.flights.length, fstd: bundle.fstd.length, experience: bundle.experience.length };
   });
 }

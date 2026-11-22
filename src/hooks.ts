@@ -50,15 +50,44 @@ export function routeToHash(r: Route): string {
   }
 }
 
+/**
+ * Where the top-left "Back" button goes: one level UP the screen hierarchy, never "wherever the browser came
+ * from". (Browser history can contain screens the user has already left, e.g. an edit form after saving.)
+ */
+export function parentRoute(r: Route): Route | null {
+  switch (r.name) {
+    case 'flight': case 'new': case 'settings': return { name: 'list' };
+    case 'edit': return { name: 'flight', id: r.id };
+    case 'export': return { name: 'settings' };
+    case 'fstd': case 'experience': return { name: 'totals' };
+    case 'fstd-new': case 'fstd-edit': return { name: 'fstd' };
+    case 'experience-new': case 'experience-edit': return { name: 'experience' };
+    case 'list': case 'totals': case 'currency': return null;
+  }
+}
+
+export interface GoOptions {
+  /** Replace the current history entry instead of adding one (after saving, deleting, cancelling, or going up). */
+  replace?: boolean;
+}
+
 /** Minimal hash router: works on static hosting (GitHub Pages) with no rewrite rules. */
-export function useRoute(): [Route, (r: Route) => void] {
+export function useRoute(): [Route, (r: Route, opts?: GoOptions) => void] {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
   useEffect(() => {
     const on = () => setRoute(parseHash(window.location.hash));
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
-  const go = useCallback((r: Route) => { window.location.hash = routeToHash(r); }, []);
+  const go = useCallback((r: Route, opts?: GoOptions) => {
+    if (opts?.replace) {
+      // replaceState does not fire "hashchange", so the route state is updated directly
+      window.history.replaceState(null, '', routeToHash(r));
+      setRoute(r);
+    } else {
+      window.location.hash = routeToHash(r);
+    }
+  }, []);
   return [route, go];
 }
 

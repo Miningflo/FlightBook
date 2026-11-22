@@ -9,6 +9,7 @@ export async function snapshotFromDb(db: LogbookDB, exportedAt = new Date().toIS
   ]);
   return buildSnapshot({
     exportedAt,
+    deviceId: settings?.deviceId,
     deviceName: settings?.deviceName ?? '',
     settings: { pilotName: settings?.pilotName, sepLandExpiry: settings?.sepLandExpiry ?? null },
     aircraft, persons, flights, fstdSessions, previousExperience,

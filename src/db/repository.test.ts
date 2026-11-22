@@ -191,3 +191,26 @@ describe('simulator sessions and previous experience', () => {
     expect((await repo.getSettings()).sepLandExpiry).toBe('2026-03-31');
   });
 });
+
+describe('onWrite notifications and DB v3', () => {
+  it('notifies after every committed logbook change, but not for device settings or failed writes', async () => {
+    let calls = 0;
+    const r = new DexieRepository(db, () => { calls++; });
+    const f = await r.saveFlight(input());
+    await r.saveFlight(input({ arrClock: '12:00' }), f.id);
+    await r.deleteFlight(f.id);
+    const s = await r.saveFstd({ date: '2025-01-01', fstdType: 'X', totalMin: 1, remarks: '' });
+    await r.deleteFstd(s.id);
+    const e = await r.savePreviousExperience({ ...emptyExperience('2024-12-31'), source: 's' });
+    await r.deletePreviousExperience(e.id);
+    expect(calls).toBe(7);
+    await r.updateSettings({ theme: 'dark', deviceName: 'x', driveEnabled: true, lastBackupAt: 5 });
+    expect(calls).toBe(7); // device/Drive settings are not logbook data
+    await r.updateSettings({ pilotName: 'A. Pilot' });
+    await r.updateSettings({ sepLandExpiry: '2026-03-31' });
+    expect(calls).toBe(9);
+    await expect(r.saveFlight(input(), 'missing')).rejects.toThrow();
+    await expect(r.saveFstd({ date: '2025-01-01', fstdType: 'X', totalMin: 1, remarks: '' }, 'missing')).rejects.toThrow();
+    expect(calls).toBe(9); // failures do not notify
+  });
+});

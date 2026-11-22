@@ -86,3 +86,21 @@ describe('base64', () => {
     }
   });
 });
+
+import { snapshotRecords } from './snapshot';
+
+describe('snapshotRecords', () => {
+  it('returns the valid records and counts the ones it had to leave out', () => {
+    const s = snap();
+    s.flights.push(flight('2025-03-03', { picNameId: 'missing' }), flight('2025-03-04', { totalMin: 0 }));
+    s.fstdSessions.push({ id: 's2', createdAt: 1, updatedAt: 1, date: '2025-02-03', fstdType: '', totalMin: 0, remarks: '' });
+    const r = snapshotRecords(s);
+    expect(r.flights).toHaveLength(2);
+    expect(r.fstd).toHaveLength(1);
+    expect(r.experience).toHaveLength(1);
+    expect(r.hidden).toBe(3);
+  });
+  it('a clean snapshot hides nothing', () => {
+    expect(snapshotRecords(snap()).hidden).toBe(0);
+  });
+});

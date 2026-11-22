@@ -116,7 +116,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
   const onRole = (r: Role) => setForm((s) => updateForm(s, { roles: toggleRole(s.roles, r, s.totalMin) }));
 
   const cancel = () => (dirty ? setConfirmDiscard(true) : leave());
-  const leave = () => go(editing ? { name: 'flight', id: flight.id } : { name: 'list' });
+  const leave = () => go(editing ? { name: 'flight', id: flight.id } : { name: 'list' }, { replace: true });
 
   const save = async () => {
     setSubmitted(true);
@@ -130,7 +130,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
       const input = formToFlightInput(form, { attachmentIds: flight?.attachmentIds, previousOverrides: flight?.overrides });
       const saved = await writer.saveFlight(input, flight?.id);
       await reload();
-      go({ name: 'flight', id: saved.id });
+      go({ name: 'flight', id: saved.id }, { replace: true });
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -142,7 +142,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
     if (!flight) return;
     await writer.deleteFlight(flight.id);
     await reload();
-    go({ name: 'list' });
+    go({ name: 'list' }, { replace: true });
   };
 
   return (

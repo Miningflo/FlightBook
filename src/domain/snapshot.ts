@@ -30,6 +30,8 @@ export interface Snapshot {
   app: 'flightbook';
   schemaVersion: number;
   exportedAt: string;
+  /** Device that wrote the snapshot (optional: older snapshots do not have it). */
+  deviceId?: string;
   deviceName: string;
   settings: { pilotName?: string; sepLandExpiry?: IsoDate | null };
   aircraft: Aircraft[];
@@ -112,6 +114,21 @@ export function snapshotToBundle(s: Snapshot): { bundle: ImportBundle; problems:
     return bad.length === 0;
   });
   return { bundle: { flights, fstd, experience }, problems };
+}
+
+/**
+ * The records of a snapshot that are safe to show (a viewer displays them directly). Invalid records are
+ * left out and COUNTED, so the screen can say that some were hidden instead of silently showing less.
+ */
+export function snapshotRecords(s: Snapshot): { flights: Flight[]; fstd: FstdSession[]; experience: PreviousExperience[]; hidden: number } {
+  const { bundle } = snapshotToBundle(s);
+  const okFlights = new Set(bundle.flights.map((f) => f.id));
+  const okFstd = new Set(bundle.fstd.map((f) => f.id));
+  const okExp = new Set(bundle.experience.map((f) => f.id));
+  const flights = s.flights.filter((f) => okFlights.has(f.id));
+  const fstd = s.fstdSessions.filter((f) => okFstd.has(f.id));
+  const experience = s.previousExperience.filter((f) => okExp.has(f.id));
+  return { flights, fstd, experience, hidden: s.flights.length - flights.length + s.fstdSessions.length - fstd.length + s.previousExperience.length - experience.length };
 }
 
 // ---- base64 for attachments (browser and Node) ----

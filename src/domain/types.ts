@@ -219,6 +219,22 @@ export interface PhotoCacheEntry {
   title?: string;
 }
 
+/**
+ * Viewer devices keep the last snapshot they loaded (device-local, never uploaded) so the
+ * logbook opens instantly and offline. It is only ever replaced by a newer download.
+ */
+export interface ViewerCacheEntry {
+  key: 'latest';
+  /** The snapshot file exactly as downloaded. */
+  text: string;
+  driveFileId: string;
+  fileName: string;
+  /** Drive's creation time of the snapshot file (ISO). */
+  createdTime: string;
+  /** When this device downloaded it. */
+  loadedAt: Timestamp;
+}
+
 export interface Airport {
   /** ICAO code, primary key. */
   icao: string;
@@ -247,6 +263,8 @@ export interface Settings {
   pilotName?: string;
   /** Expiry date of the SEP (land) class rating, for the revalidation check. */
   sepLandExpiry?: IsoDate | null;
+  /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
+  driveEnabled?: boolean;
   /** Epoch ms of the last successful Drive backup (phase 5). */
   lastBackupAt: Timestamp | null;
 }

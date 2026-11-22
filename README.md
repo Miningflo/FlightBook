@@ -3,7 +3,7 @@
 Personal EASA pilot logbook (AMC1 FCL.050) as an installable, offline-first PWA.
 The Android phone is the master logbook; the same app in a desktop browser is a read-only viewer (Drive sync arrives in phase 5). No backend.
 
-**Status:** phases 0-4 are implemented: scaffold, core flight logging (with aircraft photos), airports + automatic night time, totals + currency, and export / import / PDF. Google Drive backup and the read-only viewer (phase 5) are next. Airports/night, totals/currency, export/import and Google Drive backup are later phases.
+**Status:** all five phases are implemented: scaffold, core flight logging (with aircraft photos), airports + automatic night time, totals + currency, export / import / PDF, and Google Drive backup with a read-only viewer. Drive needs a Google client ID before it does anything (see [docs/google-cloud-setup.md](docs/google-cloud-setup.md)); without one the app works fully offline and the Drive screens say so. Airports/night, totals/currency, export/import and Google Drive backup are later phases.
 
 ## Setup
 ```
@@ -32,6 +32,15 @@ On first start choose **This device is the master logbook**; the app then asks t
 - Deleting a flight asks for confirmation; unsaved form edits ask before being discarded.
 - Service-worker updates are never applied automatically; the app shows an "Update" prompt.
 - Until the Drive backup phase exists, **there is no off-device backup**. Don't clear site data.
+
+## Google Drive backup and the read-only viewer
+Setup: [docs/google-cloud-setup.md](docs/google-cloud-setup.md) (consent screen in Testing mode, you as test user, every hosting origin as an authorised JavaScript origin). The client ID goes in `VITE_GOOGLE_CLIENT_ID`.
+- **Device roles are explicit** (Settings → "This device is the master logbook"), never inferred from screen size. Only the master can edit, and only the master writes to Drive. A viewer is built with a read-only Drive client that has no write operations at all.
+- **One master only.** The master keeps `master.json` (device id, name, claim time) in the "Logbook backups" folder. Taking the role from another device shows who holds it and requires explicit confirmation. If Drive holds a *newer snapshot from another device*, the dialog recommends restoring it first, because taking over with older data would make the older data the newest backup. Before every backup the master re-reads `master.json`; if another device has taken over, nothing is written and a banner offers "Take over again" or "Make this device a viewer".
+- **Backups** are timestamped JSON snapshots carrying the schema version (`flightbook-snapshot-YYYYMMDDTHHMMSSZ.json`); the latest 30 are kept and only files with that exact naming are ever deleted. They run on app open (if the last success is over 24 h old), about 20 s after you save changes (a burst of edits makes one backup), when the connection returns, and from "Backup now". The last successful time is shown in Settings. If Google needs a sign-in that cannot be silent, a banner offers "Sign in and back up".
+- **Restore** (master): pick a snapshot, see exactly what would be added, changed and removed, then either replace everything or only add what is missing. Replacing first saves a copy of what is on the device to Drive (`flightbook-prerestore-…`, last 5 kept) and is one all-or-nothing transaction.
+- **Viewer**: loads the newest snapshot, runs schema migrations in memory, and shows the list, totals, currency and PDF/CSV export with all editing hidden. A banner reads "Read-only — snapshot from <time>, <device>" with Refresh. The last downloaded snapshot is cached on the device so it opens instantly and offline. The viewer never writes to Drive or changes a snapshot.
+- **Limits**: access tokens last about an hour and the pop-up that renews them needs a tap (see the guide); in Testing mode Google may ask you to approve again about weekly. This was verified against a fake Google and Drive in two browsers plus a third device; the first real run with your client ID is the part only you can do.
 
 ## Export, import and backup (Settings → Export, import & backup)
 - **PDF logbook**: A4 landscape, the AMC1 FCL.050 column structure, per-page totals, totals brought forward (page 1 starts from your previous experience), to-date totals, and a signature/date line. The layout is a pure specification (`src/domain/pdfLayout.ts`: columns, widths, pagination, totals) that the renderer (`src/features/export/pdfRender.ts`) only draws; its printed totals are tested against the Totals screen. Characters the built-in PDF font cannot show are replaced (accents dropped, `Ł`→`L`, otherwise `?`) and cut-off text is shortened; both are counted and reported after creation, and the full text stays in the CSV/JSON. pdf-lib is loaded only when a PDF is created.

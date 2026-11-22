@@ -34,7 +34,11 @@ export interface WritableLogbookRepository extends LogbookRepository {
 }
 
 export class DexieRepository implements WritableLogbookRepository {
-  constructor(private readonly db: LogbookDB) {}
+  /**
+   * `onWrite` is called after every successful change to logbook data (flights, simulator sessions,
+   * previous experience, pilot name, SEP expiry), e.g. to schedule a Drive backup. Device settings do not count.
+   */
+  constructor(private readonly db: LogbookDB, private readonly onWrite?: () => void) {}
 
   async listFlights(): Promise<Flight[]> {
     return newestFirst(await this.db.flights.toArray());
@@ -61,19 +65,26 @@ export class DexieRepository implements WritableLogbookRepository {
   }
 
   saveFstd(input: FstdInput, existingId?: string): Promise<FstdSession> {
-    return this.saveRecord(this.db.fstdSessions, input, existingId, 'Simulator session');
+    return this.notify(this.saveRecord(this.db.fstdSessions, input, existingId, 'Simulator session'));
   }
 
   deleteFstd(id: string): Promise<void> {
-    return this.db.fstdSessions.delete(id);
+    return this.notify(this.db.fstdSessions.delete(id));
   }
 
   savePreviousExperience(input: ExperienceDraft, existingId?: string): Promise<PreviousExperience> {
-    return this.saveRecord(this.db.previousExperience, input, existingId, 'Previous experience record');
+    return this.notify(this.saveRecord(this.db.previousExperience, input, existingId, 'Previous experience record'));
   }
 
   deletePreviousExperience(id: string): Promise<void> {
-    return this.db.previousExperience.delete(id);
+    return this.notify(this.db.previousExperience.delete(id));
+  }
+
+  /** Run `onWrite` once a change has been committed (never when it failed). */
+  private async notify<T>(work: Promise<T>): Promise<T> {
+    const result = await work;
+    this.onWrite?.();
+    return result;
   }
 
   /** Shared insert/update for simple records: keeps id and createdAt on update, never creates a duplicate. */
@@ -101,10 +112,15 @@ export class DexieRepository implements WritableLogbookRepository {
   async updateSettings(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
     const next = { ...(await this.getSettings()), ...patch };
     await this.db.settings.put(next);
+    if ('pilotName' in patch || 'sepLandExpiry' in patch) this.onWrite?.();
     return next;
   }
 
-  async saveFlight(input: FlightInput, existingId?: string): Promise<Flight> {
+  saveFlight(input: FlightInput, existingId?: string): Promise<Flight> {
+    return this.notify(this.saveFlightImpl(input, existingId));
+  }
+
+  private async saveFlightImpl(input: FlightInput, existingId?: string): Promise<Flight> {
     const { db } = this;
     return db.transaction('rw', db.flights, db.aircraft, db.persons, async () => {
       const now = Date.now();
@@ -159,7 +175,11 @@ export class DexieRepository implements WritableLogbookRepository {
     });
   }
 
-  async deleteFlight(id: string): Promise<void> {
+  deleteFlight(id: string): Promise<void> {
+    return this.notify(this.deleteFlightImpl(id));
+  }
+
+  private async deleteFlightImpl(id: string): Promise<void> {
     const { db } = this;
     await db.transaction('rw', db.flights, db.attachments, async () => {
       await db.attachments.where('flightId').equals(id).delete();
