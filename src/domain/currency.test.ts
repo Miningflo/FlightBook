@@ -1,0 +1,171 @@
+import { describe, expect, it } from 'vitest';
+import { collectEvents, nightCurrency, passengerCurrency, rolling, sepRevalidation } from './currency';
+import { DEFAULT_RULES } from './rules';
+import { flight } from './testFactories';
+import { addDays } from './time';
+
+const today = '2025-06-30';
+const laps = (date: string, n: number, o = {}) => flight(date, { takeoffsDay: n, landingsDay: n, ...o });
+
+describe('rolling', () => {
+  it('has no history: lapsed, nothing valid', () => {
+    expect(rolling([], 3, 90, today, 14)).toEqual({ count: 0, need: 3, state: 'lapsed', validUntil: null, daysLeft: null });
+  });
+  it('counts an event for its own day and the next 89 days (conservative 90-day window)', () => {
+    const e = addDays(today, -89);
+    const r = rolling([e, e, e], 3, 90, today, 14);
+    expect(r.count).toBe(3);
+    expect(r.validUntil).toBe(today); // last valid day is today
+    expect(r.daysLeft).toBe(0);
+    expect(r.state).toBe('expiring');
+    const tomorrow = rolling([e, e, e], 3, 90, addDays(today, 1), 14);
+    expect(tomorrow.state).toBe('lapsed');
+    expect(tomorrow.count).toBe(0);
+  });
+  it('an event exactly 90 days old no longer counts', () => {
+    const e = addDays(today, -90);
+    const r = rolling([e, e, e], 3, 90, today, 14);
+    expect(r.count).toBe(0);
+    expect(r.state).toBe('lapsed');
+    expect(r.validUntil).toBe(addDays(today, -1));
+  });
+  it('amber exactly when 14 or fewer days remain', () => {
+    const e14 = addDays(today, -75); // valid until today + 14
+    expect(rolling([e14, e14, e14], 3, 90, today, 14)).toMatchObject({ daysLeft: 14, state: 'expiring' });
+    const e15 = addDays(today, -74);
+    expect(rolling([e15, e15, e15], 3, 90, today, 14)).toMatchObject({ daysLeft: 15, state: 'current' });
+  });
+  it('the Nth most recent event decides when it lapses', () => {
+    const dates = [today, today, addDays(today, -60), addDays(today, -100), addDays(today, -100)];
+    const r = rolling(dates, 3, 90, today, 14);
+    expect(r.count).toBe(3);
+    expect(r.validUntil).toBe(addDays(today, 29)); // 3rd most recent is 60 days old
+    expect(r.state).toBe('current');
+  });
+  it('ignores events dated after today', () => {
+    const f = addDays(today, 5);
+    expect(rolling([f, f, f], 3, 90, today, 14).state).toBe('lapsed');
+  });
+  it('a requirement of zero is always met', () => {
+    expect(rolling([], 0, 90, today, 14).state).toBe('current');
+  });
+});
+
+describe('passengerCurrency', () => {
+  it('is current with three take-offs and three landings today', () => {
+    const r = passengerCurrency([laps(today, 3)], 'SEP_LAND', today);
+    expect(r).toMatchObject({ status: 'green', state: 'current', validUntil: addDays(today, 89), daysLeft: 89 });
+    expect(r.takeoffs.count).toBe(3);
+    expect(r.landings.count).toBe(3);
+  });
+  it('counts every take-off of a flight, day and night together', () => {
+    const r = passengerCurrency([flight(today, { takeoffsDay: 1, takeoffsNight: 1, landingsDay: 2, landingsNight: 0 }), laps(addDays(today, -1), 1)], 'SEP_LAND', today);
+    expect(r.takeoffs.count).toBe(3);
+    expect(r.landings.count).toBe(3);
+    expect(r.state).toBe('current');
+  });
+  it('lapses when take-offs are enough but landings are not (the weaker one wins)', () => {
+    const r = passengerCurrency([flight(today, { takeoffsDay: 3, landingsDay: 2 })], 'SEP_LAND', today);
+    expect(r.state).toBe('lapsed');
+    expect(r.status).toBe('red');
+    expect(r.takeoffs.state).toBe('current');
+    expect(r.landings.state).toBe('lapsed');
+  });
+  it('turns amber and reports the earlier of the two lapse dates', () => {
+    const r = passengerCurrency([
+      flight(addDays(today, -80), { takeoffsDay: 3, landingsDay: 0, arrTimeUtc: Date.parse(`${addDays(today, -80)}T11:00:00Z`) }),
+      flight(addDays(today, -10), { takeoffsDay: 0, landingsDay: 3 }),
+    ], 'SEP_LAND', today);
+    expect(r.status).toBe('amber');
+    expect(r.validUntil).toBe(addDays(today, 9)); // take-offs lapse first: -80 + 89
+    expect(r.daysLeft).toBe(9);
+  });
+  it('dates a landing by the arrival day when the flight crosses midnight UTC', () => {
+    const f = flight('2025-06-29', {
+      depTimeUtc: Date.parse('2025-06-29T23:30:00Z'), arrTimeUtc: Date.parse('2025-06-30T00:10:00Z'),
+      takeoffsDay: 1, landingsDay: 1,
+    });
+    expect(collectEvents([f], 'SEP_LAND', false)).toEqual({ takeoffs: ['2025-06-29'], landings: ['2025-06-30'] });
+  });
+  it('only counts flights of the selected class', () => {
+    const flights = [laps(today, 3), laps(today, 3, { aircraftClass: 'TMG' })];
+    expect(passengerCurrency(flights, 'TMG', today).takeoffs.count).toBe(3);
+    expect(passengerCurrency(flights, 'SEP_LAND', today).takeoffs.count).toBe(3);
+    expect(passengerCurrency(flights, 'MEP_LAND', today).state).toBe('lapsed');
+  });
+});
+
+describe('nightCurrency', () => {
+  it('counts night take-offs and landings only', () => {
+    const r = nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5, takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today);
+    expect(r.takeoffs.count).toBe(1);
+    expect(r.state).toBe('lapsed'); // the assumed (strict) requirement is 3
+  });
+  it('is current with three night take-offs and landings', () => {
+    const r = nightCurrency([flight(today, { takeoffsNight: 3, landingsNight: 3 })], 'SEP_LAND', today);
+    expect(r.status).toBe('green');
+  });
+  it('follows the configured requirement, so a corrected rule is a one-line change', () => {
+    const rules = { ...DEFAULT_RULES, night: { ...DEFAULT_RULES.night, takeoffs: 1, landings: 1 } };
+    expect(nightCurrency([flight(today, { takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today, rules).state).toBe('current');
+  });
+});
+
+describe('sepRevalidation', () => {
+  const expiry = '2026-03-31';
+  const enough = (date: string, o = {}) => flight(date, { totalMin: 720, picMin: 360, dualMin: 60, takeoffsDay: 12, landingsDay: 12, ...o });
+
+  it('asks for the expiry date when it is not set', () => {
+    expect(sepRevalidation([], null, today)).toMatchObject({ status: 'unknown', state: 'not-set' });
+    expect(sepRevalidation([], undefined, today).progress).toEqual([]);
+  });
+  it('the experience window is the 12 months before expiry, excluding the anniversary day', () => {
+    expect(sepRevalidation([], expiry, today).windowStart).toBe('2025-04-01');
+  });
+  it('is green and informational before the window opens', () => {
+    const r = sepRevalidation([], expiry, '2025-03-01');
+    expect(r).toMatchObject({ status: 'green', state: 'window-not-open' });
+  });
+  it('is amber while in the window with requirements unmet and time left', () => {
+    const r = sepRevalidation([], expiry, '2025-12-01');
+    expect(r).toMatchObject({ status: 'amber', state: 'in-progress', daysToExpiry: 120 });
+    expect(r.progress.map((p) => p.met)).toEqual([false, false, false, false, false]);
+  });
+  it('turns red with 60 or fewer days left and requirements unmet', () => {
+    expect(sepRevalidation([], expiry, addDays(expiry, -60))).toMatchObject({ status: 'red', state: 'urgent' });
+    expect(sepRevalidation([], expiry, addDays(expiry, -61))).toMatchObject({ status: 'amber', state: 'in-progress' });
+  });
+  it('is green once every requirement is met, even close to expiry', () => {
+    const r = sepRevalidation([enough('2025-09-01')], expiry, '2026-03-20');
+    expect(r).toMatchObject({ status: 'green', state: 'requirements-met' });
+    expect(r.progress.every((p) => p.met)).toBe(true);
+  });
+  it('one unmet requirement is enough to stay short', () => {
+    const r = sepRevalidation([enough('2025-09-01', { dualMin: 30 })], expiry, '2026-03-20');
+    expect(r.state).toBe('urgent');
+    expect(r.progress.find((p) => p.key === 'training')).toMatchObject({ have: 30, need: 60, met: false });
+  });
+  it('sums several flights, and only SEP (land) flights inside the window', () => {
+    const flights = [
+      flight('2025-03-31', { totalMin: 600 }), // the anniversary day: outside
+      flight('2025-04-01', { totalMin: 200, picMin: 100, takeoffsDay: 2, landingsDay: 2 }), // first day: inside
+      flight('2025-08-01', { totalMin: 300, picMin: 300, takeoffsDay: 3, takeoffsNight: 1, landingsDay: 4, dualMin: 45 }),
+      flight('2025-08-02', { totalMin: 999, aircraftClass: 'TMG' }),
+      flight('2026-01-10', { totalMin: 500 }), // after "today"
+    ];
+    const r = sepRevalidation(flights, expiry, '2025-12-01');
+    expect(r.progress).toEqual([
+      { key: 'flight', have: 500, need: 720, unit: 'min', met: false },
+      { key: 'pic', have: 400, need: 360, unit: 'min', met: true },
+      { key: 'takeoffs', have: 6, need: 12, unit: 'count', met: false },
+      { key: 'landings', have: 6, need: 12, unit: 'count', met: false },
+      { key: 'training', have: 45, need: 60, unit: 'min', met: false },
+    ]);
+  });
+  it('is red after expiry even if the requirements were met (renewal rules are not evaluated)', () => {
+    expect(sepRevalidation([enough('2025-09-01')], expiry, '2026-04-01')).toMatchObject({ status: 'red', state: 'expired' });
+  });
+  it('on the expiry day itself the rating is still valid', () => {
+    expect(sepRevalidation([], expiry, expiry)).toMatchObject({ state: 'urgent', daysToExpiry: 0 });
+  });
+});

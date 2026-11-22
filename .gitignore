@@ -1,0 +1,8 @@
+node_modules
+dist
+dev-dist
+.env.local
+*.local
+
+# Local project brief (contains personal context); kept on disk but never published
+instructions.md
