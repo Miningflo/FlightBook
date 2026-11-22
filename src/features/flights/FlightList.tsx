@@ -66,7 +66,7 @@ export function FlightList({ selectedId, onOpen }: { selectedId?: string; onOpen
       <div className="empty">
         <div className="empty-art" aria-hidden="true"><PlaneGlyph /></div>
         <h2>Ready for take-off</h2>
-        <p>{canEdit ? 'Tap + to log your first flight.' : 'This device is a read-only viewer. Snapshots from Google Drive will appear here (added in a later phase).'}</p>
+        <p>{canEdit ? 'Tap + to log your first flight.' : 'This device is a read-only viewer. Snapshots from Google Drive will appear here.'}</p>
       </div>
     );
   }
