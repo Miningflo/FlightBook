@@ -72,6 +72,8 @@ function bool<T>(key: keyof T & string, header: string): Col<T> {
 const CLASS_BY_TEXT = new Map<string, ClassRating>([
   ...CLASS_RATINGS.map((c): [string, ClassRating] => [c.toLowerCase(), c]),
   ...CLASS_RATINGS.map((c): [string, ClassRating] => [CLASS_RATING_LABELS[c].toLowerCase(), c]),
+  ['set', 'SET_LAND'], // short forms people (and earlier exports) may use
+  ['set (turbine)', 'SET_LAND'],
 ]);
 const classCol = <T,>(key: keyof T & string, header: string): Col<T> => ({
   header, required: true, format: (r) => String(r[key]),

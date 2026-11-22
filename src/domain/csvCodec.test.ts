@@ -178,34 +178,46 @@ describe('flights landing on a later UTC date', () => {
   });
 });
 
-describe('SET (single-engine turbine) class', () => {
-  it('is offered with a label, in the canonical list, before "Other"', () => {
-    expect(CLASS_RATINGS).toContain('SET');
-    expect(CLASS_RATING_LABELS.SET).toBe('SET (turbine)');
-    expect(CLASS_RATINGS.indexOf('SET')).toBe(CLASS_RATINGS.length - 2);
+describe('SET (single-engine turbine) classes', () => {
+  it('are offered as land and sea, in the canonical list, before "Other"', () => {
+    expect(CLASS_RATING_LABELS.SET_LAND).toBe('SET (land)');
+    expect(CLASS_RATING_LABELS.SET_SEA).toBe('SET (sea)');
+    expect(CLASS_RATINGS.slice(-3)).toEqual(['SET_LAND', 'SET_SEA', 'OTHER']);
   });
-  it('round-trips a flight in a SET aircraft through CSV, by code and by label', () => {
-    const f: FlightImport = { ...randomFlight(mulberry32(11), 1), aircraftClass: 'SET' };
-    const back = decodeFlights(encodeFlights([f]), ids, NOW);
-    expect(back.errors).toEqual([]);
-    expect(back.records[0]!.value.aircraftClass).toBe('SET');
-    const byLabel = encodeFlights([f]).replace(/(^|,)SET(,|\r?\n)/, '$1SET (turbine)$2');
-    expect(decodeFlights(byLabel, ids, NOW).records[0]!.value.aircraftClass).toBe('SET');
+  for (const cls of ['SET_LAND', 'SET_SEA'] as const) {
+    it(`round-trips a ${cls} flight through CSV, by code and by label`, () => {
+      const f: FlightImport = { ...randomFlight(mulberry32(11), 1), aircraftClass: cls };
+      const csv = encodeFlights([f]);
+      const back = decodeFlights(csv, ids, NOW);
+      expect(back.errors).toEqual([]);
+      expect(back.records[0]!.value.aircraftClass).toBe(cls);
+      const label = CLASS_RATING_LABELS[cls];
+      expect(decodeFlights(csv.replace(new RegExp(`(^|,)${cls}(,|\\r?\\n)`), `$1${label}$2`), ids, NOW).records[0]!.value.aircraftClass).toBe(cls);
+    });
+  }
+  it('also reads the short forms "SET" and "SET (turbine)" as the land variant', () => {
+    const f: FlightImport = { ...randomFlight(mulberry32(12), 1), aircraftClass: 'SET_LAND' };
+    for (const word of ['SET', 'SET (turbine)']) {
+      const csv = encodeFlights([f]).replace(/(^|,)SET_LAND(,|\r?\n)/, `$1${word}$2`);
+      expect(decodeFlights(csv, ids, NOW).records[0]!.value.aircraftClass).toBe('SET_LAND');
+    }
   });
-  it('a previous-experience CSV from before SET existed still imports, and SET carry-in round-trips', () => {
-    const e = { ...emptyExperience('2024-12-31'), id: 'e1', createdAt: NOW, updatedAt: NOW, source: 'Vol. 1', totalMin: 600, spSeMin: 600, byClass: { SET: { totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 } } } as ExperienceImport;
+  it('previous-experience carry-in per SET class round-trips, and a file without any set_* columns still imports', () => {
+    const c = { totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 };
+    const e = { ...emptyExperience('2024-12-31'), id: 'e1', createdAt: NOW, updatedAt: NOW, source: 'Vol. 1', totalMin: 900, spSeMin: 900, byClass: { SET_LAND: c, SET_SEA: { totalMin: 120, picMin: 60, takeoffs: 4, landings: 4 } } } as ExperienceImport;
     const back = decodeExperience(encodeExperience([e]), ids, NOW);
     expect(back.errors).toEqual([]);
-    expect(back.records[0]!.value.byClass.SET).toEqual({ totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 });
+    expect(back.records[0]!.value.byClass.SET_LAND).toEqual(c);
+    expect(back.records[0]!.value.byClass.SET_SEA).toEqual({ totalMin: 120, picMin: 60, takeoffs: 4, landings: 4 });
     // A file exported before SET existed has no set_* columns at all.
-    const full = encodeExperience([{ ...e, byClass: { SEP_LAND: { totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 } } } as ExperienceImport]).replace(/^\uFEFF/, '');
+    const full = encodeExperience([{ ...e, byClass: { SEP_LAND: c } } as ExperienceImport]).replace(/^\uFEFF/, '');
     const [head, ...rows] = full.split(/\r?\n/).filter(Boolean).map((l) => l.split(','));
     const keep = head!.map((h, i) => (h.startsWith('set_') ? -1 : i)).filter((i) => i >= 0);
-    expect(keep.length).toBe(head!.length - 4);
+    expect(keep.length).toBe(head!.length - 8);
     const old = [head!, ...rows].map((r) => keep.map((i) => r[i]).join(',')).join('\r\n') + '\r\n';
     const back2 = decodeExperience(old, ids, NOW);
     expect(back2.errors).toEqual([]);
     expect(back2.records[0]!.value.byClass.SEP_LAND?.totalMin).toBe(600);
-    expect(back2.records[0]!.value.byClass.SET).toBeUndefined();
+    expect(back2.records[0]!.value.byClass.SET_LAND).toBeUndefined();
   });
 });
