@@ -105,6 +105,10 @@ export function SettingsScreen() {
         )}
       </div>
 
+      <p className="hint" style={{ textAlign: 'center', margin: '16px 0' }}>
+        <a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noopener noreferrer">Privacy policy</a>
+      </p>
+
       {takeOver && <TakeOverDialog onClose={() => setTakeOver(false)} onDone={() => setTakeOver(false)} />}
 
       <Dialog open={confirmOff} title="Stop being the master?" onClose={() => setConfirmOff(false)}
