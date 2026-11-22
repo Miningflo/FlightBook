@@ -34,6 +34,13 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
           runtimeCaching: [
             {
+              // Optional map background (OpenStreetMap): tiles you have looked at stay available offline for a week,
+              // and are refreshed in the background when online (respecting the tile server's caching rules).
+              urlPattern: ({ url }) => url.hostname === 'tile.openstreetmap.org',
+              handler: 'StaleWhileRevalidate',
+              options: { cacheName: 'map-tiles', expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 7 }, cacheableResponse: { statuses: [0, 200] } },
+            },
+            {
               // Aircraft photos (Planespotters, Wikimedia): cached after first view so they work offline.
               urlPattern: ({ url }) => ['t.plnspttrs.net', 'upload.wikimedia.org', 'thumb.wikimedia.org'].includes(url.hostname),
               handler: 'CacheFirst',

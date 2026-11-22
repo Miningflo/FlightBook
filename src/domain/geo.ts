@@ -46,3 +46,12 @@ export function interpolateGreatCircle(a: LatLon, b: LatLon, f: number): LatLon 
   const kb = Math.sin(f * d) / s;
   return toLatLon([ka * va[0] + kb * vb[0], ka * va[1] + kb * vb[1], ka * va[2] + kb * vb[2]]);
 }
+
+/**
+ * Points along the great circle from `a` to `b`, at most `maxStepKm` apart (at least 2, at most 160 segments),
+ * for drawing a route as a polyline.
+ */
+export function sampleGreatCircle(a: LatLon, b: LatLon, maxStepKm = 50): LatLon[] {
+  const segments = Math.min(160, Math.max(2, Math.ceil(distanceKm(a, b) / maxStepKm)));
+  return Array.from({ length: segments + 1 }, (_, i) => interpolateGreatCircle(a, b, i / segments));
+}

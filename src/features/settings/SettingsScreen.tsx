@@ -72,7 +72,7 @@ export function SettingsScreen() {
 
       <DriveCard />
 
-      {data.settings.isMaster && <AirportsCard />}
+      <AirportsCard />
 
       <div className="card">
         <div className="switch-row">

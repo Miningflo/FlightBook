@@ -15,6 +15,7 @@ import { Snackbar } from './ui/components';
 import { NavBar } from './ui/NavBar';
 import { TotalsScreen } from './features/totals/TotalsScreen';
 import { CurrencyScreen } from './features/currency/CurrencyScreen';
+import { MapScreen } from './features/map/MapScreen';
 import { FstdForm, FstdList } from './features/fstd/FstdScreens';
 import { ExperienceForm, ExperienceList } from './features/experience/ExperienceScreens';
 import { FlightList } from './features/flights/FlightList';
@@ -147,6 +148,8 @@ export function App() {
     title = 'Export & backup'; back = true; body = <ExportScreen />;
   } else if (route.name === 'totals') {
     title = 'Totals'; showNav = true; body = <TotalsScreen />;
+  } else if (route.name === 'map') {
+    title = 'Map'; showNav = true; body = <MapScreen />;
   } else if (route.name === 'currency') {
     title = 'Currency'; showNav = true; body = <CurrencyScreen />;
   } else if (route.name === 'fstd') {
@@ -193,7 +196,7 @@ export function App() {
   if (showNav && wide) contentWide = true;
 
   // A viewer with nothing loaded yet sees a status screen on the main routes instead of an empty logbook.
-  const gated = !data.settings.isMaster && !viewerSnap && ['list', 'flight', 'totals', 'currency'].includes(route.name);
+  const gated = !data.settings.isMaster && !viewerSnap && ['list', 'flight', 'totals', 'currency', 'map'].includes(route.name);
   if (gated) { body = <ViewerGate />; showFab = false; }
 
   return (
@@ -204,7 +207,7 @@ export function App() {
           <h1>{title}</h1>
           {showNav && wide && <NavBar route={route} go={go} />}
           {!back && !data.settings.isMaster && <span className="chip">Read-only</span>}
-          {(!back || route.name === 'totals' || route.name === 'currency') && <button type="button" className="icon-btn" aria-label="Settings" onClick={() => go({ name: 'settings' })}><SettingsIcon /></button>}
+          {(!back || route.name === 'totals' || route.name === 'currency' || route.name === 'map') && <button type="button" className="icon-btn" aria-label="Settings" onClick={() => go({ name: 'settings' })}><SettingsIcon /></button>}
           {route.name === 'flight' && wide && ctx.canEdit && flight && (
             <button type="button" className="icon-btn" aria-label="Edit flight" onClick={() => go({ name: 'edit', id: flight.id })}><EditIcon /></button>
           )}

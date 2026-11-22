@@ -25,3 +25,4 @@ export const ListIcon = () => <svg {...base}><path d="M8 6h13M8 12h13M8 18h13M3 
 export const ChartIcon = () => <svg {...base}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>;
 export const ShieldIcon = () => <svg {...base}><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></svg>;
 export const ChevronIcon = () => <svg {...base}><path d="M9 6l6 6-6 6" /></svg>;
+export const MapIcon = () => <svg {...base}><path d="M9 3L3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3zM9 3v15M15 6v15" /></svg>;

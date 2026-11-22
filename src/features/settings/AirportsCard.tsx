@@ -39,7 +39,7 @@ export function AirportsCard() {
     <div className="card">
       <div>Airports database</div>
       <p className="hint">
-        Needed to compute night time and day/night take-offs and landings from the sun's position. Data: OurAirports (public domain).
+        Needed to compute night time and day/night take-offs and landings from the sun's position, and to place your flights on the map. It is reference data on this device (a read-only viewer may import it too). Data: OurAirports (public domain).
         Only 4-character ICAO/GPS codes are kept. This is reference data, so it is not part of backups; you can re-import it at any time.
       </p>
       <p>

@@ -9,6 +9,7 @@ export type Route =
   | { name: 'export' }
   | { name: 'totals' }
   | { name: 'currency' }
+  | { name: 'map' }
   | { name: 'fstd' }
   | { name: 'fstd-new' }
   | { name: 'fstd-edit'; id: string }
@@ -26,6 +27,7 @@ export function parseHash(hash: string): Route {
   if (a === 'export') return { name: 'export' };
   if (a === 'totals') return { name: 'totals' };
   if (a === 'currency') return { name: 'currency' };
+  if (a === 'map') return { name: 'map' };
   if (a === 'fstd') return b === 'new' ? { name: 'fstd-new' } : b === 'edit' && c ? { name: 'fstd-edit', id: c } : { name: 'fstd' };
   if (a === 'experience') return b === 'new' ? { name: 'experience-new' } : b === 'edit' && c ? { name: 'experience-edit', id: c } : { name: 'experience' };
   return { name: 'list' };
@@ -41,6 +43,7 @@ export function routeToHash(r: Route): string {
     case 'export': return '#/export';
     case 'totals': return '#/totals';
     case 'currency': return '#/currency';
+    case 'map': return '#/map';
     case 'fstd': return '#/fstd';
     case 'fstd-new': return '#/fstd/new';
     case 'fstd-edit': return `#/fstd/edit/${r.id}`;
@@ -62,7 +65,7 @@ export function parentRoute(r: Route): Route | null {
     case 'fstd': case 'experience': return { name: 'totals' };
     case 'fstd-new': case 'fstd-edit': return { name: 'fstd' };
     case 'experience-new': case 'experience-edit': return { name: 'experience' };
-    case 'list': case 'totals': case 'currency': return null;
+    case 'list': case 'totals': case 'currency': case 'map': return null;
   }
 }
 

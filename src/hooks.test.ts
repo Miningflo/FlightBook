@@ -18,7 +18,7 @@ describe('parentRoute: the Back button goes UP, not through browser history', ()
     expect(parentRoute({ name: 'experience-edit', id: 'a' })).toEqual({ name: 'experience' });
   });
   it('top-level screens have nothing above them', () => {
-    for (const r of [{ name: 'list' }, { name: 'totals' }, { name: 'currency' }] as Route[]) expect(parentRoute(r)).toBeNull();
+    for (const r of [{ name: 'list' }, { name: 'totals' }, { name: 'currency' }, { name: 'map' }] as Route[]) expect(parentRoute(r)).toBeNull();
   });
   it('walking up from any screen reaches a top-level screen without looping', () => {
     const all: Route[] = [{ name: 'flight', id: 'a' }, { name: 'edit', id: 'a' }, { name: 'new' }, { name: 'settings' }, { name: 'export' }, { name: 'fstd' }, { name: 'fstd-new' }, { name: 'fstd-edit', id: 'a' }, { name: 'experience' }, { name: 'experience-new' }, { name: 'experience-edit', id: 'a' }];
@@ -29,6 +29,6 @@ describe('parentRoute: the Back button goes UP, not through browser history', ()
     }
   });
   it('routes round-trip through the hash', () => {
-    for (const r of [{ name: 'list' }, { name: 'flight', id: 'abc' }, { name: 'export' }, { name: 'fstd-edit', id: 'q' }] as Route[]) expect(parseHash(routeToHash(r))).toEqual(r);
+    for (const r of [{ name: 'list' }, { name: 'flight', id: 'abc' }, { name: 'export' }, { name: 'map' }, { name: 'fstd-edit', id: 'q' }] as Route[]) expect(parseHash(routeToHash(r))).toEqual(r);
   });
 });

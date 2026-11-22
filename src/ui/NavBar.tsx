@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import type { Route } from '../hooks';
-import { ChartIcon, ListIcon, ShieldIcon } from './Icons';
+import { ChartIcon, ListIcon, MapIcon, ShieldIcon } from './Icons';
 
-const ITEMS: { name: 'list' | 'totals' | 'currency'; label: string; icon: ReactNode }[] = [
+const ITEMS: { name: 'list' | 'totals' | 'map' | 'currency'; label: string; icon: ReactNode }[] = [
   { name: 'list', label: 'Logbook', icon: <ListIcon /> },
   { name: 'totals', label: 'Totals', icon: <ChartIcon /> },
+  { name: 'map', label: 'Map', icon: <MapIcon /> },
   { name: 'currency', label: 'Currency', icon: <ShieldIcon /> },
 ];
 
