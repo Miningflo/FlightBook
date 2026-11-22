@@ -54,6 +54,12 @@ export function MapScreen() {
   const byIcao = useMemo(() => new Map(map.airports.map((a) => [a.icao, a])), [map.airports]);
   const maxRoute = map.routes[0]?.flights ?? 1;
 
+  // The map page is exactly one screen tall: the page itself never scrolls, so touches on the map and elsewhere behave the same.
+  useEffect(() => {
+    document.documentElement.classList.add('map-lock');
+    return () => document.documentElement.classList.remove('map-lock');
+  }, []);
+
   // follow the size of the container
   useEffect(() => {
     const el = wrap.current;
@@ -65,7 +71,8 @@ export function MapScreen() {
   }, [dbCount]);
 
   // frame everything whenever the set of airports (or the container) changes; the user's own pan/zoom is kept otherwise
-  const fitKey = `${map.airports.map((a) => a.icao).join(',')}|${size.w > 0}`;
+  // (a size change of 40 px or more, e.g. rotating the phone, re-frames too; small jitters do not)
+  const fitKey = `${map.airports.map((a) => a.icao).join(',')}|${Math.round(size.w / 40)}x${Math.round(size.h / 40)}|${size.w > 0}`;
   const fit = useCallback(() => { if (size.w > 0) setView(fitView(map.airports, size)); }, [map.airports, size]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fit(); }, [fitKey]);
@@ -168,7 +175,8 @@ export function MapScreen() {
   }
 
   return (
-    <div>
+    <div className="map-page">
+      <div className="map-top">
       <section className="map-hero" aria-label="Airports">
         <div className="num" aria-live="polite">{map.airports.length}</div>
         <div className="label">{map.airports.length === 1 ? 'airport' : 'airports'}</div>
@@ -177,6 +185,8 @@ export function MapScreen() {
       <div className="range-chips" role="group" aria-label="Date range">
         {PRESETS.map(([k, label]) => <button key={k} type="button" className="chip" aria-pressed={preset === k} onClick={() => setPreset(k)}>{label}</button>)}
       </div>
+      </div>
+
       <div className="map-wrap" ref={wrap} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onUp}>
         {view && size.w > 0 && (
           <svg width={size.w} height={size.h} role="group" aria-label="Map of your flights" className="map-svg">
@@ -231,14 +241,14 @@ export function MapScreen() {
         )}
       </div>
 
-      {map.unplaced.flights > 0 && (
-        <p className="msg warning" role="status">
-          {map.unplaced.flights} flight{map.unplaced.flights === 1 ? '' : 's'} cannot be drawn as {map.unplaced.flights === 1 ? 'a route' : 'routes'} because an airport is not in the database
-          ({map.unplaced.codes.slice(0, 6).join(', ')}{map.unplaced.codes.length > 6 ? '…' : ''}). Airports that are known are still counted.
-        </p>
-      )}
-
-      <p className="hint" style={{ margin: '0 4px 12px' }}>The number in a circle is how many flights started or ended there; thicker lines are routes flown more often. {!sel && 'Tap an airport to see its connections. Drag to move the map, pinch or scroll to zoom. '}Coastlines and borders: Natural Earth (public domain).</p>
+      <div className="map-foot">
+        {map.unplaced.flights > 0 && (
+          <div className="msg warning" role="status">
+            {map.unplaced.flights} flight{map.unplaced.flights === 1 ? '' : 's'} not drawn: airport not in the database ({map.unplaced.codes.slice(0, 4).join(', ')}{map.unplaced.codes.length > 4 ? '…' : ''}).
+          </div>
+        )}
+        <div className="hint">Circle: flights that started or ended there. Thicker line: flown more often.{!sel && ' Tap an airport for details.'} Coastlines: Natural Earth.</div>
+      </div>
     </div>
   );
 }

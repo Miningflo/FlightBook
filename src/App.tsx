@@ -202,7 +202,7 @@ export function App() {
 
   return (
     <AppContext.Provider value={ctx}>
-      <div className={`app${showNav ? ' has-nav' : ''}`}>
+      <div className={`app${showNav ? ' has-nav' : ''}${route.name === 'map' && !gated ? ' map-route' : ''}`}>
         <header className="topbar">
           {back && <button type="button" className="icon-btn back" aria-label="Back" onClick={() => go(parentRoute(route) ?? { name: 'list' }, { replace: true })}><BackIcon /></button>}
           <h1>{title}</h1>
@@ -213,7 +213,7 @@ export function App() {
             <button type="button" className="icon-btn" aria-label="Edit flight" onClick={() => go({ name: 'edit', id: flight.id })}><EditIcon /></button>
           )}
         </header>
-        <main className={`content${contentWide ? ' wide' : ''}`}>
+        <main className={`content${contentWide ? ' wide' : ''}${route.name === 'map' && !gated ? ' fill' : ''}`}>
           {!gated && <DriveBanners hiddenRecords={viewerRecords?.hidden ?? 0} />}
           {body}
         </main>
