@@ -4,7 +4,7 @@ import { type ExperienceImport, type FlightImport, type FstdImport } from './rec
 import { emptyExperience } from './experience';
 import { mulberry32 } from './testUtils';
 import { dateOfTimestamp } from './time';
-import { CLASS_RATINGS, type ClassRating } from './types';
+import { CLASS_RATINGS, CLASS_RATING_LABELS, type ClassRating } from './types';
 
 const ids = (() => { let n = 0; return () => `gen-${++n}`; })();
 const NOW = 1_700_000_000_000;
@@ -154,5 +154,58 @@ describe('detectCsvKind', () => {
   it('every known class has its own columns', () => {
     const header = encodeExperience([]).split('\r\n')[0]!;
     for (const c of CLASS_RATINGS as readonly ClassRating[]) expect(header).toContain(`${c.toLowerCase()}_total`);
+  });
+});
+
+describe('flights landing on a later UTC date', () => {
+  it('keep take-off and landing timestamps exactly through CSV (midnight crossing, month end, over 24 h)', () => {
+    const rnd = mulberry32(7);
+    const mk = (i: number, dep: string, arr: string): FlightImport => {
+      const f = randomFlight(rnd, i);
+      const d = Date.parse(dep), a = Date.parse(arr);
+      const total = Math.round((a - d) / 60_000);
+      return { ...f, date: dateOfTimestamp(d), depTimeUtc: d, arrTimeUtc: a, totalMin: total, spSeMin: total, spMeMin: 0, mpMin: 0, engineClass: 'SP-SE',
+        nightMin: 0, ifrMin: 0, picMin: 0, copiMin: 0, dualMin: 0, instMin: 0 };
+    };
+    const list = [
+      mk(1, '2025-06-10T23:10:00Z', '2025-06-11T01:40:00Z'),
+      mk(2, '2025-12-31T23:30:00Z', '2026-01-01T00:30:00Z'),
+      mk(3, '2025-06-10T10:00:00Z', '2025-06-11T12:00:00Z'),
+    ];
+    const back = decodeFlights(encodeFlights(list), ids, NOW);
+    expect(back.errors).toEqual([]);
+    expect(back.records.map((r) => [r.value.date, r.value.depTimeUtc, r.value.arrTimeUtc])).toEqual(list.map((f) => [f.date, f.depTimeUtc, f.arrTimeUtc]));
+  });
+});
+
+describe('SET (single-engine turbine) class', () => {
+  it('is offered with a label, in the canonical list, before "Other"', () => {
+    expect(CLASS_RATINGS).toContain('SET');
+    expect(CLASS_RATING_LABELS.SET).toBe('SET (turbine)');
+    expect(CLASS_RATINGS.indexOf('SET')).toBe(CLASS_RATINGS.length - 2);
+  });
+  it('round-trips a flight in a SET aircraft through CSV, by code and by label', () => {
+    const f: FlightImport = { ...randomFlight(mulberry32(11), 1), aircraftClass: 'SET' };
+    const back = decodeFlights(encodeFlights([f]), ids, NOW);
+    expect(back.errors).toEqual([]);
+    expect(back.records[0]!.value.aircraftClass).toBe('SET');
+    const byLabel = encodeFlights([f]).replace(/(^|,)SET(,|\r?\n)/, '$1SET (turbine)$2');
+    expect(decodeFlights(byLabel, ids, NOW).records[0]!.value.aircraftClass).toBe('SET');
+  });
+  it('a previous-experience CSV from before SET existed still imports, and SET carry-in round-trips', () => {
+    const e = { ...emptyExperience('2024-12-31'), id: 'e1', createdAt: NOW, updatedAt: NOW, source: 'Vol. 1', totalMin: 600, spSeMin: 600, byClass: { SET: { totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 } } } as ExperienceImport;
+    const back = decodeExperience(encodeExperience([e]), ids, NOW);
+    expect(back.errors).toEqual([]);
+    expect(back.records[0]!.value.byClass.SET).toEqual({ totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 });
+    // A file exported before SET existed has no set_* columns at all.
+    const full = encodeExperience([{ ...e, byClass: { SEP_LAND: { totalMin: 600, picMin: 300, takeoffs: 12, landings: 12 } } } as ExperienceImport]).replace(/^\uFEFF/, '');
+    const [head, ...rows] = full.split(/\r?\n/).filter(Boolean).map((l) => l.split(','));
+    const keep = head!.map((h, i) => (h.startsWith('set_') ? -1 : i)).filter((i) => i >= 0);
+    expect(keep.length).toBe(head!.length - 4);
+    const old = [head!, ...rows].map((r) => keep.map((i) => r[i]).join(',')).join('\r\n') + '\r\n';
+    const back2 = decodeExperience(old, ids, NOW);
+    expect(back2.errors).toEqual([]);
+    expect(back2.records[0]!.value.byClass.SEP_LAND?.totalMin).toBe(600);
+    expect(back2.records[0]!.value.byClass.SET).toBeUndefined();
   });
 });

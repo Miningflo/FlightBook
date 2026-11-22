@@ -25,6 +25,8 @@ export interface FlightFormState {
   date: IsoDate;
   depClock: string;
   arrClock: string;
+  /** On-blocks date (UTC). Empty = automatic: the day of take-off, or the next day if the arrival clock is earlier. */
+  arrDate: IsoDate | '';
   depPlace: string;
   arrPlace: string;
 
@@ -79,6 +81,7 @@ export function emptyForm(d: FormDefaults): FlightFormState {
     date: d.today,
     depClock: '',
     arrClock: '',
+    arrDate: '',
     depPlace: '',
     arrPlace: '',
     registration: d.registration ?? '',
@@ -119,6 +122,8 @@ export function formFromFlight(f: Flight, picName: string): FlightFormState {
     date: f.date,
     depClock: clockOfTimestamp(f.depTimeUtc),
     arrClock: clockOfTimestamp(f.arrTimeUtc),
+    // Automatic unless the stored landing is not where the automatic rule would put it.
+    arrDate: resolveBlockTimes(f.date, clockOfTimestamp(f.depTimeUtc), clockOfTimestamp(f.arrTimeUtc))?.arr === f.arrTimeUtc ? '' : dateOfTimestamp(f.arrTimeUtc),
     depPlace: f.depPlace,
     arrPlace: f.arrPlace,
     registration: f.registration,
@@ -159,7 +164,7 @@ function minutesBetweenClocks(f: Flight): Minutes {
 export function updateForm(state: FlightFormState, patch: Partial<FlightFormState>): FlightFormState {
   const next: FlightFormState = { ...state, ...patch };
   if (!next.totalManual) {
-    next.totalMin = blockMinutes(next.date, next.depClock, next.arrClock) ?? 0;
+    next.totalMin = blockMinutes(next.date, next.depClock, next.arrClock, next.arrDate) ?? 0;
   }
   next.roles = applyRoleDefaults(patch.roles ?? next.roles, next.totalMin);
   return next;
@@ -167,7 +172,7 @@ export function updateForm(state: FlightFormState, patch: Partial<FlightFormStat
 
 /** Set an explicit total. Setting it back to block time returns to automatic mode. */
 export function setTotal(state: FlightFormState, totalMin: Minutes): FlightFormState {
-  const block = blockMinutes(state.date, state.depClock, state.arrClock);
+  const block = blockMinutes(state.date, state.depClock, state.arrClock, state.arrDate);
   const manual = block === null || totalMin !== block;
   return updateForm(state, { totalMin, totalManual: manual });
 }
@@ -268,11 +273,15 @@ export function validateForm(s: FlightFormState): ValidationIssue[] {
   const err = (field: string, message: string) => issues.push({ field, message, severity: 'error' });
   const warn = (field: string, message: string) => issues.push({ field, message, severity: 'warning' });
 
-  const times = resolveBlockTimes(s.date, s.depClock, s.arrClock);
+  const times = resolveBlockTimes(s.date, s.depClock, s.arrClock, s.arrDate);
   if (!times) {
     err('times', 'Enter a valid date and off-blocks / on-blocks times (UTC).');
   } else if (times.arr === times.dep) {
     err('times', 'On-blocks time equals off-blocks time.');
+  } else if (times.arr < times.dep) {
+    err('times', 'On-blocks is before off-blocks. Check the on-blocks date.');
+  } else if (times.arr - times.dep > 24 * 3_600_000) {
+    warn('times', 'This flight is longer than 24 hours. Check the dates.');
   }
 
   if (!s.depPlace.trim()) err('depPlace', 'Departure place is required.');
@@ -365,7 +374,7 @@ export function formToFlightInput(
   extra: { attachmentIds?: string[]; previousOverrides?: Overrides } = {},
 ): FlightInput {
   if (hasErrors(validateForm(s))) throw new Error('Flight form has validation errors');
-  const times = resolveBlockTimes(s.date, s.depClock, s.arrClock)!;
+  const times = resolveBlockTimes(s.date, s.depClock, s.arrClock, s.arrDate)!;
   const overrides: Overrides = { ...(extra.previousOverrides ?? {}) };
   const flag = (key: keyof Overrides, on: boolean) => { if (on) overrides[key] = true; else delete overrides[key]; };
   flag('totalMin', s.totalManual);

@@ -21,7 +21,7 @@ import {
   validateForm,
 } from '../../domain/flightForm';
 import { setRoleMinutes, toggleRole } from '../../domain/roles';
-import { dateOfTimestamp, formatHHMM, resolveBlockTimes } from '../../domain/time';
+import { addDays, dateOfTimestamp, daysBetween, effectiveArrDate, formatHHMM, resolveBlockTimes } from '../../domain/time';
 import { computeNight } from '../../domain/night';
 import {
   defaultsFromHistory,
@@ -71,7 +71,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
   // --- Airports + night time (phase 2) ---
   const [airportInfo, setAirportInfo] = useState<{ count: number; dep?: Airport; arr?: Airport } | null>(null);
   const firstCalc = useRef(true);
-  const calcKey = `${form.date}|${form.depClock}|${form.arrClock}|${form.depPlace.trim()}|${form.arrPlace.trim()}`;
+  const calcKey = `${form.date}|${form.depClock}|${form.arrClock}|${form.arrDate}|${form.depPlace.trim()}|${form.arrPlace.trim()}`;
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -81,7 +81,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
       if (cancelled) return;
       const dep = found.get(depCode);
       const arr = found.get(arrCode);
-      const t = resolveBlockTimes(form.date, form.depClock, form.arrClock);
+      const t = resolveBlockTimes(form.date, form.depClock, form.arrClock, form.arrDate);
       const auto = dep && arr && t && t.arr > t.dep
         ? computeNight({ depTime: t.dep, arrTime: t.arr, from: dep, to: arr })
         : null;
@@ -107,6 +107,23 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
   if (!writer) return <div className="empty">This device is not the master logbook, so editing is disabled.</div>;
 
   const patch = (p: Partial<FlightFormState>) => setForm((s) => updateForm(s, p));
+
+  // The landing date follows the take-off date and times (next day if the arrival clock is earlier) until it is set by hand.
+  const autoLandingDate = effectiveArrDate(form.date, form.depClock, form.arrClock);
+  const landingDate = effectiveArrDate(form.date, form.depClock, form.arrClock, form.arrDate) ?? form.date;
+  const landingHint = !form.arrDate
+    ? (autoLandingDate && autoLandingDate !== form.date ? 'Next day: the flight crossed midnight UTC.' : 'Same day. Change it if you landed on another date.')
+    : (landingDate === form.date ? 'Same day.' : landingDate > form.date ? 'Set by hand.' : 'Before take-off: check this date.');
+  const onDate = (value: string) => setForm((st) => {
+    // Keep a hand-set landing date the same number of days after take-off.
+    const shifted = st.arrDate && value ? addDays(value, daysBetween(st.date, st.arrDate)) : st.arrDate;
+    return updateForm(st, { date: value, arrDate: shifted });
+  });
+  const onLandingDate = (value: string) => setForm((st) => {
+    // Back to automatic when it matches what the automatic rule gives.
+    const auto = effectiveArrDate(st.date, st.depClock, st.arrClock);
+    return updateForm(st, { arrDate: !value || value === auto ? '' : value });
+  });
   const onRegistration = (v: string) => {
     const upper = v.toUpperCase();
     const known = findAircraftByRegistration(data.aircraft, upper);
@@ -149,8 +166,8 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
       <p className="hint" style={{ margin: '0 4px 12px' }}>All times are UTC (off-blocks / on-blocks).</p>
 
       <div className="card">
-        <Field label="Date (UTC)" error={err('times')} htmlFor="f-date">
-          <input id="f-date" className="input" type="date" value={form.date} onChange={(e) => patch({ date: e.target.value })} />
+        <Field label="Take-off date (UTC)" error={err('times')} warning={warn('times')} htmlFor="f-date">
+          <input id="f-date" className="input" type="date" value={form.date} onChange={(e) => onDate(e.target.value)} />
         </Field>
         <div className="grid2">
           <Field label="Off-blocks (UTC)" htmlFor="f-dep">
@@ -160,6 +177,9 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
             <input id="f-arr" className="input" type="time" value={form.arrClock} onChange={(e) => patch({ arrClock: e.target.value })} />
           </Field>
         </div>
+        <Field label="Landing date (UTC)" hint={landingHint} htmlFor="f-arrdate">
+          <input id="f-arrdate" className="input" type="date" value={landingDate} onChange={(e) => onLandingDate(e.target.value)} />
+        </Field>
         <div className="total-box">
           <div>
             <div className="hint">Total flight time {form.totalManual ? '(manual)' : '(block time)'}</div>
@@ -332,7 +352,7 @@ function OverrideNote({ text, onUse }: { text: string; onUse: () => void }) {
 
 /** Why night time could not be computed, in plain words. */
 function nightStatus(form: FlightFormState, info: { count: number; dep?: Airport; arr?: Airport } | null): string {
-  const t = resolveBlockTimes(form.date, form.depClock, form.arrClock);
+  const t = resolveBlockTimes(form.date, form.depClock, form.arrClock, form.arrDate);
   if (!form.depPlace.trim() || !form.arrPlace.trim() || !t) return 'Enter the airports and times to calculate night time and day/night take-offs and landings.';
   if (info && info.count === 0) return 'No airports database yet. Import it in Settings to calculate night time automatically; until then enter it by hand.';
   if (info && !info.dep) return `${form.depPlace.trim().toUpperCase()} is not in the airports database. Enter night time and day/night counts by hand.`;

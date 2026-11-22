@@ -111,3 +111,37 @@ describe('calendar arithmetic', () => {
     expect(utcDateOf(Date.UTC(2025, 5, 30, 23, 59))).toBe('2025-06-30');
   });
 });
+
+import { effectiveArrDate, landingDayOffset, resolveBlockTimes as resolve2, blockMinutes as block2 } from './time';
+
+describe('landing on another UTC date', () => {
+  it('infers the next day when the arrival clock is earlier than the departure clock', () => {
+    expect(block2('2025-06-10', '23:10', '01:40')).toBe(150);
+    expect(effectiveArrDate('2025-06-10', '23:10', '01:40')).toBe('2025-06-11');
+    expect(effectiveArrDate('2025-06-10', '09:00', '10:00')).toBe('2025-06-10');
+  });
+  it('crosses a month and a year end', () => {
+    expect(effectiveArrDate('2025-12-31', '23:30', '00:30')).toBe('2026-01-01');
+    expect(effectiveArrDate('2024-02-28', '22:00', '03:00')).toBe('2024-02-29');
+  });
+  it('takes an explicit landing date as entered, including flights over 24 hours', () => {
+    expect(block2('2025-06-10', '23:10', '01:40', '2025-06-11')).toBe(150);
+    expect(block2('2025-06-10', '10:00', '12:00', '2025-06-11')).toBe(26 * 60); // later clock, next day: only possible by hand
+    expect(effectiveArrDate('2025-06-10', '10:00', '12:00', '2025-06-11')).toBe('2025-06-11');
+  });
+  it('an explicit landing date before take-off gives negative block time (validation rejects it)', () => {
+    expect(block2('2025-06-10', '10:00', '12:00', '2025-06-09')).toBeLessThan(0);
+  });
+  it('is null for incomplete or invalid input', () => {
+    expect(resolve2('2025-06-10', '', '01:40')).toBeNull();
+    expect(resolve2('2025-06-10', '23:10', '01:40', '2025-13-40')).toBeNull();
+    expect(effectiveArrDate('2025-06-10', '23:10', '')).toBeNull();
+  });
+  it('counts whole calendar days between take-off and landing', () => {
+    const t = (s: string) => Date.parse(s);
+    expect(landingDayOffset(t('2025-06-10T09:00:00Z'), t('2025-06-10T10:00:00Z'))).toBe(0);
+    expect(landingDayOffset(t('2025-06-10T23:10:00Z'), t('2025-06-11T01:40:00Z'))).toBe(1);
+    expect(landingDayOffset(t('2025-06-10T10:00:00Z'), t('2025-06-11T12:00:00Z'))).toBe(1);
+    expect(landingDayOffset(t('2025-06-10T10:00:00Z'), t('2025-06-12T01:00:00Z'))).toBe(2);
+  });
+});

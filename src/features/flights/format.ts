@@ -1,5 +1,5 @@
 import type { Flight, IsoDate } from '../../domain/types';
-import { clockOfTimestamp } from '../../domain/time';
+import { clockOfTimestamp, landingDayOffset } from '../../domain/time';
 
 /** "Sat 1 Jun 2025" from a UTC calendar date. */
 export function formatDate(d: IsoDate): string {
@@ -19,7 +19,8 @@ export function aircraftLabel(f: Flight): string {
 }
 
 export function blockLabel(f: Flight): string {
-  return `${clockOfTimestamp(f.depTimeUtc)}–${clockOfTimestamp(f.arrTimeUtc)} UTC`;
+  const days = landingDayOffset(f.depTimeUtc, f.arrTimeUtc);
+  return `${clockOfTimestamp(f.depTimeUtc)}–${clockOfTimestamp(f.arrTimeUtc)}${days > 0 ? ` (+${days})` : ''} UTC`;
 }
 
 /** "1 Jun 2025" from a UTC calendar date. */

@@ -243,3 +243,42 @@ describe('computed night values and overrides', () => {
     expect(autoCounts(true)).toEqual({ day: 0, night: 1 });
   });
 });
+
+describe('landing on another UTC date', () => {
+  const night = () => updateForm(base(), { date: '2025-06-10', depClock: '23:10', arrClock: '01:40' });
+  it('a flight crossing midnight UTC saves the landing on the next day with the right block time', () => {
+    const s = night();
+    expect(s.totalMin).toBe(150);
+    expect(hasErrors(validateForm(s))).toBe(false);
+    const input = formToFlightInput(s);
+    expect(input.date).toBe('2025-06-10');
+    expect(new Date(input.depTimeUtc).toISOString()).toBe('2025-06-10T23:10:00.000Z');
+    expect(new Date(input.arrTimeUtc).toISOString()).toBe('2025-06-11T01:40:00.000Z');
+  });
+  it('an explicit landing date is used and kept when the flight is reopened', () => {
+    const s = updateForm(base(), { date: '2025-06-10', depClock: '10:00', arrClock: '12:00', arrDate: '2025-06-11' });
+    expect(s.totalMin).toBe(26 * 60);
+    expect(validateForm(s).some((i) => i.field === 'times' && i.severity === 'warning')).toBe(true); // over 24 h: check the dates
+    expect(hasErrors(validateForm(s))).toBe(false);
+    const input = formToFlightInput(s);
+    const { picName: _p, engineClass: _e, ...rest } = input;
+    const flight: Flight = { ...rest, id: 'x', aircraftId: 'a', picNameId: 'p', createdAt: 1, updatedAt: 1 };
+    expect(formFromFlight(flight, 'SELF').arrDate).toBe('2025-06-11');
+  });
+  it('reopening an ordinary or midnight-crossing flight leaves the landing date automatic', () => {
+    for (const s of [base(), night()]) {
+      const input = formToFlightInput(s);
+      const { picName: _p, engineClass: _e, ...rest } = input;
+      const flight: Flight = { ...rest, id: 'x', aircraftId: 'a', picNameId: 'p', createdAt: 1, updatedAt: 1 };
+      const back = formFromFlight(flight, 'SELF');
+      expect(back.arrDate).toBe('');
+      expect(formToFlightInput(back).arrTimeUtc).toBe(input.arrTimeUtc);
+    }
+  });
+  it('rejects a landing date before take-off', () => {
+    const s = updateForm(base(), { date: '2025-06-10', depClock: '10:00', arrClock: '12:00', arrDate: '2025-06-09' });
+    const issue = validateForm(s).find((i) => i.field === 'times' && i.severity === 'error');
+    expect(issue?.message).toMatch(/before off-blocks/);
+    expect(() => formToFlightInput(s)).toThrow();
+  });
+});

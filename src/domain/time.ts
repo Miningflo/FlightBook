@@ -63,28 +63,39 @@ export function minutesBetween(dep: Timestamp, arr: Timestamp): Minutes {
 }
 
 /**
- * Resolve on-blocks from the departure date and two clock times (UTC).
- * If the arrival clock is earlier than the departure clock the flight is taken
- * to cross midnight UTC (arrival on the next day). Equal clocks give a
- * zero-length flight, which validation rejects. Flights of 24 h or more
- * are not representable this way (not a concern for a PPL logbook).
+ * Resolve off-blocks and on-blocks (UTC) from the departure date and two clock times.
+ *  - Without `arrDate`, an arrival clock earlier than the departure clock means the flight crossed midnight UTC
+ *    (arrival on the next day). Equal clocks give a zero-length flight, which validation rejects.
+ *  - With `arrDate`, the on-blocks date is taken as entered (this also allows flights of 24 h or more).
  */
 export function resolveBlockTimes(
   date: IsoDate,
   depClock: string,
   arrClock: string,
+  arrDate: IsoDate | '' = '',
 ): { dep: Timestamp; arr: Timestamp } | null {
   const dep = utcTimestamp(date, depClock);
-  let arr = utcTimestamp(date, arrClock);
+  let arr = utcTimestamp(arrDate || date, arrClock);
   if (dep === null || arr === null) return null;
-  if (arr < dep) arr += MS_PER_DAY;
+  if (!arrDate && arr < dep) arr += MS_PER_DAY;
   return { dep, arr };
 }
 
+/** The on-blocks date (UTC) the entered values resolve to, or null while they are incomplete. */
+export function effectiveArrDate(date: IsoDate, depClock: string, arrClock: string, arrDate: IsoDate | '' = ''): IsoDate | null {
+  const t = resolveBlockTimes(date, depClock, arrClock, arrDate);
+  return t ? dateOfTimestamp(t.arr) : null;
+}
+
 /** Block time in minutes from off-blocks / on-blocks inputs, or null if inputs are invalid. */
-export function blockMinutes(date: IsoDate, depClock: string, arrClock: string): Minutes | null {
-  const t = resolveBlockTimes(date, depClock, arrClock);
+export function blockMinutes(date: IsoDate, depClock: string, arrClock: string, arrDate: IsoDate | '' = ''): Minutes | null {
+  const t = resolveBlockTimes(date, depClock, arrClock, arrDate);
   return t ? minutesBetween(t.dep, t.arr) : null;
+}
+
+/** Whole calendar days (UTC) between take-off and landing: 0 same day, 1 next day. */
+export function landingDayOffset(depTime: Timestamp, arrTime: Timestamp): number {
+  return daysBetween(dateOfTimestamp(depTime), dateOfTimestamp(arrTime));
 }
 
 // ---- calendar-date arithmetic (UTC dates, no time zones involved) ----

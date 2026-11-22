@@ -26,14 +26,19 @@ export interface BaseRecord {
 export type EngineClass = 'SP-SE' | 'SP-ME' | 'MP';
 export const ENGINE_CLASSES: readonly EngineClass[] = ['SP-SE', 'SP-ME', 'MP'];
 
-/** Class / type grouping used for totals and rating currency. */
-export type ClassRating = 'SEP_LAND' | 'SEP_SEA' | 'TMG' | 'MEP_LAND' | 'MEP_SEA' | 'OTHER';
+/**
+ * Class / type grouping used for totals and rating currency.
+ * SET = single-pilot single-engine turbine. TODO(verify): EASA lists SET as a class rating, with land and sea
+ * variants; only one entry is offered here. Add 'SET_SEA' beside it if sea turbine flying needs its own line.
+ */
+export type ClassRating = 'SEP_LAND' | 'SEP_SEA' | 'TMG' | 'MEP_LAND' | 'MEP_SEA' | 'SET' | 'OTHER';
 export const CLASS_RATINGS: readonly ClassRating[] = [
   'SEP_LAND',
   'SEP_SEA',
   'TMG',
   'MEP_LAND',
   'MEP_SEA',
+  'SET',
   'OTHER',
 ];
 export const CLASS_RATING_LABELS: Record<ClassRating, string> = {
@@ -42,6 +47,7 @@ export const CLASS_RATING_LABELS: Record<ClassRating, string> = {
   TMG: 'TMG',
   MEP_LAND: 'MEP (land)',
   MEP_SEA: 'MEP (sea)',
+  SET: 'SET (turbine)',
   OTHER: 'Other',
 };
 
