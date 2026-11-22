@@ -6,7 +6,7 @@ The Android phone is the master logbook; the same app in a desktop browser is a 
 **Status:** all five phases are implemented: scaffold, core flight logging (with aircraft photos), airports + automatic night time, totals + currency, export / import / PDF, and Google Drive backup with a read-only viewer. Drive needs a Google client ID before it does anything (see [docs/google-cloud-setup.md](docs/google-cloud-setup.md)); without one the app works fully offline and the Drive screens say so.
 
 ## Screenshots
-All screenshots show an invented logbook: a fictional pilot with 46 flights from 2025–2026, simulator sessions and one block of previous experience. The flights never happened. The airports and routes are real, and so are the four aircraft registrations (chosen because Wikimedia Commons has a photo of each); the flights, times, remarks and people are made up. Night time and the day/night take-offs and landings were calculated by the app itself. The aircraft photos were looked up by the app on Wikimedia Commons, which is also how the app credits them: the Cessna 172 OO-CEU is by Ad Meskens (CC BY-SA 4.0) and the Archer OO-ILS by Alan Wilson (CC BY-SA 2.0). Some screens are in dark mode and the map uses the "Aviation magenta" colour, to show the theme and colour settings.
+All screenshots show an invented logbook: a fictional pilot with 46 flights from 2025–2026, simulator sessions and one block of previous experience. The flights never happened. The airports and routes are real, and so are the four aircraft registrations (chosen because Wikimedia Commons has a photo of each); the flights, times, remarks and people are made up. Night time and the day/night take-offs and landings were calculated by the app itself. The aircraft photos were looked up by the app on Wikimedia Commons (credits [below](#photo-credits)). Some screens are in dark mode and the map uses the "Aviation magenta" colour, to show the theme and colour settings.
 
 | Logbook | Flight | New flight |
 |---|---|---|
@@ -17,6 +17,16 @@ All screenshots show an invented logbook: a fictional pilot with 46 flights from
 The PDF logbook (A4 landscape, AMC1 FCL.050 columns, per-page totals, totals brought forward from the previous experience):
 
 <img src="docs/screenshots/pdf-logbook.png" alt="First page of the PDF logbook with the totals brought forward" width="720">
+
+### Photo credits
+Two third-party photos appear in the screenshots `docs/screenshots/logbook.png` (both photos) and `docs/screenshots/flight.png` (the Archer). In the screenshots they are cropped and scaled to fit the app's cards, and shown inside the app's screen.
+
+| Photo | Author | Licence | Source |
+|---|---|---|---|
+| "Keiheuvel Cessna 172S Skyhawk OO-CEU 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG) |
+| "Piper PA28-181 'OO-ILS'" | Alan Wilson | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Piper_PA28-181_OO-ILS_(8439360388).jpg) |
+
+Because the screenshots contain these photos in changed form, **`flight.png` is shared under CC BY-SA 2.0 and `logbook.png` under CC BY-SA 4.0**; this applies to those two image files only, not to the FlightBook code or the other images. `TODO(verify)`: relicensing a CC BY-SA 2.0 photo inside `logbook.png` under 4.0 relies on the "later version" clause of the 2.0 licence; check this, or replace the photo, before relying on it.
 
 ## Setup
 ```
