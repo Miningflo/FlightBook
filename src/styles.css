@@ -515,15 +515,6 @@ html.map-lock, html.map-lock body { overflow: hidden; overscroll-behavior: none;
 .swatch-label { font-size: 13px; font-weight: 500; text-align: center; line-height: 1.2; }
 .swatch[aria-checked='true'] .swatch-label { font-weight: 700; }
 
-/* search-as-you-type list under a form field (aircraft, pilot, airports) */
-.suggest-list { scroll-margin-bottom: 96px; list-style: none; margin: 6px 0 0; padding: 4px; max-height: 216px; overflow-y: auto; overscroll-behavior: contain;
-  border: 1px solid var(--outline-variant); border-radius: 14px; background: var(--surface); }
-.suggest-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px;
-  border-radius: 10px; align-items: center; }
-.suggest-row .main { font-weight: 600; }
-.suggest-row .detail { color: var(--on-surface-variant); font-size: 14px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.suggest-row.current .main::after { content: ' \2713'; content: ' \2713' / ''; color: var(--primary); }
-.suggest-row.active, .suggest-row:active { background: var(--primary-container); }
 
 /* "+1": the flight landed on a later UTC date than it took off */
 .day-offset { font-size: 0.65em; font-weight: 700; color: var(--primary); vertical-align: super; line-height: 0; }

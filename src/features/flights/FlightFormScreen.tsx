@@ -26,11 +26,8 @@ import { computeNight } from '../../domain/night';
 import {
   defaultsFromHistory,
   findAircraftByRegistration,
-  recentPlaces,
-  recentAircraft,
-  recentPersons,
 } from '../../domain/suggestions';
-import { Dialog, DurationField, Field, Stepper, SuggestInput, keepFocus, type SuggestItem } from '../../ui/components';
+import { Dialog, DurationField, Field, Stepper, keepFocus } from '../../ui/components';
 import { MoonIcon } from '../../ui/Icons';
 
 export function FlightFormScreen({ flight }: { flight?: Flight }) {
@@ -97,17 +94,6 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
   const issues = useMemo(() => validateForm(form), [form]);
   const err = (f: string) => (submitted ? issues.find((i) => i.field === f && i.severity === 'error')?.message : undefined);
   const warn = (f: string) => issues.find((i) => i.field === f && i.severity === 'warning')?.message;
-
-  const aircraftOptions = useMemo(() => recentAircraft(data.flights, data.aircraft), [data]);
-  const personOptions = useMemo(() => recentPersons(data.flights, data.persons), [data]);
-  const placeOptions = useMemo(() => recentPlaces(data.flights, Infinity), [data.flights]);
-  // Search lists for the three fields picked from history, most recent first.
-  const aircraftItems = useMemo<SuggestItem[]>(() => aircraftOptions.map((a) => ({
-    key: a.id, value: a.registration, detail: [a.make, a.model, a.variant].filter(Boolean).join(' '),
-    search: `${a.registration} ${a.make} ${a.model} ${a.variant}`,
-  })), [aircraftOptions]);
-  const personItems = useMemo<SuggestItem[]>(() => personOptions.map((p) => ({ key: p.id, value: p.name, search: p.name })), [personOptions]);
-  const placeItems = useMemo<SuggestItem[]>(() => placeOptions.map((c) => ({ key: c, value: c, search: c })), [placeOptions]);
 
   if (!writer) return <div className="empty">This device is not the master logbook, so editing is disabled.</div>;
 
@@ -203,23 +189,20 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
       <div className="card">
         <div className="grid2">
           <Field label="From (ICAO)" error={err('depPlace')} warning={warn('depPlace')} hint={airportInfo?.dep?.name} htmlFor="f-from">
-            <SuggestInput id="f-from" className="input" autoCapitalize="characters" autoComplete="off" value={form.depPlace}
-              onChange={(v) => patch({ depPlace: v.toUpperCase() })} items={placeItems} listLabel="Airports used before"
-              onPick={(i) => patch({ depPlace: i.value })} />
+            <input id="f-from" className="input" autoCapitalize="characters" autoComplete="off" value={form.depPlace}
+              onChange={(e) => patch({ depPlace: e.target.value.toUpperCase() })} />
           </Field>
           <Field label="To (ICAO)" error={err('arrPlace')} warning={warn('arrPlace')} hint={airportInfo?.arr?.name} htmlFor="f-to">
-            <SuggestInput id="f-to" className="input" autoCapitalize="characters" autoComplete="off" value={form.arrPlace}
-              onChange={(v) => patch({ arrPlace: v.toUpperCase() })} items={placeItems} listLabel="Airports used before"
-              onPick={(i) => patch({ arrPlace: i.value })} />
+            <input id="f-to" className="input" autoCapitalize="characters" autoComplete="off" value={form.arrPlace}
+              onChange={(e) => patch({ arrPlace: e.target.value.toUpperCase() })} />
           </Field>
         </div>
       </div>
 
       <div className="card">
         <Field label="Registration" error={err('registration')} htmlFor="f-reg">
-          <SuggestInput id="f-reg" className="input" autoCapitalize="characters" autoComplete="off" value={form.registration}
-            onChange={onRegistration} items={aircraftItems} listLabel="Aircraft you have flown"
-            onPick={(i) => { const a = aircraftOptions.find((x) => x.id === i.key); if (a) setForm((st) => applyAircraft(st, a)); }} />
+          <input id="f-reg" className="input" autoCapitalize="characters" autoComplete="off" value={form.registration}
+            onChange={(e) => onRegistration(e.target.value)} />
         </Field>
         <div className="grid2">
           <Field label="Make" error={err('make')} htmlFor="f-make">
@@ -250,8 +233,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
 
       <div className="card">
         <Field label="Name of PIC" error={err('picName')} htmlFor="f-pic">
-          <SuggestInput id="f-pic" className="input" autoComplete="off" value={form.picName} onChange={(v) => patch({ picName: v })}
-            items={personItems} listLabel="Pilots in command you have flown with" onPick={(i) => patch({ picName: i.value })} />
+          <input id="f-pic" className="input" autoComplete="off" value={form.picName} onChange={(e) => patch({ picName: e.target.value })} />
         </Field>
         <div className="field">
           <span className="label">My function (tap to select; time defaults to total)</span>
