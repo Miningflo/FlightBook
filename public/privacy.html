@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlightBook – Privacy policy</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<style>
+  body { font: 16px/1.55 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a2530; }
+  h1 { color: #1b5e8c; } h2 { margin-top: 2rem; font-size: 1.15rem; }
+  a { color: #1b5e8c; } code { background: #eef3f7; padding: 0 .25em; border-radius: 3px; }
+  @media (prefers-color-scheme: dark) { body { background: #0f1d28; color: #dde6ee; } h1, a { color: #7fb8e0; } code { background: #1c2e3c; } }
+</style>
+</head>
+<body>
+<h1>FlightBook privacy policy</h1>
+<p>Last updated: 22 November 2026</p>
+
+<p>FlightBook is a personal pilot logbook that runs entirely in your browser. It has no server of its own:
+the developer does not receive, store or see your logbook or any other data about you.</p>
+
+<h2>Data stored on your device</h2>
+<p>Flights, aircraft, settings and cached photos are stored locally in your browser (IndexedDB). They stay on
+your device unless you export them or connect Google Drive. Clearing the site's data in your browser deletes them.</p>
+
+<h2>Google user data</h2>
+<p>If you choose to connect Google Drive, FlightBook asks for one permission:
+<code>https://www.googleapis.com/auth/drive.file</code>. This only gives access to files that FlightBook itself
+created in your Drive (the "Logbook backups" folder and its contents), not to any other file in your Drive.
+FlightBook does not request your e-mail address, profile, contacts or any other Google data.</p>
+<ul>
+  <li><strong>What is accessed:</strong> the backup snapshots and the <code>master.json</code> file that FlightBook writes.</li>
+  <li><strong>How it is used:</strong> only to back up your logbook and to restore or view it on your own devices.</li>
+  <li><strong>Where it goes:</strong> directly between your browser and Google. Nothing is sent to the developer or to any other party.</li>
+  <li><strong>Sharing:</strong> Google user data is not sold, shared, transferred or used for advertising, and it is not used to train AI or machine-learning models.</li>
+  <li><strong>Retention and deletion:</strong> the files stay in your Google Drive under your control. You can delete them in Drive at any time.
+    "Disconnect Google Drive" in FlightBook's settings revokes access; you can also remove FlightBook at
+    <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+</ul>
+<p>FlightBook's use of information received from Google APIs adheres to the
+<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+including the Limited Use requirements.</p>
+
+<h2>Other services the app contacts</h2>
+<ul>
+  <li><strong>Aircraft photos:</strong> when showing a photo for an aircraft, the app sends the aircraft registration
+    (e.g. <code>OO-ABC</code>) to <a href="https://www.planespotters.net/">Planespotters.net</a> and
+    <a href="https://commons.wikimedia.org/">Wikimedia Commons</a>, and loads the image from them.</li>
+  <li><strong>Airport data:</strong> when you import airports, the app downloads the public
+    <a href="https://ourairports.com/">OurAirports</a> data file from GitHub.</li>
+</ul>
+<p>These services receive the usual technical information of any web request (such as your IP address) under their
+own privacy policies. No logbook entries are sent to them.</p>
+
+<h2>Hosting</h2>
+<p>The app is served by GitHub Pages, which may log technical request data under
+<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.
+FlightBook uses no analytics, cookies for tracking, or advertising.</p>
+
+<h2>Contact</h2>
+<p>Questions: open an issue at <a href="https://github.com/Miningflo/FlightBook/issues">github.com/Miningflo/FlightBook</a>.</p>
+
+<p><a href="./">Back to FlightBook</a></p>
+</body>
+</html>
