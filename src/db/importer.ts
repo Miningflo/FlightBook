@@ -2,7 +2,7 @@ import type { LogbookDB } from './db';
 import type { ConflictPolicy, ImportPlan } from '../domain/importPlan';
 import type { FlightImport, ImportBundle } from '../domain/records';
 import { aircraftFromFlight, toFlightImports } from '../domain/records';
-import type { Aircraft, Attachment, Flight, Person, Settings } from '../domain/types';
+import type { Aircraft, Attachment, ClassRating, Flight, IsoDate, Person, Settings } from '../domain/types';
 import { personKey } from '../domain/suggestions';
 import { uuid } from '../domain/id';
 import { type Snapshot, base64ToBytes, snapshotToBundle } from '../domain/snapshot';
@@ -15,7 +15,7 @@ export async function readBundle(db: LogbookDB): Promise<ImportBundle> {
 
 export interface ImportExtras {
   attachments?: Attachment[];
-  settings?: { pilotName?: string; sepLandExpiry?: string | null };
+  settings?: { pilotName?: string; sepLandExpiry?: string | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> };
 }
 
 export interface ImportResult {
@@ -74,6 +74,8 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
         const patch: Partial<Settings> = {};
         if (extras.settings.pilotName && !cur.pilotName) { patch.pilotName = extras.settings.pilotName; result.settingsApplied.push('pilotName'); }
         if (extras.settings.sepLandExpiry && !cur.sepLandExpiry) { patch.sepLandExpiry = extras.settings.sepLandExpiry; result.settingsApplied.push('sepLandExpiry'); }
+        const missing = Object.entries(extras.settings.classExpiry ?? {}).filter(([k, v]) => v && !cur.classExpiry?.[k as ClassRating]);
+        if (missing.length > 0) { patch.classExpiry = { ...(cur.classExpiry ?? {}), ...Object.fromEntries(missing) }; result.settingsApplied.push('classExpiry'); }
         if (Object.keys(patch).length > 0) await db.settings.put({ ...cur, ...patch });
       }
     }
@@ -106,7 +108,7 @@ export async function applyReplace(db: LogbookDB, snapshot: Snapshot): Promise<{
     await db.previousExperience.bulkAdd(snapshot.previousExperience);
     await db.attachments.bulkAdd(snapshot.attachments.map((a) => ({ id: a.id, flightId: a.flightId, mime: a.mime, name: a.name, createdAt: a.createdAt, updatedAt: a.updatedAt, blob: new Blob([base64ToBytes(a.data) as BlobPart], { type: a.mime }) })));
     const cur = await db.settings.get('main');
-    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null });
+    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null, classExpiry: snapshot.settings.classExpiry ?? {} });
     return { flights: bundle.flights.length, fstd: bundle.fstd.length, experience: bundle.experience.length };
   });
 }
