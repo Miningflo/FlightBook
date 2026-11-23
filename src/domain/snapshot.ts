@@ -33,7 +33,7 @@ export interface Snapshot {
   /** Device that wrote the snapshot (optional: older snapshots do not have it). */
   deviceId?: string;
   deviceName: string;
-  settings: { pilotName?: string; sepLandExpiry?: IsoDate | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> };
+  settings: { pilotName?: string; licenceNumber?: string; address?: string; sepLandExpiry?: IsoDate | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> };
   aircraft: Aircraft[];
   persons: Person[];
   flights: Flight[];

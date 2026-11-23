@@ -9,20 +9,61 @@
   body { font: 16px/1.55 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1a2530; }
   h1 { color: #1b5e8c; } h2 { margin-top: 2rem; font-size: 1.15rem; }
   a { color: #1b5e8c; } code { background: #eef3f7; padding: 0 .25em; border-radius: 3px; }
-  @media (prefers-color-scheme: dark) { body { background: #0f1d28; color: #dde6ee; } h1, a { color: #7fb8e0; } code { background: #1c2e3c; } }
+  table { border-collapse: collapse; width: 100%; margin: .5rem 0; }
+  th, td { border: 1px solid #c9d6e2; padding: .35rem .5rem; text-align: left; vertical-align: top; font-size: .95rem; }
+  th { background: #eef3f7; }
+  .note { border-left: 3px solid #1b5e8c; padding: .1rem 0 .1rem .8rem; margin: 1rem 0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f1d28; color: #dde6ee; } h1, a { color: #7fb8e0; } code { background: #1c2e3c; }
+    th, td { border-color: #2d4254; } th { background: #16283a; } .note { border-color: #7fb8e0; }
+  }
 </style>
 </head>
 <body>
 <p><a href="./">&larr; Back to FlightBook</a></p>
 <h1>FlightBook privacy policy</h1>
-<p>Last updated: 22 November 2026</p>
+<p>Last updated: 23 November 2026</p>
 
 <p>FlightBook is a personal pilot logbook that runs entirely in your browser. It has no server of its own:
 the developer does not receive, store or see your logbook or any other data about you.</p>
 
+<div class="note">
+<p><strong>In short.</strong> Your logbook never leaves your device unless you export it or connect your own
+Google Drive. Nothing is sent to the developer, ever. There is no analytics, no tracking and no advertising.
+The app contacts three outside services, all of them optional or on your explicit action, and each one only
+ever learns your IP address and (for photos) an aircraft registration &mdash; never a logbook entry.</p>
+</div>
+
 <h2>Data stored on your device</h2>
-<p>Flights, aircraft, settings and cached photos are stored locally in your browser (IndexedDB). They stay on
-your device unless you export them or connect Google Drive. Clearing the site's data in your browser deletes them.</p>
+<p>Everything is stored locally in your browser (IndexedDB):</p>
+<ul>
+  <li><strong>Your logbook:</strong> flights with dates, times, places, aircraft, flight and duty times and your
+    free-text remarks; simulator sessions; previous-experience carry-in totals; aircraft; and any files you
+    attach to a flight.</li>
+  <li><strong>Your details as logbook holder:</strong> your name, your licence number and your address. These
+    are optional and are used for the holder block the regulation expects at the front of a printed logbook
+    (AMC1 FCL.050). They are printed into the PDF you generate.</li>
+  <li><strong>People you log:</strong> the names of the pilots in command and instructors you fly with
+    (see <a href="#others">Other people in your logbook</a>).</li>
+  <li><strong>Settings and caches:</strong> app settings, the airport database if you import one, and cached
+    aircraft photo metadata. On a read-only viewer device, the last Google Drive snapshot you loaded.</li>
+</ul>
+<p>This data stays on your device until you delete it. Clearing the site's data in your browser, or
+uninstalling the app, deletes all of it. There is no copy anywhere else unless you made one.</p>
+<p>This storage is strictly necessary for the app you asked to use &mdash; a logbook that works offline cannot
+work without it &mdash; so FlightBook shows no cookie banner. It sets no cookies at all, and stores nothing
+for analytics, profiling or advertising.</p>
+
+<h2 id="others">Other people in your logbook</h2>
+<p>A logbook necessarily records other people: the name of the pilot in command, of an instructor, or whatever
+you write in the remarks. That is personal data about them, and it sits on your device under your control, not
+the developer's.</p>
+<p>If you keep the logbook purely for yourself, EU data-protection law generally treats this as a personal or
+household activity and does not impose further duties on you (Article 2(2)(c) GDPR). If you keep it in a
+professional capacity &mdash; as an instructor, examiner, or because an employer or operator requires it
+&mdash; that exemption may not apply and you may have your own obligations towards the people you record.
+Keeping the entries accurate, writing no more in the remarks than you need, and not passing exports around
+are sensible precautions either way.</p>
 
 <h2>Google user data</h2>
 <p>If you choose to connect Google Drive, FlightBook asks for one permission:
@@ -43,23 +84,77 @@ FlightBook does not request your e-mail address, profile, contacts or any other 
 including the Limited Use requirements.</p>
 
 <h2>Other services the app contacts</h2>
-<ul>
-  <li><strong>Aircraft photos:</strong> when showing a photo for an aircraft, the app sends the aircraft registration
-    (e.g. <code>OO-ABC</code>) to <a href="https://www.planespotters.net/">Planespotters.net</a> and
-    <a href="https://commons.wikimedia.org/">Wikimedia Commons</a>, and loads the image from them.</li>
-  <li><strong>Airport data:</strong> when you import airports, the app downloads the public
-    <a href="https://ourairports.com/">OurAirports</a> data file from GitHub.</li>
-</ul>
-<p>These services receive the usual technical information of any web request (such as your IP address) under their
-own privacy policies. No logbook entries are sent to them.</p>
+<table>
+  <tr><th>Service</th><th>When</th><th>What it receives</th><th>Can you avoid it?</th></tr>
+  <tr>
+    <td><a href="https://www.planespotters.net/">Planespotters.net</a> and
+        <a href="https://commons.wikimedia.org/">Wikimedia Commons</a></td>
+    <td>When a photo is shown for an aircraft</td>
+    <td>The aircraft registration (e.g. <code>OO-ABC</code>) and your IP address</td>
+    <td>Yes &mdash; turn off <em>Settings &rarr; Look up aircraft photos online</em></td>
+  </tr>
+  <tr>
+    <td><a href="https://ourairports.com/">OurAirports</a> data file, hosted on GitHub</td>
+    <td>Only when you import the airport database</td>
+    <td>Your IP address</td>
+    <td>Yes &mdash; don't import it, or import a file you downloaded yourself</td>
+  </tr>
+  <tr>
+    <td>Google (<a href="https://policies.google.com/privacy">privacy policy</a>)</td>
+    <td>Only if you connect Google Drive</td>
+    <td>Your backups, as described above</td>
+    <td>Yes &mdash; don't connect Drive; the app works fully offline without it</td>
+  </tr>
+</table>
+<p>These services receive the usual technical information of any web request (such as your IP address) under
+their own privacy policies. <strong>No logbook entries are ever sent to them.</strong></p>
+<p>Alerts for currency and class ratings are generated on your device by the app itself. They do not use a push
+service: nothing about them is sent anywhere.</p>
 
-<h2>Hosting</h2>
+<h2>Hosting and international transfers</h2>
 <p>The app is served by GitHub Pages, which may log technical request data under
 <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.
 FlightBook uses no analytics, cookies for tracking, or advertising.</p>
+<p>GitHub and Google are established in the United States, so contacting them involves a transfer of the
+technical data described above outside the European Economic Area. Both rely on the EU&ndash;US Data Privacy
+Framework and standard contractual clauses; their own privacy policies, linked above, set out the details.
+Your logbook itself is only transferred if you choose to connect Google Drive.</p>
+
+<h2>Legal basis</h2>
+<p>For the limited processing that happens when you load the app (your browser's request reaching the host),
+the basis is the legitimate interest in delivering the page you asked for. Everything beyond that &mdash;
+connecting Google Drive, looking up aircraft photos, importing the airport database, enabling notifications
+&mdash; happens only on a choice you make and can withdraw at any time, in the app's settings or your
+browser's. Your logbook content is not processed by the developer on any basis, because it is never received.</p>
+
+<h2>Your rights</h2>
+<p>Because the data is on your device and the developer never receives it, you exercise most data-protection
+rights directly in the app rather than by asking anyone:</p>
+<ul>
+  <li><strong>Access and rectification:</strong> every record is visible and editable in the app.</li>
+  <li><strong>Erasure:</strong> delete individual records in the app, or clear the site's data in your browser
+    to remove everything. Backups in your Google Drive are deleted in Drive.</li>
+  <li><strong>Portability:</strong> <em>Settings &rarr; Export, import &amp; backup</em> produces your complete
+    data as JSON, as CSV, or as a printable PDF logbook. These files contain personal data &mdash; keep them
+    somewhere safe.</li>
+  <li><strong>Objection and restriction:</strong> every optional feature above can be switched off.</li>
+</ul>
+<p>There is no automated decision-making or profiling. The currency and alert calculations are arithmetic on
+your own entries, shown to you with the regulation they come from.</p>
+<p>If you believe your data has been handled unlawfully, you can complain to your national data protection
+authority. In Belgium this is the
+<a href="https://www.gegevensbeschermingsautoriteit.be/">Gegevensbeschermingsautoriteit / Autorit&eacute; de protection des donn&eacute;es</a>;
+elsewhere in the EEA, the <a href="https://www.edpb.europa.eu/about-edpb/about-edpb/members_en">authority for your country</a>.</p>
+
+<h2>Changes to this policy</h2>
+<p>If the app starts contacting a new service or asking for a new permission, this page is updated before that
+change ships, and the date at the top changes with it. Past versions are visible in the project's git history.</p>
 
 <h2>Contact</h2>
-<p>Questions: open an issue at <a href="https://github.com/Miningflo/FlightBook/issues">github.com/Miningflo/FlightBook</a>.</p>
+<p>FlightBook is an open-source project maintained by the owner of
+<a href="https://github.com/Miningflo/FlightBook">github.com/Miningflo/FlightBook</a>. For any question about
+this policy or about your data, <a href="https://github.com/Miningflo/FlightBook/issues">open an issue</a>
+there.</p>
 
 <p><a href="./">Back to FlightBook</a></p>
 </body>

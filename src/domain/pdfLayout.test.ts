@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FLIGHTS_TABLE, FSTD_TABLE, PAGE, USABLE_WIDTH, buildDocument, dmy, flightCarryIn, flightRow, formatCell, fstdRow,
+  LOGBOOK_TABLE, PAGE, USABLE_WIDTH, buildDocument, carryInTotals, dmy, flightRow, formatCell, fstdRow, logbookRows,
   paginate, placeColumns, rowsPerPage, sumColumnIds,
 } from './pdfLayout';
 import { flight } from './testFactories';
@@ -15,30 +15,29 @@ const input = (o = {}) => ({ flights: [], persons: [self], fstd: [], experience:
 const days = (n: number) => Array.from({ length: n }, (_, i) => `2025-03-${String(i + 1).padStart(2, '0')}`);
 
 describe('column specification (AMC1 FCL.050)', () => {
-  it('has the AMC column groups in order', () => {
-    expect(FLIGHTS_TABLE.groups.map((g) => g.label.join(' '))).toEqual([
+  it('has all twelve AMC column groups in the AMC order, in one table', () => {
+    expect(LOGBOOK_TABLE.groups.map((g) => g.label.join(' '))).toEqual([
       'DATE (dd/mm/yyyy)', 'DEPARTURE', 'ARRIVAL', 'AIRCRAFT', 'SINGLE-PILOT TIME', 'MULTI-PILOT TIME', 'TOTAL TIME OF FLIGHT',
-      'NAME(S) OF PIC', 'LANDINGS', 'OPERATIONAL CONDITION TIME', 'PILOT FUNCTION TIME', 'REMARKS AND ENDORSEMENTS',
+      'NAME(S) OF PIC', 'LANDINGS', 'OPERATIONAL CONDITION TIME', 'PILOT FUNCTION TIME', 'FSTD SESSION', 'REMARKS AND ENDORSEMENTS',
     ]);
-    expect(FLIGHTS_TABLE.groups.flatMap((g) => g.columns.map((c) => c.id))).toEqual([
+    expect(LOGBOOK_TABLE.groups.flatMap((g) => g.columns.map((c) => c.id))).toEqual([
       'date', 'depPlace', 'depTime', 'arrPlace', 'arrTime', 'aircraftType', 'registration', 'spSe', 'spMe', 'mp', 'total',
-      'picName', 'ldgDay', 'ldgNight', 'night', 'ifr', 'pic', 'copi', 'dual', 'inst', 'remarks',
+      'picName', 'ldgDay', 'ldgNight', 'night', 'ifr', 'pic', 'copi', 'dual', 'inst', 'fstdDate', 'fstdType', 'fstdTotal', 'remarks',
     ]);
   });
-  it('sums exactly the time and landing columns', () => {
-    expect(sumColumnIds(FLIGHTS_TABLE)).toEqual(['spSe', 'spMe', 'mp', 'total', 'ldgDay', 'ldgNight', 'night', 'ifr', 'pic', 'copi', 'dual', 'inst']);
-    expect(sumColumnIds(FSTD_TABLE)).toEqual(['total']);
+  it('sums the time and landing columns, with session time in its own column', () => {
+    expect(sumColumnIds(LOGBOOK_TABLE)).toEqual([
+      'spSe', 'spMe', 'mp', 'total', 'ldgDay', 'ldgNight', 'night', 'ifr', 'pic', 'copi', 'dual', 'inst', 'fstdTotal',
+    ]);
   });
   it('column ids are unique and widths fill the page exactly, leaving a readable remarks column', () => {
-    for (const t of [FLIGHTS_TABLE, FSTD_TABLE]) {
-      const placed = placeColumns(t);
-      expect(new Set(placed.map((c) => c.id)).size).toBe(placed.length);
-      const last = placed[placed.length - 1]!;
-      expect(last.x + last.w).toBeCloseTo(PAGE.width - PAGE.margin, 6);
-      expect(placed.reduce((a, c) => a + c.w, 0)).toBeCloseTo(USABLE_WIDTH, 6);
-      expect(placed.find((c) => c.id === 'remarks')!.w).toBeGreaterThan(100);
-      for (let i = 1; i < placed.length; i++) expect(placed[i]!.x).toBeCloseTo(placed[i - 1]!.x + placed[i - 1]!.w, 6);
-    }
+    const placed = placeColumns(LOGBOOK_TABLE);
+    expect(new Set(placed.map((c) => c.id)).size).toBe(placed.length);
+    const last = placed[placed.length - 1]!;
+    expect(last.x + last.w).toBeCloseTo(PAGE.width - PAGE.margin, 6);
+    expect(placed.reduce((a, c) => a + c.w, 0)).toBeCloseTo(USABLE_WIDTH, 6);
+    expect(placed.find((c) => c.id === 'remarks')!.w).toBeGreaterThan(100);
+    for (let i = 1; i < placed.length; i++) expect(placed[i]!.x).toBeCloseTo(placed[i - 1]!.x + placed[i - 1]!.w, 6);
   });
   it('is A4 landscape', () => {
     expect(PAGE.width).toBeGreaterThan(PAGE.height);
@@ -70,8 +69,18 @@ describe('cells and rows', () => {
   it('shows an unknown PIC as a question mark rather than hiding the flight', () => {
     expect(flightRow(flight('2025-06-01', { picNameId: 'gone' }), [self]).picName).toBe('?');
   });
-  it('builds an FSTD row', () => {
-    expect(fstdRow(fstd('2025-02-02', 45))).toEqual({ date: '2025-02-02', fstdType: 'FNPT II', total: 45, remarks: '' });
+  it('puts a simulator session in column 11 only, so it cannot leak into the flight totals', () => {
+    expect(fstdRow(fstd('2025-02-02', 45))).toEqual({ fstdDate: '2025-02-02', fstdType: 'FNPT II', fstdTotal: 45, remarks: '' });
+  });
+  it('interleaves flights and sessions by date, sessions first within a day', () => {
+    const rows = logbookRows(
+      [flight('2025-03-02', { depTimeUtc: Date.parse('2025-03-02T10:00:00Z') }), flight('2025-03-01', { depTimeUtc: Date.parse('2025-03-01T10:00:00Z') })],
+      [fstd('2025-03-02', 60), fstd('2025-02-01', 30)],
+      [self],
+    );
+    expect(rows.map((r) => r.date ?? r.fstdDate)).toEqual(['2025-02-01', '2025-03-01', '2025-03-02', '2025-03-02']);
+    expect(rows[2]).toMatchObject({ fstdDate: '2025-03-02' });
+    expect(rows[3]).toMatchObject({ date: '2025-03-02' });
   });
 });
 
@@ -80,18 +89,18 @@ describe('pagination and totals', () => {
   const rowsOf = (n: number) => days(Math.min(n, 31)).concat(n > 31 ? Array.from({ length: n - 31 }, () => '2025-04-01') : []).map((d) => flightRow(flight(d, { totalMin: 60, spSeMin: 60, picMin: 60, landingsDay: 1 }), [self]));
 
   it('an empty logbook is one blank page that can be printed as a form', () => {
-    const p = paginate(FLIGHTS_TABLE, [], flightCarryIn([]));
+    const p = paginate(LOGBOOK_TABLE, [], carryInTotals([]));
     expect(p).toHaveLength(1);
     expect(p[0]!.rows).toEqual([]);
     expect(p[0]!.thisPage.total).toBe(0);
   });
   it('fills a page exactly, then starts the next page with one row', () => {
-    expect(paginate(FLIGHTS_TABLE, rowsOf(per), {}).length).toBe(1);
-    const pages = paginate(FLIGHTS_TABLE, rowsOf(per + 1), {});
+    expect(paginate(LOGBOOK_TABLE, rowsOf(per), {}).length).toBe(1);
+    const pages = paginate(LOGBOOK_TABLE, rowsOf(per + 1), {});
     expect(pages.map((p) => p.rows.length)).toEqual([per, 1]);
   });
   it('page totals, brought-forward and to-date chain correctly across pages', () => {
-    const pages = paginate(FLIGHTS_TABLE, rowsOf(per * 2 + 5), {});
+    const pages = paginate(LOGBOOK_TABLE, rowsOf(per * 2 + 5), {});
     expect(pages).toHaveLength(3);
     expect(pages[0]!.thisPage.total).toBe(per * 60);
     expect(pages[0]!.previous.total).toBe(0);
@@ -104,9 +113,9 @@ describe('pagination and totals', () => {
     for (const p of pages) for (const k of Object.keys(p.toDate)) expect(p.toDate[k]).toBe(p.previous[k]! + p.thisPage[k]!);
   });
   it('page 1 is brought forward from previous experience, and only page 1 says so', () => {
-    const carry = flightCarryIn([exp({ totalMin: 6000, spSeMin: 6000, picMin: 4000, landingsDay: 200, landingsNight: 10, nightMin: 300 }), exp({ totalMin: 600, spSeMin: 600, picMin: 600 })]);
+    const carry = carryInTotals([exp({ totalMin: 6000, spSeMin: 6000, picMin: 4000, landingsDay: 200, landingsNight: 10, nightMin: 300 }), exp({ totalMin: 600, spSeMin: 600, picMin: 600 })]);
     expect(carry).toMatchObject({ total: 6600, spSe: 6600, pic: 4600, ldgDay: 200, ldgNight: 10, night: 300 });
-    const pages = paginate(FLIGHTS_TABLE, rowsOf(per + 1), carry);
+    const pages = paginate(LOGBOOK_TABLE, rowsOf(per + 1), carry);
     expect(pages[0]!.previous.total).toBe(6600);
     expect(pages[0]!.includesCarryIn).toBe(true);
     expect(pages[1]!.includesCarryIn).toBe(false);
@@ -123,16 +132,26 @@ describe('buildDocument', () => {
     expect(doc.pages[0]!.rows.map((r) => r.date)).toEqual(['2025-03-01', '2025-03-05']);
     expect(doc.pages.map((p) => [p.number, p.of])).toEqual([[1, 1]]);
   });
-  it('adds an FSTD section only when there is something to show', () => {
-    expect(buildDocument(input()).pages.map((p) => p.table)).toEqual(['flights']);
-    const withSessions = buildDocument(input({ fstd: [fstd('2025-02-02', 45), fstd('2025-01-01', 30)] }));
-    expect(withSessions.pages.map((p) => p.table)).toEqual(['flights', 'fstd']);
-    expect(withSessions.pages[1]!.rows.map((r) => r.date)).toEqual(['2025-01-01', '2025-02-02']);
-    expect(withSessions.pages[1]!.thisPage.total).toBe(75);
-    expect(withSessions.pages.map((p) => [p.number, p.of])).toEqual([[1, 2], [2, 2]]);
+  it('keeps simulator sessions in the same table, counted apart from flight time', () => {
+    const doc = buildDocument(input({
+      flights: [flight('2025-01-15', { depTimeUtc: Date.parse('2025-01-15T10:00:00Z'), totalMin: 90, spSeMin: 90 })],
+      fstd: [fstd('2025-02-02', 45), fstd('2025-01-01', 30)],
+    }));
+    expect(doc.pages).toHaveLength(1);
+    expect(doc.pages[0]!.rows.map((r) => r.fstdDate ?? r.date)).toEqual(['2025-01-01', '2025-01-15', '2025-02-02']);
+    expect(doc.pages[0]!.thisPage.fstdTotal).toBe(75);
+    expect(doc.pages[0]!.thisPage.total).toBe(90); // flight time only
+  });
+  it('brings simulator time forward from previous experience without adding a page', () => {
     const carryOnly = buildDocument(input({ experience: [exp({ fstdMin: 600 })] }));
-    expect(carryOnly.pages.map((p) => p.table)).toEqual(['flights', 'fstd']);
-    expect(carryOnly.pages[1]!.previous.total).toBe(600);
+    expect(carryOnly.pages).toHaveLength(1);
+    expect(carryOnly.pages[0]!.previous.fstdTotal).toBe(600);
+    expect(carryOnly.pages[0]!.previous.total).toBe(0);
+  });
+  it('carries the holder block, defaulting the fields that were never entered', () => {
+    expect(buildDocument(input())).toMatchObject({ pilotName: 'A. Pilot', licenceNumber: '', address: '' });
+    expect(buildDocument(input({ licenceNumber: 'BE.FCL.PPL.1', address: 'Street 1\n9000 Gent' })))
+      .toMatchObject({ licenceNumber: 'BE.FCL.PPL.1', address: 'Street 1\n9000 Gent' });
   });
   it('printed totals agree with the Totals screen (the same records, computed two independent ways)', () => {
     const flights = Array.from({ length: 53 }, (_, i) => flight(`2025-0${1 + (i % 6)}-${String(1 + (i % 27)).padStart(2, '0')}`, {
@@ -143,13 +162,12 @@ describe('buildDocument', () => {
     const sessions = [fstd('2025-01-05', 45), fstd('2025-02-05', 20)];
     const doc = buildDocument(input({ flights, experience, fstd: sessions }));
     const t = computeTotals({ flights, fstd: sessions, experience });
-    const lastFlights = [...doc.pages].reverse().find((p) => p.table === 'flights')!;
-    const lastFstd = [...doc.pages].reverse().find((p) => p.table === 'fstd')!;
-    expect(lastFlights.toDate).toMatchObject({
+    const last = doc.pages[doc.pages.length - 1]!;
+    expect(last.toDate).toMatchObject({
       total: t.flightMin, spSe: t.spSeMin, spMe: t.spMeMin, mp: t.mpMin, night: t.nightMin, ifr: t.ifrMin,
       pic: t.roles.PIC, copi: t.roles.COPI, dual: t.roles.DUAL, inst: t.roles.INS, ldgDay: t.landingsDay, ldgNight: t.landingsNight,
+      fstdTotal: t.fstdMin,
     });
-    expect(lastFstd.toDate.total).toBe(t.fstdMin);
-    expect(doc.pages.filter((p) => p.table === 'flights').reduce((a, p) => a + p.rows.length, 0)).toBe(53);
+    expect(doc.pages.reduce((a, p) => a + p.rows.length, 0)).toBe(53 + sessions.length);
   });
 });

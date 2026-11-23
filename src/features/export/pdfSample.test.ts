@@ -31,7 +31,10 @@ describe('sample PDF', () => {
     });
     const fstd: FstdSession[] = [0, 1, 2].map((i) => ({ id: `s${i}`, createdAt: 1, updatedAt: 1, date: `2025-0${i + 2}-10`, fstdType: 'FNPT II', totalMin: 60 + i * 15, remarks: i === 1 ? 'IFR procedures' : '' }));
     const experience = [{ id: 'e', createdAt: 1, updatedAt: 1, ...emptyExperience('2024-12-31'), totalMin: 6000 * 60 + 25, spSeMin: 6000 * 60 + 25, picMin: 4000 * 60, dualMin: 2000 * 60 + 25, nightMin: 300 * 60, ifrMin: 100 * 60, landingsDay: 2100, landingsNight: 110, fstdMin: 600 }];
-    const { bytes, report } = await renderLogbookPdf(buildDocument({ flights, persons, fstd, experience, pilotName: 'Test Pilot', generatedOn: '2025-06-30' }));
+    const { bytes, report } = await renderLogbookPdf(buildDocument({
+      flights, persons, fstd, experience, generatedOn: '2025-06-30',
+      pilotName: 'Test Pilot', licenceNumber: 'BE.FCL.PPL.123456', address: 'Grote Markt 1\n9000 Gent, Belgium',
+    }));
     writeFileSync(out, bytes);
     console.log('report', report);
     expect(bytes.length).toBeGreaterThan(1000);
