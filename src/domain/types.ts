@@ -273,6 +273,8 @@ export interface Settings {
   pilotName?: string;
   /** Expiry date of the SEP (land) class rating, for the revalidation check. */
   sepLandExpiry?: IsoDate | null;
+  /** Expiry dates of the other class ratings (SEP (land) keeps its own field above). */
+  classExpiry?: Partial<Record<ClassRating, IsoDate>>;
   /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
   driveEnabled?: boolean;
   /** Epoch ms of the last successful Drive backup (phase 5). */

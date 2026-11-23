@@ -114,7 +114,11 @@ export interface SepCheck {
   progress: Progress[];
 }
 
-export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SepCheck {
+/** Classes that can be revalidated by experience; all others need a proficiency check. */
+export const EXPERIENCE_REVALIDATION_CLASSES: readonly ClassRating[] = ['SEP_LAND', 'SEP_SEA', 'TMG'];
+export const isExperienceClass = (cls: ClassRating): boolean => EXPERIENCE_REVALIDATION_CLASSES.includes(cls);
+
+export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES, cls: ClassRating = 'SEP_LAND'): SepCheck {
   const r = rules.sep;
   if (!expiry) return { id: 'sep', status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null, progress: [] };
 
@@ -123,7 +127,7 @@ export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | unde
   const windowEnd = today < expiry ? today : expiry;
   let flightMin: Minutes = 0, picMin: Minutes = 0, dualMin: Minutes = 0, takeoffs = 0, landings = 0;
   for (const f of flights) {
-    if (f.aircraftClass !== 'SEP_LAND' || f.date < windowStart || f.date > windowEnd) continue;
+    if (f.aircraftClass !== cls || f.date < windowStart || f.date > windowEnd) continue;
     flightMin += f.totalMin; picMin += f.picMin; dualMin += f.dualMin;
     takeoffs += f.takeoffsDay + f.takeoffsNight;
     landings += f.landingsDay + f.landingsNight;
@@ -143,4 +147,42 @@ export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | unde
   if (today < windowStart) return { ...base, status: 'green', state: 'window-not-open' };
   if (daysToExpiry <= rules.app.revalidationRedDaysLeft) return { ...base, status: 'red', state: 'urgent' };
   return { ...base, status: 'amber', state: 'in-progress' };
+}
+
+// ---------- MEP / SET (and sea): revalidation by proficiency check ----------
+
+export type CheckState = 'not-set' | 'window-not-open' | 'window-open' | 'urgent' | 'expired';
+
+export interface ProficiencyCheck {
+  id: 'check';
+  status: Status;
+  state: CheckState;
+  expiry: IsoDate | null;
+  /** The proficiency check may be taken from this day (inclusive) until expiry. */
+  windowStart: IsoDate | null;
+  daysToExpiry: number | null;
+}
+
+export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {
+  if (!expiry) return { id: 'check', status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null };
+  const windowStart = addDays(addMonths(expiry, -rules.proficiencyCheck.windowMonths), 1);
+  const daysToExpiry = daysBetween(today, expiry);
+  const base = { id: 'check' as const, expiry, windowStart, daysToExpiry };
+  if (daysToExpiry < 0) return { ...base, status: 'red', state: 'expired' };
+  if (today < windowStart) return { ...base, status: 'green', state: 'window-not-open' };
+  if (daysToExpiry <= rules.app.proficiencyCheckRedDaysLeft) return { ...base, status: 'red', state: 'urgent' };
+  return { ...base, status: 'amber', state: 'window-open' };
+}
+
+/** Expiry date of a class rating from the settings (SEP (land) has its own field for backward compatibility). */
+export function classExpiryOf(s: { sepLandExpiry?: IsoDate | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> }, cls: ClassRating): IsoDate | null {
+  return cls === 'SEP_LAND' ? s.sepLandExpiry ?? null : s.classExpiry?.[cls] ?? null;
+}
+
+/** Settings patch that sets (or clears, with null) the expiry date of a class rating. */
+export function classExpiryPatch(s: { classExpiry?: Partial<Record<ClassRating, IsoDate>> }, cls: ClassRating, date: IsoDate | null): { sepLandExpiry: IsoDate | null } | { classExpiry: Partial<Record<ClassRating, IsoDate>> } {
+  if (cls === 'SEP_LAND') return { sepLandExpiry: date };
+  const next = { ...(s.classExpiry ?? {}) };
+  if (date) next[cls] = date; else delete next[cls];
+  return { classExpiry: next };
 }

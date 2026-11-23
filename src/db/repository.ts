@@ -112,7 +112,7 @@ export class DexieRepository implements WritableLogbookRepository {
   async updateSettings(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
     const next = { ...(await this.getSettings()), ...patch };
     await this.db.settings.put(next);
-    if ('pilotName' in patch || 'sepLandExpiry' in patch) this.onWrite?.();
+    if ('pilotName' in patch || 'sepLandExpiry' in patch || 'classExpiry' in patch) this.onWrite?.();
     return next;
   }
 

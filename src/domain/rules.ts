@@ -63,7 +63,24 @@ export const SEP_REVALIDATION: SepRule = {
     'TODO(verify): the training flight must be with an FI or CRI; the logbook has no instructor flag, so DUAL time is used as a stand-in.',
     'TODO(verify): the alternative (proficiency check with an examiner) and renewal rules once the rating has expired are not evaluated.',
     'TODO(verify): flights before the app was used (previous experience carry-ins) have no dates and are not counted.',
-    'TODO(verify): only SEP (land) flights are counted; whether time in a TMG (or SEP sea) may count towards SEP (land) revalidation is not checked.',
+    'TODO(verify): only flights in the selected class are counted; the combined SEP (land) / TMG revalidation (time in either counts towards both) is not applied.',
+  ],
+};
+
+/**
+ * Classes that can be revalidated by experience (FCL.740.A(b)(1)(ii)): SEP and TMG. Every other class
+ * (MEP, SET, sea variants of those) can only be revalidated with a proficiency check with an examiner.
+ */
+export const PROFICIENCY_CHECK_REVALIDATION: ProficiencyRule = {
+  /** The check must be passed within this many months before the expiry date. */
+  windowMonths: 3,
+  reference: 'Part-FCL FCL.740.A(b), revalidation of class ratings by proficiency check with an examiner',
+  verified: false,
+  todo: [
+    'TODO(verify): MEP and SET (land/sea) class ratings can only be revalidated by a proficiency check with an examiner in the 3 months before expiry; there is no experience route.',
+    'TODO(verify): a check passed in those 3 months keeps the original expiry date; the new expiry date must be entered by hand afterwards.',
+    'TODO(verify): validity is 1 year for MEP and 2 years for single-pilot single-engine classes (SEP, TMG, SET); the app does not compute it, you enter the expiry date from your licence.',
+    'TODO(verify): renewal of an expired rating (refresher training and a new test) is not evaluated.',
   ],
 };
 
@@ -73,6 +90,7 @@ export const APP_THRESHOLDS: AppThresholds = {
   amberDaysBeforeLapse: 14,
   /** Revalidation requirements still unmet with this many days (or fewer) to expiry: red. */
   revalidationRedDaysLeft: 60,
+  proficiencyCheckRedDaysLeft: 30,
 };
 
 export interface RollingRule extends RuleSource {
@@ -91,12 +109,18 @@ export interface SepRule extends RuleSource {
 export interface AppThresholds {
   amberDaysBeforeLapse: number;
   revalidationRedDaysLeft: number;
+  /** Proficiency check still not done with this many days (or fewer) to expiry: red. */
+  proficiencyCheckRedDaysLeft: number;
+}
+export interface ProficiencyRule extends RuleSource {
+  windowMonths: number;
 }
 
 export interface Rules {
   passenger: RollingRule;
   night: RollingRule;
   sep: SepRule;
+  proficiencyCheck: ProficiencyRule;
   app: AppThresholds;
 }
 
@@ -104,5 +128,6 @@ export const DEFAULT_RULES: Rules = {
   passenger: PASSENGER_CURRENCY,
   night: NIGHT_CURRENCY,
   sep: SEP_REVALIDATION,
+  proficiencyCheck: PROFICIENCY_CHECK_REVALIDATION,
   app: APP_THRESHOLDS,
 };

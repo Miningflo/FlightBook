@@ -11,7 +11,7 @@ export async function snapshotFromDb(db: LogbookDB, exportedAt = new Date().toIS
     exportedAt,
     deviceId: settings?.deviceId,
     deviceName: settings?.deviceName ?? '',
-    settings: { pilotName: settings?.pilotName, sepLandExpiry: settings?.sepLandExpiry ?? null },
+    settings: { pilotName: settings?.pilotName, sepLandExpiry: settings?.sepLandExpiry ?? null, classExpiry: settings?.classExpiry },
     aircraft, persons, flights, fstdSessions, previousExperience,
     attachments: await Promise.all(attachments.map(async ({ blob, ...a }) => ({ ...a, data: bytesToBase64(new Uint8Array(await blob.arrayBuffer())) }))),
   });

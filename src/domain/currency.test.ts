@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectEvents, nightCurrency, passengerCurrency, rolling, sepRevalidation } from './currency';
+import { classExpiryOf, classExpiryPatch, collectEvents, nightCurrency, passengerCurrency, proficiencyCheckStatus, rolling, sepRevalidation } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -167,5 +167,35 @@ describe('sepRevalidation', () => {
   });
   it('on the expiry day itself the rating is still valid', () => {
     expect(sepRevalidation([], expiry, expiry)).toMatchObject({ state: 'urgent', daysToExpiry: 0 });
+  });
+});
+
+describe('proficiencyCheckStatus', () => {
+  const expiry = '2026-03-31';
+  it('is unknown without an expiry date', () => {
+    expect(proficiencyCheckStatus(null, '2026-01-01')).toMatchObject({ status: 'unknown', state: 'not-set' });
+  });
+  it('opens the 3-month window the day after the same date three months before expiry', () => {
+    expect(proficiencyCheckStatus(expiry, '2025-12-31')).toMatchObject({ status: 'green', state: 'window-not-open', windowStart: '2026-01-01' });
+    expect(proficiencyCheckStatus(expiry, '2026-01-01').state).toBe('window-open');
+  });
+  it('is amber while the window is open, red in the last 30 days and after expiry', () => {
+    expect(proficiencyCheckStatus(expiry, '2026-02-15')).toMatchObject({ status: 'amber', state: 'window-open' });
+    expect(proficiencyCheckStatus(expiry, '2026-03-01')).toMatchObject({ status: 'red', state: 'urgent' });
+    expect(proficiencyCheckStatus(expiry, '2026-04-01')).toMatchObject({ status: 'red', state: 'expired' });
+  });
+});
+
+describe('class expiry helpers and per-class experience', () => {
+  it('keeps SEP (land) in its own field and other classes in classExpiry', () => {
+    expect(classExpiryOf({ sepLandExpiry: '2026-03-31' }, 'SEP_LAND')).toBe('2026-03-31');
+    expect(classExpiryPatch({}, 'SET_LAND', '2026-05-31')).toEqual({ classExpiry: { SET_LAND: '2026-05-31' } });
+    expect(classExpiryPatch({ classExpiry: { SET_LAND: '2026-05-31' } }, 'SET_LAND', null)).toEqual({ classExpiry: {} });
+    expect(classExpiryPatch({}, 'SEP_LAND', null)).toEqual({ sepLandExpiry: null });
+  });
+  it('only counts flights of the selected class', () => {
+    const f = { ...flight('2025-09-01'), aircraftClass: 'TMG' as const, totalMin: 800, picMin: 800, takeoffsDay: 12, landingsDay: 12 };
+    expect(sepRevalidation([f], '2026-03-31', '2026-03-20', DEFAULT_RULES, 'TMG').progress.find((p) => p.key === 'flight')!.have).toBe(800);
+    expect(sepRevalidation([f], '2026-03-31', '2026-03-20').progress.find((p) => p.key === 'flight')!.have).toBe(0);
   });
 });

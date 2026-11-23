@@ -89,7 +89,7 @@ export function App() {
       flights: newestFirst(viewerRecords?.flights ?? []),
       aircraft: viewerSnap?.aircraft ?? [], persons: viewerSnap?.persons ?? [],
       fstd: viewerRecords?.fstd ?? [], previousExperience: viewerRecords?.experience ?? [],
-      settings: { ...local.settings, pilotName: viewerSnap?.settings.pilotName ?? local.settings.pilotName, sepLandExpiry: viewerSnap ? viewerSnap.settings.sepLandExpiry ?? null : local.settings.sepLandExpiry },
+      settings: { ...local.settings, pilotName: viewerSnap?.settings.pilotName ?? local.settings.pilotName, sepLandExpiry: viewerSnap ? viewerSnap.settings.sepLandExpiry ?? null : local.settings.sepLandExpiry, classExpiry: viewerSnap ? viewerSnap.settings.classExpiry ?? {} : local.settings.classExpiry },
     };
   }, [local, viewerRecords, viewerSnap]);
 
