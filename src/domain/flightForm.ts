@@ -35,6 +35,8 @@ export interface FlightFormState {
   model: string;
   variant: string;
   aircraftClass: ClassRating;
+  /** Which type rating this flight counts towards. Only meaningful when the class is OTHER. */
+  typeRatingId: string | null;
   engineClass: EngineClass;
 
   picName: string;
@@ -89,6 +91,7 @@ export function emptyForm(d: FormDefaults): FlightFormState {
     model: '',
     variant: '',
     aircraftClass: 'SEP_LAND',
+    typeRatingId: null,
     engineClass: 'SP-SE',
     picName: d.picName,
     totalMin: 0,
@@ -131,6 +134,7 @@ export function formFromFlight(f: Flight, picName: string): FlightFormState {
     model: f.aircraftModel,
     variant: f.aircraftVariant,
     aircraftClass: f.aircraftClass,
+    typeRatingId: f.typeRatingId ?? null,
     engineClass: engineClassOfFlight(f),
     picName,
     totalMin: f.totalMin,
@@ -256,6 +260,7 @@ export function applyAircraft(state: FlightFormState, a: Aircraft): FlightFormSt
     model: a.model,
     variant: a.variant,
     aircraftClass: a.classRating,
+    typeRatingId: a.typeRatingId ?? null,
     engineClass: a.engineClass,
   });
 }
@@ -347,6 +352,7 @@ export interface FlightInput {
   aircraftModel: string;
   aircraftVariant: string;
   aircraftClass: ClassRating;
+  typeRatingId?: string | null;
   engineClass: EngineClass;
   picName: string;
   spSeMin: Minutes;
@@ -400,6 +406,8 @@ export function formToFlightInput(
     aircraftModel: s.model.trim(),
     aircraftVariant: s.variant.trim(),
     aircraftClass: s.aircraftClass,
+    // only the Other class is type-rated; anything else must not carry a stale rating
+    typeRatingId: s.aircraftClass === 'OTHER' ? s.typeRatingId : null,
     engineClass: s.engineClass,
     picName: s.picName.trim(),
     spSeMin: s.engineClass === 'SP-SE' ? s.totalMin : 0,

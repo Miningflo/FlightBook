@@ -29,10 +29,25 @@ export interface Events {
 const repeat = (date: IsoDate, n: number): IsoDate[] => Array.from({ length: Math.max(0, n) }, () => date);
 
 /** Take-offs and landings of one class, expanded to one entry per event. A landing is dated by its arrival. */
-export function collectEvents(flights: Flight[], cls: ClassRating, night: boolean): Events {
+/**
+ * What a currency is counted over. FCL.060(b) says "an aircraft of the same type or class", so these
+ * are the two things the regulation recognises, and the app follows it rather than always using class:
+ * for a type-rated pilot, landings in a King Air say nothing about currency on a 737.
+ */
+export type CurrencyScope =
+  | { kind: 'class'; cls: ClassRating }
+  | { kind: 'type'; typeRatingId: string };
+
+export const byClass = (cls: ClassRating): CurrencyScope => ({ kind: 'class', cls });
+export const byType = (typeRatingId: string): CurrencyScope => ({ kind: 'type', typeRatingId });
+
+export const inScope = (f: Flight, scope: CurrencyScope): boolean =>
+  scope.kind === 'class' ? f.aircraftClass === scope.cls : f.typeRatingId === scope.typeRatingId;
+
+export function collectEvents(flights: Flight[], scope: CurrencyScope, night: boolean): Events {
   const out: Events = { takeoffs: [], landings: [] };
   for (const f of flights) {
-    if (f.aircraftClass !== cls) continue;
+    if (!inScope(f, scope)) continue;
     out.takeoffs.push(...repeat(f.date, night ? f.takeoffsNight : f.takeoffsDay + f.takeoffsNight));
     out.landings.push(...repeat(dateOfTimestamp(f.arrTimeUtc), night ? f.landingsNight : f.landingsDay + f.landingsNight));
   }
@@ -81,13 +96,13 @@ function rollingCheck(id: 'passengers' | 'night', events: Events, r: { windowDay
 }
 
 /** Carrying passengers: take-offs and landings of the class in the last 90 days. */
-export function passengerCurrency(flights: Flight[], cls: ClassRating, today: IsoDate, rules: Rules = DEFAULT_RULES): RollingCheck {
-  return rollingCheck('passengers', collectEvents(flights, cls, false), rules.passenger, today, rules.app.amberDaysBeforeLapse);
+export function passengerCurrency(flights: Flight[], scope: CurrencyScope, today: IsoDate, rules: Rules = DEFAULT_RULES): RollingCheck {
+  return rollingCheck('passengers', collectEvents(flights, scope, false), rules.passenger, today, rules.app.amberDaysBeforeLapse);
 }
 
 /** Carrying passengers at night: night take-offs and landings of the class in the last 90 days. */
-export function nightCurrency(flights: Flight[], cls: ClassRating, today: IsoDate, rules: Rules = DEFAULT_RULES): RollingCheck {
-  return rollingCheck('night', collectEvents(flights, cls, true), rules.night, today, rules.app.amberDaysBeforeLapse);
+export function nightCurrency(flights: Flight[], scope: CurrencyScope, today: IsoDate, rules: Rules = DEFAULT_RULES): RollingCheck {
+  return rollingCheck('night', collectEvents(flights, scope, true), rules.night, today, rules.app.amberDaysBeforeLapse);
 }
 
 // ---------- SEP class rating: revalidation by experience ----------
@@ -183,6 +198,28 @@ export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today
 }
 
 // ---------- instrument rating ----------
+
+/**
+ * Flights logged under OTHER that say nothing about which type rating they belong to. Those flights
+ * count towards no currency at all, so the number has to be shown rather than quietly dropped.
+ */
+export function unassignedTypeFlights(flights: Flight[]): Flight[] {
+  return flights.filter((f) => f.aircraftClass === 'OTHER' && !f.typeRatingId);
+}
+
+/** Route sectors for a type rating. Countable now that each flight names its rating (FCL.740.A(a)(2)). */
+export function typeRouteSectors(flights: Flight[], typeRatingId: string, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+  if (!expiry) return null;
+  const r = rules.mepSectors;
+  const windowStart = addDays(addMonths(expiry, -r.validityMonths), 1);
+  const windowEnd = today < expiry ? today : expiry;
+  const inWindow = flights.filter((f) => f.typeRatingId === typeRatingId && f.date >= windowStart && f.date <= windowEnd);
+  const routeFlights = inWindow.filter((f) => place(f.depPlace) !== place(f.arrPlace)).length;
+  return {
+    flights: inWindow.length, routeFlights, need: r.sectors, windowStart,
+    met: routeFlights >= r.sectors, metIfLocalCount: inWindow.length >= r.sectors,
+  };
+}
 
 /** Status of one type rating (FCL.740.A(a)(1)): the same check window as a multi-engine class rating. */
 export function typeRatingStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {

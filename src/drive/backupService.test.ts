@@ -4,7 +4,7 @@ import { DriveReader, DriveWriter, qs } from './driveApi';
 import { createFakeDrive, fakeTokens, type FakeDrive } from './testing/fakeDrive';
 import { DriveError, DriveUnreachableError, MasterMismatchError, NeedsSignInError, NoBackupsError } from './types';
 import { BACKUP_FOLDER_NAME, KEEP_PRE_RESTORE, KEEP_SNAPSHOTS, MASTER_FILE_NAME, isSnapshotName } from '../domain/driveRules';
-import { buildSnapshot, SnapshotError, parseSnapshot } from '../domain/snapshot';
+import { SNAPSHOT_SCHEMA_VERSION, buildSnapshot, SnapshotError, parseSnapshot } from '../domain/snapshot';
 import { flight } from '../domain/testFactories';
 import type { Person } from '../domain/types';
 
@@ -49,9 +49,9 @@ describe('first backup', () => {
     const svc = master();
     const { file } = await svc.runBackup();
     const f = drive.files.get(file.id)!;
-    expect(f.appProperties).toMatchObject({ fb: 'snapshot', schema: '1', device: 'phone-1', deviceName: 'Galaxy' });
+    expect(f.appProperties).toMatchObject({ fb: 'snapshot', schema: String(SNAPSHOT_SCHEMA_VERSION), device: 'phone-1', deviceName: 'Galaxy' });
     const snap = parseSnapshot(f.content);
-    expect(snap).toMatchObject({ app: 'flightbook', schemaVersion: 1, deviceId: 'phone-1', deviceName: 'Galaxy' });
+    expect(snap).toMatchObject({ app: 'flightbook', schemaVersion: SNAPSHOT_SCHEMA_VERSION, deviceId: 'phone-1', deviceName: 'Galaxy' });
     expect(snap.flights).toHaveLength(1);
   });
   it('a second backup adds a new snapshot and does not touch master.json', async () => {

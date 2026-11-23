@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus } from './currency';
+import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -53,19 +53,19 @@ describe('rolling', () => {
 
 describe('passengerCurrency', () => {
   it('is current with three take-offs and three landings today', () => {
-    const r = passengerCurrency([laps(today, 3)], 'SEP_LAND', today);
+    const r = passengerCurrency([laps(today, 3)], byClass('SEP_LAND'), today);
     expect(r).toMatchObject({ status: 'green', state: 'current', validUntil: addDays(today, 89), daysLeft: 89 });
     expect(r.takeoffs.count).toBe(3);
     expect(r.landings.count).toBe(3);
   });
   it('counts every take-off of a flight, day and night together', () => {
-    const r = passengerCurrency([flight(today, { takeoffsDay: 1, takeoffsNight: 1, landingsDay: 2, landingsNight: 0 }), laps(addDays(today, -1), 1)], 'SEP_LAND', today);
+    const r = passengerCurrency([flight(today, { takeoffsDay: 1, takeoffsNight: 1, landingsDay: 2, landingsNight: 0 }), laps(addDays(today, -1), 1)], byClass('SEP_LAND'), today);
     expect(r.takeoffs.count).toBe(3);
     expect(r.landings.count).toBe(3);
     expect(r.state).toBe('current');
   });
   it('lapses when take-offs are enough but landings are not (the weaker one wins)', () => {
-    const r = passengerCurrency([flight(today, { takeoffsDay: 3, landingsDay: 2 })], 'SEP_LAND', today);
+    const r = passengerCurrency([flight(today, { takeoffsDay: 3, landingsDay: 2 })], byClass('SEP_LAND'), today);
     expect(r.state).toBe('lapsed');
     expect(r.status).toBe('red');
     expect(r.takeoffs.state).toBe('current');
@@ -75,7 +75,7 @@ describe('passengerCurrency', () => {
     const r = passengerCurrency([
       flight(addDays(today, -80), { takeoffsDay: 3, landingsDay: 0, arrTimeUtc: Date.parse(`${addDays(today, -80)}T11:00:00Z`) }),
       flight(addDays(today, -10), { takeoffsDay: 0, landingsDay: 3 }),
-    ], 'SEP_LAND', today);
+    ], byClass('SEP_LAND'), today);
     expect(r.status).toBe('amber');
     expect(r.validUntil).toBe(addDays(today, 9)); // take-offs lapse first: -80 + 89
     expect(r.daysLeft).toBe(9);
@@ -85,28 +85,28 @@ describe('passengerCurrency', () => {
       depTimeUtc: Date.parse('2025-06-29T23:30:00Z'), arrTimeUtc: Date.parse('2025-06-30T00:10:00Z'),
       takeoffsDay: 1, landingsDay: 1,
     });
-    expect(collectEvents([f], 'SEP_LAND', false)).toEqual({ takeoffs: ['2025-06-29'], landings: ['2025-06-30'] });
+    expect(collectEvents([f], byClass('SEP_LAND'), false)).toEqual({ takeoffs: ['2025-06-29'], landings: ['2025-06-30'] });
   });
   it('only counts flights of the selected class', () => {
     const flights = [laps(today, 3), laps(today, 3, { aircraftClass: 'TMG' })];
-    expect(passengerCurrency(flights, 'TMG', today).takeoffs.count).toBe(3);
-    expect(passengerCurrency(flights, 'SEP_LAND', today).takeoffs.count).toBe(3);
-    expect(passengerCurrency(flights, 'MEP_LAND', today).state).toBe('lapsed');
+    expect(passengerCurrency(flights, byClass('TMG'), today).takeoffs.count).toBe(3);
+    expect(passengerCurrency(flights, byClass('SEP_LAND'), today).takeoffs.count).toBe(3);
+    expect(passengerCurrency(flights, byClass('MEP_LAND'), today).state).toBe('lapsed');
   });
 });
 
 describe('nightCurrency', () => {
   it('counts night take-offs and landings only: 1 of each is enough (FCL.060(b)(2))', () => {
-    const r = nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5, takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today);
+    const r = nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5, takeoffsNight: 1, landingsNight: 1 })], byClass('SEP_LAND'), today);
     expect(r.takeoffs.count).toBe(1);
     expect(r.state).toBe('current');
   });
   it('day take-offs and landings do not count', () => {
-    expect(nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5 })], 'SEP_LAND', today).state).toBe('lapsed');
+    expect(nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5 })], byClass('SEP_LAND'), today).state).toBe('lapsed');
   });
   it('follows the configured requirement, so a corrected rule is a one-line change', () => {
     const rules = { ...DEFAULT_RULES, night: { ...DEFAULT_RULES.night, takeoffs: 3, landings: 3 } };
-    expect(nightCurrency([flight(today, { takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today, rules).state).toBe('lapsed');
+    expect(nightCurrency([flight(today, { takeoffsNight: 1, landingsNight: 1 })], byClass('SEP_LAND'), today, rules).state).toBe('lapsed');
   });
 });
 
@@ -252,7 +252,7 @@ describe('nightExemptByIr', () => {
   it('does not change what night currency itself counts', () => {
     // the exemption is about whether the requirement applies, not about the arithmetic
     const flights = [flight(today, { takeoffsNight: 1, landingsNight: 1 })];
-    expect(nightCurrency(flights, 'SEP_LAND', today).state).toBe('current');
+    expect(nightCurrency(flights, byClass('SEP_LAND'), today).state).toBe('current');
   });
 });
 

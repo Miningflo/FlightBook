@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
 import { CLASS_RATINGS, CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
-import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus } from '../../domain/currency';
+import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { uuid } from '../../domain/id';
@@ -359,6 +359,46 @@ function LanguageCard({ today }: { today: IsoDate }) {
 }
 
 /**
+ * The Other class holds every type-rated aeroplane, so a single currency across it would mix types
+ * that have nothing to do with each other. FCL.060 counts per "type or class", so this shows one set
+ * of counters per type rating instead, and names the flights that belong to none of them.
+ */
+function OtherClassPanel({ today }: { today: IsoDate }) {
+  const { data } = useApp();
+  const ratings = data.settings.typeRatings ?? [];
+  const stranded = unassignedTypeFlights(data.flights);
+  const flown = ratings.filter((t) => data.flights.some((f) => f.typeRatingId === t.id));
+  return (
+    <>
+      {stranded.length > 0 && (
+        <div className="card cur-card">
+          <div className="head"><div><h3>Flights without a type rating</h3></div><StatusPill status="amber" label={`${stranded.length}`} /></div>
+          <div className="hint">
+            {stranded.length} flight{stranded.length === 1 ? '' : 's'} in the Other class do{stranded.length === 1 ? 'es' : ''} not say which type
+            rating {stranded.length === 1 ? 'it was' : 'they were'} flown under, so {stranded.length === 1 ? 'it counts' : 'they count'} towards no
+            currency at all. Open {stranded.length === 1 ? 'it' : 'them'} and pick the rating.
+          </div>
+        </div>
+      )}
+      {flown.length === 0 && stranded.length === 0 && (
+        <p className="hint" style={{ margin: '0 4px 12px' }}>
+          No flights logged in a type-rated aeroplane yet. Add your type ratings under <strong>Your licence</strong> below, then pick one when you log the flight.
+        </p>
+      )}
+      {flown.map((t) => (
+        <div key={t.id}>
+          <RollingCard title="Carrying passengers" subtitle={`${t.name} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`}
+            check={passengerCurrency(data.flights, byType(t.id), today)} rule={DEFAULT_RULES.passenger} />
+          <RollingCard title="Passengers at night" subtitle={`${t.name} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`}
+            check={nightCurrency(data.flights, byType(t.id), today)} rule={DEFAULT_RULES.night}
+            exemptUntil={nightExemptByIr(data.settings, today) ? data.settings.irExpiry ?? undefined : undefined} />
+        </div>
+      ))}
+    </>
+  );
+}
+
+/**
  * Type ratings. A list, not a single card: a pilot may hold several at once and each expires on its own
  * date. Flights in a type-rated aeroplane are logged under the OTHER class, which is why nothing here
  * is driven by the class chips.
@@ -384,6 +424,7 @@ function TypeRatingsCard({ today }: { today: IsoDate }) {
       {ratings.length === 0 && <div className="hint">None added. Add one for each type rating on your licence.</div>}
       {ratings.map((t) => {
         const c = typeRatingStatus(t.expiry, today);
+        const sec = typeRouteSectors(data.flights, t.id, t.expiry, today);
         const days = c.daysToExpiry ?? 0;
         const label = { green: 'Valid', amber: 'Check due', red: c.state === 'expired' ? 'Expired' : 'Urgent', unknown: 'Not set' }[c.status];
         return (
@@ -397,6 +438,9 @@ function TypeRatingsCard({ today }: { today: IsoDate }) {
                 : c.state === 'window-not-open' ? `Valid until ${formatShortDate(t.expiry)}. The check may be taken from ${c.windowStart ? formatShortDate(c.windowStart) : ''}.`
                 : `Proficiency check due · ${days} day${days === 1 ? '' : 's'} to expiry (${formatShortDate(t.expiry)}).`}
             </div>
+            {sec && c.state !== 'expired' && (
+              <div className="hint">Route sectors: {sec.routeFlights} of {sec.need} between different aerodromes ({sec.flights} counting local flights).</div>
+            )}
             {canEdit && (
               <div className="row">
                 {/* clearing a type rating's date removes the rating itself, so the button has to say so */}
@@ -439,8 +483,8 @@ export function CurrencyScreen() {
     return CLASS_RATINGS.filter((c) => c !== 'OTHER' || used.has(c));
   }, [data.flights]);
   const [cls, setCls] = useState<ClassRating>('SEP_LAND');
-  const passengers = useMemo(() => passengerCurrency(data.flights, cls, today), [data.flights, cls, today]);
-  const night = useMemo(() => nightCurrency(data.flights, cls, today), [data.flights, cls, today]);
+  const passengers = useMemo(() => passengerCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
+  const night = useMemo(() => nightCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
   const expiry = classExpiryOf(data.settings, cls);
   const experience = useMemo(() => sepRevalidation(data.flights, expiry, today, DEFAULT_RULES, cls), [data.flights, expiry, today, cls]);
   const check = useMemo(() => proficiencyCheckStatus(expiry, today), [expiry, today]);
@@ -455,10 +499,16 @@ export function CurrencyScreen() {
       <div className="range-chips" role="group" aria-label="Aircraft class">
         {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}
       </div>
-      <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`} check={passengers} rule={DEFAULT_RULES.passenger} />
-      <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} exemptUntil={nightExempt} />
+      {/* Other is not a class you can be current on: it is every type-rated aeroplane at once, and
+          FCL.060 counts per type. OtherClassPanel does the counting per rating instead. */}
+      {cls !== 'OTHER' && (
+        <>
+          <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`} check={passengers} rule={DEFAULT_RULES.passenger} />
+          <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} exemptUntil={nightExempt} />
+        </>
+      )}
       {isExperienceClass(cls) ? <ExperienceCard cls={cls} check={experience} />
-        : cls === 'OTHER' ? <p className="hint" style={{ margin: '0 4px 12px' }}>Flights in a type-rated aeroplane are logged here. The ratings themselves are tracked under <strong>Your licence</strong> below, because one pilot may hold several.</p>
+        : cls === 'OTHER' ? <OtherClassPanel today={today} />
         : <CheckCard cls={cls} check={check} />}
 
       {/* Not class ratings: held once, and they apply whatever you are flying. */}

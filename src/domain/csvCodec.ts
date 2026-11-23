@@ -36,6 +36,15 @@ const fail = (msg: string): never => { throw new Error(msg); };
 function text<T>(key: keyof T & string, header: string, required = false): Col<T> {
   return { header, required, format: (r) => escapeTextCell(String(r[key] ?? '')), parse: (c) => unescapeTextCell(c), apply: (d, v) => { d[key] = v; } };
 }
+/** Text that is absent rather than empty: an empty cell round-trips back to null, not "". */
+function nullableText<T>(key: keyof T & string, header: string): Col<T> {
+  return {
+    header, required: false,
+    format: (r) => escapeTextCell(String(r[key] ?? '')),
+    parse: (c) => (c.trim() === '' ? null : unescapeTextCell(c)),
+    apply: (d, v) => { d[key] = v ?? null; },
+  };
+}
 function duration<T>(key: keyof T & string, header: string, required = false): Col<T> {
   return {
     header, required, format: (r) => formatHHMM(Number(r[key])),
@@ -98,6 +107,9 @@ export const FLIGHT_COLUMNS: Col<FlightImport>[] = [
   text('arrPlace', 'arr_place', true), instant('arrTimeUtc', 'arr_time_utc', true),
   text('registration', 'registration', true), text('aircraftMake', 'make', true), text('aircraftModel', 'model', true), text('aircraftVariant', 'variant'),
   classCol('aircraftClass', 'class'),
+  // the id, not a name: type ratings live in settings, which travel with a JSON backup, so the link
+  // survives a restore. A CSV on its own carries flights only, so the column is informational there.
+  nullableText('typeRatingId', 'type_rating_id'),
   duration('spSeMin', 'sp_se'), duration('spMeMin', 'sp_me'), duration('mpMin', 'mp'), duration('totalMin', 'total', true),
   text('picName', 'pic_name', true),
   int('takeoffsDay', 'takeoffs_day'), int('takeoffsNight', 'takeoffs_night'), int('landingsDay', 'landings_day'), int('landingsNight', 'landings_night'),
@@ -221,6 +233,8 @@ export function decodeFlights(text: string, ids: () => string, now: number): Dec
       arrPlace: String(d.arrPlace).trim().toUpperCase(), arrTimeUtc: d.arrTimeUtc as number,
       registration: String(d.registration).trim().toUpperCase().replace(/\s+/g, ''), aircraftMake: String(d.aircraftMake).trim(), aircraftModel: String(d.aircraftModel).trim(),
       aircraftVariant: String(d.aircraftVariant ?? '').trim(), aircraftClass: d.aircraftClass as ClassRating,
+      // an empty optional cell never reaches apply(), so the absent case is defaulted here
+      typeRatingId: (d.typeRatingId as string | null | undefined) ?? null,
       spSeMin: noSplit ? total : se ?? 0, spMeMin: me ?? 0, mpMin: mp ?? 0, totalMin: total,
       picName: String(d.picName).trim().replace(/\s+/g, ' '),
       takeoffsDay: (d.takeoffsDay as number | undefined) ?? 0, takeoffsNight: (d.takeoffsNight as number | undefined) ?? 0,
