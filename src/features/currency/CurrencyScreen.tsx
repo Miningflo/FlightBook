@@ -66,6 +66,18 @@ const SEP_LABELS: Record<string, string> = {
   flight: 'Flight time in class', pic: 'of which as PIC', takeoffs: 'Take-offs', landings: 'Landings', training: 'Training flight with instructor (DUAL time)',
 };
 
+/** Shown when a rating has expired: what is needed to get it back. */
+function RenewalSteps() {
+  const rule = DEFAULT_RULES.renewal;
+  return (
+    <div className="renewal">
+      <strong>To renew this rating</strong>
+      <ol>{rule.steps.map((t) => <li key={t}>{t}</li>)}</ol>
+      <RulesNote rule={rule} />
+    </div>
+  );
+}
+
 /** Edit the expiry date of the rating of one class. */
 function ExpiryEditor({ cls, forceOpen }: { cls: ClassRating; forceOpen: boolean }) {
   const { canEdit, updateSettings, data } = useApp();
@@ -117,17 +129,18 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
     'requirements-met': `Valid until ${check.expiry ? formatShortDate(check.expiry) : ''}. Revalidate before then.`,
     'in-progress': 'Requirements not yet met.',
     urgent: 'Requirements not yet met.',
-    expired: 'The renewal rules for an expired rating are not evaluated by this app.',
+    expired: 'Revalidation is no longer possible; the rating must be renewed.',
   };
   return (
     <div className="card cur-card">
       <div className="head"><div><h3>{name} class rating</h3><div className="hint">Revalidation by experience, 12 months before expiry</div></div><StatusPill status={check.status} label={pill} /></div>
       <div className="headline">{headline[check.state]}</div>
       <div className="hint">{sub[check.state]}</div>
-      {check.progress.map((p) => (
+      {check.state !== 'expired' && check.progress.map((p) => (
         <Row key={p.key} label={SEP_LABELS[p.key]!} have={p.have} need={p.need} ok={p.met} warn={!p.met && check.status === 'amber'} bad={!p.met && check.status === 'red'}
           display={p.unit === 'min' ? `${formatHHMM(p.have)} / ${formatHHMM(p.need)}` : `${p.have} / ${p.need}`} />
       ))}
+      {check.state === 'expired' && <RenewalSteps />}
       <ExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} />
     </div>
@@ -152,13 +165,14 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
     'window-not-open': `Take the proficiency check with an examiner from ${d(check.windowStart)}.`,
     'window-open': 'Revalidate with a proficiency check with an examiner before expiry. Flight experience alone is not enough for this class.',
     urgent: 'Proficiency check with an examiner still needed.',
-    expired: 'The renewal rules for an expired rating are not evaluated by this app.',
+    expired: 'Revalidation is no longer possible; the rating must be renewed.',
   };
   return (
     <div className="card cur-card">
       <div className="head"><div><h3>{name} class rating</h3><div className="hint">Revalidation by proficiency check, last 3 months before expiry</div></div><StatusPill status={check.status} label={pill} /></div>
       <div className="headline">{headline[check.state]}</div>
       <div className="hint">{sub[check.state]}</div>
+      {check.state === 'expired' && <RenewalSteps />}
       <ExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} />
     </div>
