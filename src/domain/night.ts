@@ -4,10 +4,17 @@ import { isNightAt, sunAltitudeDeg, CIVIL_TWILIGHT_DEG } from './sun';
 
 /**
  * Night = the period from the end of evening civil twilight to the beginning of
- * morning civil twilight (sun's centre more than 6 degrees below the horizon), as
- * specified in instructions.md.
- * TODO(verify): confirm the exact regulatory wording/reference for "night" used for
- * logging and for the night-currency rules (phase 3) against the current EASA text.
+ * morning civil twilight (sun's centre more than 6 degrees below the horizon).
+ *
+ * Part-FCL FCL.010 defines "night" as "the period between the end of evening civil twilight and the
+ * beginning of morning civil twilight"; civil twilight ends in the evening, and begins in the morning,
+ * when the centre of the sun's disc is 6 degrees below the horizon (the definitions in the Annex to
+ * Regulation (EU) No 923/2012, SERA). Checked against the EASA Easy Access Rules on 23 November 2026;
+ * see domain/rules.ts for the edition.
+ *
+ * TODO(verify): FCL.010 ends "or such other period between sunset and sunrise as may be prescribed by
+ * the appropriate authority", so a national authority may define it differently. Confirm with the
+ * authority that issued your licence before relying on the computed night time.
  */
 
 export interface NightInput {
