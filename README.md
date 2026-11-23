@@ -8,17 +8,33 @@ The Android phone is the master logbook; the same app in a desktop browser is a 
 **The regulatory numbers are checked against the EASA text** — see [Totals and currency](#totals-and-currency) for what was checked, against which revision, and what the app still cannot know.
 
 ## Screenshots
-All screenshots show an invented logbook: a fictional pilot with 46 flights from 2025–2026, simulator sessions and one block of previous experience. The flights never happened. The airports and routes are real, and so are the four aircraft registrations (chosen because Wikimedia Commons has a photo of each); the flights, times, remarks and people are made up. Night time and the day/night take-offs and landings were calculated by the app itself. The aircraft photos were looked up by the app on Wikimedia Commons (credits [below](#photo-credits)). Some screens are in dark mode and the map uses the "Aviation magenta" colour, to show the theme and colour settings.
+Every screenshot shows an **invented** logbook: a fictional pilot, with flights, times, remarks and people that are made up. The airports and routes are real. Night time and the day/night take-offs and landings were calculated by the app itself, and the currency and rating states are the app's own, not mock-ups &mdash; the demo logbook is seeded so that one class rating is comfortably valid, one has its proficiency-check window open, and one has expired. Some screens are in dark mode and the map uses the "Aviation magenta" colour, to show the theme and colour settings.
+
+Five of them &mdash; **Currency**, **Class rating revalidation**, **Alerts**, **Holder details** and the **PDF logbook** &mdash; are **reproducible**: `scripts/make-demo-logbook.ts` writes a demo logbook from a fixed seed, and `scripts/make-screenshots.mjs` drives a real build of the app in headless Chromium with the clock pinned to the demo's date, so re-running them gives the same images. See [Regenerating the screenshots](#regenerating-the-screenshots). The rest (Logbook, Flight, New flight, Totals, Map) predate that script and show an earlier invented logbook, the one with the aircraft photos credited [below](#photo-credits).
 
 | Logbook | Flight | New flight |
 |---|---|---|
 | <img src="docs/screenshots/logbook.png" alt="Logbook list with total hours, flight count and recent flights" width="260"> | <img src="docs/screenshots/flight.png" alt="Detail of one flight: route, times, PIC time, take-offs, landings and night time" width="260"> | <img src="docs/screenshots/new-flight.png" alt="New flight form with off-blocks, on-blocks and total time filled in, and the airport names looked up" width="260"> |
 | **Totals** | **Currency** | **Map** |
-| <img src="docs/screenshots/totals.png" alt="Totals: flight time, pilot function breakdown and simulator time" width="260"> | <img src="docs/screenshots/currency.png" alt="Currency: passenger and night-passenger currency with progress bars" width="260"> | <img src="docs/screenshots/map.png" alt="Map of airports and routes flown, on the built-in basemap" width="260"> |
+| <img src="docs/screenshots/totals.png" alt="Totals: flight time, pilot function breakdown and simulator time" width="260"> | <img src="docs/screenshots/currency.png" alt="Currency for SEP (land): passengers current, night currency lapsed, with the one night take-off and landing the regulation requires" width="260"> | <img src="docs/screenshots/map.png" alt="Map of airports and routes flown, on the built-in basemap" width="260"> |
+| **Class rating revalidation** | **Alerts** | **Holder details for the PDF** |
+| <img src="docs/screenshots/currency-rating.png" alt="MEP (land) class rating: proficiency check due in 48 days, with the route-sector counter at 2 of 10" width="260"> | <img src="docs/screenshots/alerts.png" alt="Settings: alerts for currency and ratings switched on, with the night-currency option and a test notification button" width="260"> | <img src="docs/screenshots/export.png" alt="Export screen: holder name, licence number and address, and the Create PDF button" width="260"> |
 
-The PDF logbook (A4 landscape, AMC1 FCL.050 columns, per-page totals, totals brought forward from the previous experience):
+The PDF logbook: A4 landscape, the holder block and all twelve AMC1 FCL.050 column groups, with simulator sessions in the same table as column 11 (two of them on this page, filling only the FSTD SESSION columns), per-page totals and totals brought forward from the previous experience.
 
-<img src="docs/screenshots/pdf-logbook.png" alt="First page of the PDF logbook with the totals brought forward" width="720">
+<img src="docs/screenshots/pdf-logbook.png" alt="A page of the PDF logbook: holder block, twelve column groups, two simulator sessions interleaved with the flights, and the three totals rows" width="720">
+
+### Regenerating the screenshots
+```
+npx playwright install chromium                 # once
+npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
+VITE_BASE=/FlightBook/ npm run build
+npx vite preview --port 4330 --strictPort &
+node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.json
+```
+The script loads the demo logbook through the app's own import, so the screenshots can only show states the app can really reach. It also saves the PDF the app generates; `pdf-logbook.png` is a page of that file rendered to an image.
+
+Aircraft photo lookup is left at its default in the demo, but the screens it regenerates show no aircraft photos. **Turn it off before regenerating the first row**: Planespotters photos are not freely licensed, so one must never end up committed in `docs/screenshots/`.
 
 ### Photo credits
 Two third-party photos appear in the screenshots `docs/screenshots/logbook.png` (both photos) and `docs/screenshots/flight.png` (the Archer). In the screenshots they are cropped and scaled to fit the app's cards, and shown inside the app's screen.
@@ -160,4 +176,6 @@ The Planespotters response format was verified against the live API (November 20
 No UI library: Material 3 styling is plain CSS tokens in `src/styles.css`.
 
 ## Layout
+`scripts/make-demo-logbook.ts` writes the seeded demo logbook and `scripts/make-screenshots.mjs` regenerates the README images from it (see [Regenerating the screenshots](#regenerating-the-screenshots)).
+
 `src/domain` pure logic (types, time, roles, form rules, currency and alert levels, suggestions) · `src/db` Dexie schema and repository · `src/features` screens · `src/ui` shared components · `src/pwa` service-worker registration, storage and notification helpers · `src/sw.ts` the service worker itself (offline caching plus the daily alert check; hand-written, because the alert check has to run inside it) · `public/privacy.html` the published privacy policy · `scripts/make-icons.mjs` regenerates the PNG icons.
