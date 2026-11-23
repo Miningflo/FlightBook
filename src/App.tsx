@@ -8,6 +8,7 @@ import { ExportScreen } from './features/export/ExportScreen';
 import { bridge, db, drive, repo } from './driveRuntime';
 import { parentRoute, useMediaQuery, useRoute, useScrollMemory } from './hooks';
 import { registerServiceWorker } from './pwa/register';
+import { runAlertCheck } from './pwa/alerts';
 import { newestFirst } from './domain/suggestions';
 import { snapshotRecords, snapshotToBundle } from './domain/snapshot';
 import { BackIcon, EditIcon, PlusIcon, SettingsIcon } from './ui/Icons';
@@ -70,6 +71,17 @@ export function App() {
     if (isMaster) drive.scheduler.appOpened();
     else void drive.startViewer();
   }, [isMaster, setupDone]);
+
+  // Alerts: look for anything that got worse when the app opens and whenever it comes back to the front.
+  const alertsOn = local?.settings.alerts?.enabled ?? false;
+  useEffect(() => {
+    if (!isMaster || !setupDone || !alertsOn || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const check = () => { void runAlertCheck().catch(() => undefined); };
+    check();
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [isMaster, setupDone, alertsOn]);
 
   useEffect(() => {
     const on = () => drive.scheduler.backOnline();
