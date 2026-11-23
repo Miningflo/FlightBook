@@ -258,6 +258,18 @@ export interface Airport {
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+/**
+ * A type rating the pilot holds. Type ratings are not classes: a pilot may hold several at once, and
+ * each has its own expiry, so they are a list rather than another entry in the class table. Flights in
+ * a type-rated aeroplane are logged under the OTHER class.
+ */
+export interface TypeRating {
+  id: Uuid;
+  /** As written on the licence, e.g. "B737 300-900" or "BE20". */
+  name: string;
+  expiry: IsoDate;
+}
+
 /** Medical certificate class (Part-MED). */
 export type MedicalClass = 'CLASS1' | 'CLASS2' | 'LAPL';
 export const MEDICAL_CLASS_LABELS: Record<MedicalClass, string> = {
@@ -303,6 +315,8 @@ export interface Settings {
   /** Language proficiency endorsement (FCL.055): the level, and the expiry unless the level is 6. */
   languageLevel?: 4 | 5 | 6 | null;
   languageExpiry?: IsoDate | null;
+  /** Type ratings held, each with its own expiry date (FCL.740(a)(1): valid 1 year). */
+  typeRatings?: TypeRating[];
   /** Device-local: notify when a currency or class rating gets worse. `night` includes night currency. */
   alerts?: { enabled: boolean; night: boolean };
   /** Device-local: the levels last seen by the alert check, so only a change for the worse notifies. */
