@@ -17,7 +17,7 @@ export async function checkAlerts(db: LogbookDB, notify: Notify, now = Date.now(
   const items = watchedItems(flights, settings, utcDateOf(now));
   const { fresh, state } = alertOutcome(items, seed ? undefined : settings.alertState);
   // remember first: a failure to show one must not make the same alert fire again on the next check
-  await db.settings.put({ ...(await db.settings.get('main') ?? settings), alertState: state });
+  await db.settings.update('main', { alertState: state }); // a partial update, so it never overwrites a setting changed meanwhile
   if (seed) return 0;
   let sent = 0;
   for (const item of fresh) {
