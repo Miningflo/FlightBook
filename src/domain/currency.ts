@@ -3,8 +3,7 @@ import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
 import { DEFAULT_RULES, type Rules } from './rules';
 
 /**
- * Currency checks (green / amber / red). All regulatory numbers come from rules.ts and are
- * unverified; see the TODOs there. `today` is a UTC date passed in, so everything is deterministic.
+ * Currency checks (green / amber / red). All regulatory numbers come from rules.ts, checked against the EASA Easy Access Rules (October 2026 revision). `today` is a UTC date passed in, so everything is deterministic.
  */
 
 export type Status = 'green' | 'amber' | 'red' | 'unknown';
@@ -185,4 +184,24 @@ export function classExpiryPatch(s: { classExpiry?: Partial<Record<ClassRating, 
   const next = { ...(s.classExpiry ?? {}) };
   if (date) next[cls] = date; else delete next[cls];
   return { classExpiry: next };
+}
+
+/** Multi-engine class ratings: route sectors during the validity period (FCL.740.A(a)(2)). */
+export const SECTOR_CLASSES: readonly ClassRating[] = ['MEP_LAND', 'MEP_SEA'];
+
+export interface SectorProgress {
+  have: number;
+  need: number;
+  windowStart: IsoDate;
+  met: boolean;
+}
+
+/** Logged flights in the class in the validity period before expiry; one flight counts as one route sector. */
+export function routeSectors(flights: Flight[], cls: ClassRating, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+  if (!expiry || !SECTOR_CLASSES.includes(cls)) return null;
+  const r = rules.mepSectors;
+  const windowStart = addDays(addMonths(expiry, -r.validityMonths), 1);
+  const windowEnd = today < expiry ? today : expiry;
+  const have = flights.filter((f) => f.aircraftClass === cls && f.date >= windowStart && f.date <= windowEnd).length;
+  return { have, need: r.sectors, windowStart, met: have >= r.sectors };
 }
