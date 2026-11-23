@@ -162,15 +162,43 @@ export interface ProficiencyCheck {
   daysToExpiry: number | null;
 }
 
-export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {
+/**
+ * A rating revalidated by a proficiency check inside a window before its expiry date. The shape is the
+ * same for class ratings (FCL.740.A(a)(1), (b)(3)) and for the instrument rating (FCL.625(b)(1)), so both
+ * go through here and only the window and the red threshold differ.
+ */
+function checkWindowStatus(expiry: IsoDate | null | undefined, today: IsoDate, windowMonths: number, redDaysLeft: number): ProficiencyCheck {
   if (!expiry) return { id: 'check', status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null };
-  const windowStart = addDays(addMonths(expiry, -rules.proficiencyCheck.windowMonths), 1);
+  const windowStart = addDays(addMonths(expiry, -windowMonths), 1);
   const daysToExpiry = daysBetween(today, expiry);
   const base = { id: 'check' as const, expiry, windowStart, daysToExpiry };
   if (daysToExpiry < 0) return { ...base, status: 'red', state: 'expired' };
   if (today < windowStart) return { ...base, status: 'green', state: 'window-not-open' };
-  if (daysToExpiry <= rules.app.proficiencyCheckRedDaysLeft) return { ...base, status: 'red', state: 'urgent' };
+  if (daysToExpiry <= redDaysLeft) return { ...base, status: 'red', state: 'urgent' };
   return { ...base, status: 'amber', state: 'window-open' };
+}
+
+export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {
+  return checkWindowStatus(expiry, today, rules.proficiencyCheck.windowMonths, rules.app.proficiencyCheckRedDaysLeft);
+}
+
+// ---------- instrument rating ----------
+
+/** Status of the instrument rating itself (FCL.625): valid 1 year, check in the last 3 months. */
+export function irStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {
+  return checkWindowStatus(expiry, today, rules.ir.windowMonths, rules.app.proficiencyCheckRedDaysLeft);
+}
+
+/**
+ * Whether the night recent-experience requirement falls away (FCL.060(b)(2)(ii)).
+ *
+ * Deliberately requires the rating to be unexpired. The regulation says "holds an IR" without saying
+ * "valid", but an expired IR cannot be exercised, and claiming an exemption the pilot does not have is
+ * the dangerous way to be wrong; showing night currency to someone who is in fact exempt is not.
+ */
+export function nightExemptByIr(settings: { irExpiry?: IsoDate | null }, today: IsoDate): boolean {
+  const e = settings.irExpiry;
+  return !!e && daysBetween(today, e) >= 0;
 }
 
 /** Expiry date of a class rating from the settings (SEP (land) has its own field for backward compatibility). */

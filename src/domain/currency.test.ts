@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classExpiryOf, classExpiryPatch, collectEvents, nightCurrency, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation } from './currency';
+import { classExpiryOf, classExpiryPatch, collectEvents, irStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -209,5 +209,49 @@ describe('class expiry helpers and per-class experience', () => {
     const f = { ...flight('2025-09-01'), aircraftClass: 'TMG' as const, totalMin: 800, picMin: 800, takeoffsDay: 12, landingsDay: 12 };
     expect(sepRevalidation([f], '2026-03-31', '2026-03-20', DEFAULT_RULES, 'TMG').progress.find((p) => p.key === 'flight')!.have).toBe(800);
     expect(sepRevalidation([f], '2026-03-31', '2026-03-20').progress.find((p) => p.key === 'flight')!.have).toBe(0);
+  });
+});
+
+describe('instrument rating (FCL.625)', () => {
+  const expiry = '2026-03-31';
+  it('is unknown without an expiry date', () => {
+    expect(irStatus(null, '2026-01-01')).toMatchObject({ status: 'unknown', state: 'not-set' });
+  });
+  it('opens the 3-month check window and goes red in the last 30 days, then expires', () => {
+    expect(irStatus(expiry, '2025-12-31')).toMatchObject({ state: 'window-not-open', windowStart: '2026-01-01' });
+    expect(irStatus(expiry, '2026-01-01')).toMatchObject({ status: 'amber', state: 'window-open' });
+    expect(irStatus(expiry, '2026-03-02')).toMatchObject({ status: 'red', state: 'urgent' });
+    expect(irStatus(expiry, '2026-04-01')).toMatchObject({ status: 'red', state: 'expired' });
+  });
+});
+
+describe('nightExemptByIr', () => {
+  it('exempts only while the rating has not expired', () => {
+    expect(nightExemptByIr({}, '2026-03-31')).toBe(false);
+    expect(nightExemptByIr({ irExpiry: null }, '2026-03-31')).toBe(false);
+    expect(nightExemptByIr({ irExpiry: '2026-03-31' }, '2026-03-30')).toBe(true);
+  });
+  it('still exempts on the expiry date itself, and stops the day after', () => {
+    expect(nightExemptByIr({ irExpiry: '2026-03-31' }, '2026-03-31')).toBe(true);
+    expect(nightExemptByIr({ irExpiry: '2026-03-31' }, '2026-04-01')).toBe(false);
+  });
+  it('does not change what night currency itself counts', () => {
+    // the exemption is about whether the requirement applies, not about the arithmetic
+    const flights = [flight(today, { takeoffsNight: 1, landingsNight: 1 })];
+    expect(nightCurrency(flights, 'SEP_LAND', today).state).toBe('current');
+  });
+});
+
+describe('renewal steps are rating-specific', () => {
+  it('an expired IR may not be assessed at a DTO or with an instructor, unlike a lapsed SEP', () => {
+    const cls = DEFAULT_RULES.renewal.steps.join(' ');
+    const ir = DEFAULT_RULES.irRenewal.steps.join(' ');
+    expect(cls).toMatch(/DTO/);
+    expect(cls).toMatch(/instructor/);
+    expect(ir).not.toMatch(/DTO/);
+    expect(ir).toMatch(/ATO/);
+  });
+  it('the IR renewal carries the 7-year rule, which has no class-rating equivalent', () => {
+    expect(DEFAULT_RULES.irRenewal.todo.join(' ')).toMatch(/7 years/);
   });
 });

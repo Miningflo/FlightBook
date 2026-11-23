@@ -2,8 +2,9 @@
  * Regulatory parameters used by the currency checks, taken from Commission Regulation (EU) No 1178/2011
  * (Part-FCL) as published in the EASA Easy Access Rules for Aircrew, revision from October 2026
  * (https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew),
- * checked word by word against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026. All three
- * carry the amendments of Regulation (EU) 2024/2076 in that revision.
+ * checked word by word against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026 (all three
+ * carrying the amendments of Regulation (EU) 2024/2076 in that revision), and FCL.625 and FCL.625.A
+ * (Regulation (EU) 2020/2193) on the same day.
  * (Ground rule: do not invent regulatory rules; flag uncertainty instead of guessing.)
  *
  * Check against EASA's own text, not a national library. The UK CAA's retained version of
@@ -46,9 +47,28 @@ export const NIGHT_CURRENCY: RollingRule = {
   reference: 'Part-FCL FCL.060(b)(2)(i): to act as PIC at night, at least 1 take-off, approach and landing at night as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it). FCL.060(b)(2)(ii) exempts holders of an IR.',
   verified: true,
   todo: [
-    'Limit: holders of an IR are exempt from this requirement; the app does not track ratings other than the class rating expiry dates.',
+    'Holders of an IR are exempt from this requirement. Enter your IR expiry date and the app stops asking, for as long as the rating is valid.',
+    'Limit: FCL.060(b)(2)(ii) says "holds an IR", not "holds a valid IR". The app takes the strict reading and only exempts you while the rating has not expired, because being told you are not current when you are is the harmless way round.',
     'Limit: the logbook does not record who was flying, so every logged night take-off and landing is counted.',
     'Limit: night take-offs and landings in a simulator (FFS) of the class also count under the rule; none are counted here.',
+  ],
+};
+
+/**
+ * Instrument rating. The dates come from FCL.625; FCL.625.A says what the check contains, which the
+ * logbook cannot see. Tracked because an IR exempts you from the night requirement (FCL.060(b)(2)(ii))
+ * and because it expires twice as fast as a single-engine class rating.
+ */
+export const IR_REVALIDATION: ProficiencyRule = {
+  windowMonths: 3,
+  reference: 'Part-FCL FCL.625(a): an IR shall be valid for 1 year. FCL.625(b)(1): it shall be revalidated within the 3 months immediately preceding its expiry date by complying with the revalidation criteria for the relevant aircraft category.',
+  verified: true,
+  todo: [
+    'For aeroplanes those criteria are FCL.625.A: hold the relevant class or type rating, and pass the instrument sections of an Appendix 9 proficiency check. It may be combined with the class or type rating check, in which case the whole check counts.',
+    'Limit: an FNPT II or FFS may be used, provided at least each alternate check is flown in an aeroplane (FCL.625.A(a)(4)). The app does not know where your checks were done, so it cannot track that alternation.',
+    'If you pass the check earlier than the 3-month window, the new validity period starts from the date of the check (FCL.625(b)(2)). Update the expiry date here afterwards.',
+    'If you fail the relevant section of the check before the expiry date, you may not exercise the IR privileges until you have passed it (FCL.625(b)(3)).',
+    'Limit: the BIR (FCL.835) and the IR(H)/IR(As) variants are not modelled; this card follows the IR(A).',
   ],
 };
 
@@ -125,6 +145,28 @@ export const RENEWAL: RenewalRule = {
   ],
 };
 
+/**
+ * Renewal of an expired instrument rating (FCL.625(c)). Deliberately NOT the class-rating list above:
+ * the three steps look alike, but an IR assessment must be at an ATO or an approved EBT operator, where
+ * a lapsed SEP or TMG may be assessed at a DTO or even with an instructor. Showing the class-rating
+ * steps on the IR card would tell a pilot they can renew somewhere they cannot.
+ */
+export const IR_RENEWAL: RenewalRule = {
+  reference: 'Part-FCL FCL.625(c), renewal of an expired instrument rating.',
+  verified: true,
+  steps: [
+    'Assessment at an ATO (or at an EBT operator specifically approved for the refresher training) to decide whether you need refresher training to reach the level needed to pass the instrument element of the skill test.',
+    'Refresher training at that same organisation, only if the assessment says it is necessary.',
+    'Pass a proficiency check with an examiner (Appendix 9 to Part-FCL) in the relevant aircraft category, or complete an EBT practical assessment.',
+    'Hold the relevant class or type rating (FCL.625(c)(4)), and enter the new expiry date here once it is on your licence.',
+  ],
+  todo: [
+    'If the IR has not been revalidated or renewed in the preceding 7 years you must pass the IR theoretical knowledge examination and the skill test again (FCL.625(d)). The app does not know your rating history, so it never tells you this applies.',
+    'Holders of a valid IR on a third-country licence (ICAO Annex 1) are partly exempted (FCL.625(e)).',
+    'Limit: the app does not check these steps; it only lists them.',
+  ],
+};
+
 /** App-defined traffic-light thresholds. These are usability choices, NOT regulatory. */
 export const APP_THRESHOLDS: AppThresholds = {
   /** Amber when a rolling currency lapses within this many days. */
@@ -168,6 +210,8 @@ export interface Rules {
   passenger: RollingRule;
   night: RollingRule;
   sep: SepRule;
+  ir: ProficiencyRule;
+  irRenewal: RenewalRule;
   proficiencyCheck: ProficiencyRule;
   renewal: RenewalRule;
   mepSectors: SectorRule;
@@ -178,6 +222,8 @@ export const DEFAULT_RULES: Rules = {
   passenger: PASSENGER_CURRENCY,
   night: NIGHT_CURRENCY,
   sep: SEP_REVALIDATION,
+  ir: IR_REVALIDATION,
+  irRenewal: IR_RENEWAL,
   proficiencyCheck: PROFICIENCY_CHECK_REVALIDATION,
   renewal: RENEWAL,
   mepSectors: MULTI_ENGINE_SECTORS,

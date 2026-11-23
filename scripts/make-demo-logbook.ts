@@ -137,6 +137,8 @@ const snapshot: Snapshot = buildSnapshot({
     // SEP (land) valid but revalidation not yet met; MEP expiring inside the check window; SET long expired
     sepLandExpiry: minus(-95),
     classExpiry: { MEP_LAND: minus(-48), SET_LAND: minus(190) },
+    // valid, and inside its 3-month check window: shows the IR card working and night currency exempt
+    irExpiry: minus(-71),
   },
   aircraft, persons, flights: makeFlights(), fstdSessions, previousExperience, attachments: [],
 });
