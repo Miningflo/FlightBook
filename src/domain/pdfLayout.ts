@@ -7,16 +7,30 @@ import { clockOfTimestamp, formatHHMM } from './time';
  * app's screens. It decides which columns exist, how wide they are, which rows go on which
  * page, and the per-page / brought-forward / to-date totals. The renderer only draws it.
  *
- * TODO(verify): the column set and order below are written from memory of AMC1 FCL.050
- * and must be compared with the current AMC text (or your paper logbook):
+ * Checked against AMC1 FCL.050 "Pilot logbook" (ED Decision 2025/022/R) in the EASA Easy Access Rules
+ * for Aircrew, revision from October 2026, on 23 November 2026. The AMC numbers 12 columns, and the
+ * groups below reproduce that set and order exactly:
  *   (1) date  (2) departure place + time  (3) arrival place + time  (4) aircraft make,
  *   model, variant + registration  (5) single-pilot time SE / ME, multi-pilot time
  *   (6) total time of flight  (7) name(s) of PIC  (8) landings day / night
  *   (9) operational condition time night / IFR  (10) pilot function time PIC / co-pilot /
  *   dual / instructor  (11) FSTD session date, type, total time  (12) remarks and endorsements.
- * Open points: FSTD sessions are printed as a separate section (the AMC may place them in the
- * same table); PICUS/SPIC are printed in the remarks column because the AMC has no column for them;
- * take-offs are not printed (the AMC lists landings only).
+ * The AMC's own totals rows are TOTAL THIS PAGE / TOTAL FROM PREVIOUS PAGES / TOTAL TIME, as here,
+ * and it has no take-off and no PICUS/SPIC column, so printing landings only and putting PICUS/SPIC
+ * in the remarks is right.
+ *
+ * Two deliberate divergences from the AMC, both of which a competent authority could object to:
+ *   - Column 11 (FSTD SESSION) is not in FLIGHTS_TABLE. The AMC keeps simulator sessions in the same
+ *     table, on a row that fills only columns 1, 11 and 12; this prints them as a separate FSTD_TABLE.
+ *     Inline would need about 140 pt that the page does not have (655 pt of the 786 usable are already
+ *     fixed, leaving 131 pt for remarks), so moving it back means re-balancing every column width.
+ *   - The AMC logbook opens with the holder's name(s), licence number and address (with spaces for
+ *     later address changes). Only the name is printed, because the licence number and address are
+ *     not recorded anywhere in the app.
+ * TODO(verify): FCL.050 itself only says the record must be kept "in a form and manner established by
+ * the competent authority", and this AMC is one acceptable means, not the only one. Check what the
+ * authority that issued your licence actually requires before using the printout as your logbook of
+ * record; the header says DATE (dd/mm/yy) where this prints 4-digit years.
  */
 
 export const PAGE = {

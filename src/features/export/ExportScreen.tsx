@@ -133,11 +133,11 @@ export function ExportScreen() {
             {pdfReport.truncatedCells > 0 && <div>{pdfReport.truncatedCells} entr{pdfReport.truncatedCells === 1 ? 'y was' : 'ies were'} too long for {pdfReport.truncatedCells === 1 ? 'its' : 'their'} cell and shortened. The full text is in the CSV and the backup.</div>}
           </div>
         )}
-        <details className="rules"><summary><span className="chip unverified">Layout to verify</span><span>About the layout</span></summary>
+        <details className="rules"><summary><span className="chip unverified">Check with your authority</span><span>About the layout</span></summary>
           <ul>
-            <li>The column set follows AMC1 FCL.050 from memory (<code>TODO(verify)</code> in <code>src/domain/pdfLayout.ts</code>). Compare it with the current AMC text or your paper logbook before using the printout officially.</li>
-            <li>Simulator sessions are printed in a separate section after the flights.</li>
-            <li>PICUS and SPIC flags appear in the remarks column. Landings are printed; take-offs are not.</li>
+            <li>The twelve columns and their order match AMC1 FCL.050 "Pilot logbook", checked against the EASA Easy Access Rules for Aircrew (October 2026). PICUS and SPIC appear in the remarks column, and landings are printed but take-offs are not, because the AMC has no column for either.</li>
+            <li><strong>Two things differ from the AMC.</strong> Simulator sessions are printed as a separate section; the AMC keeps them in the same table, as column 11. And the AMC's logbook opens with your name, <em>licence number</em> and <em>address</em>, where this prints your name only.</li>
+            <li>FCL.050 itself only requires a reliable record "in a form and manner established by the competent authority", and this AMC is one acceptable means of showing that, not the only one. Check what the authority that issued your licence wants before using the printout as your logbook of record.</li>
             <li>The built-in PDF font covers Latin letters only; other characters are replaced and counted above.</li>
           </ul>
         </details>
