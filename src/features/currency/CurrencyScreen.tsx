@@ -101,6 +101,7 @@ function ExpiryEditor({ cls, forceOpen }: { cls: ClassRating; forceOpen: boolean
           <div className="row">
             <button type="button" className="btn tonal" onClick={() => void save()}>Save date</button>
             {editing && <button type="button" className="btn text" onClick={() => setEditing(false)}>Cancel</button>}
+            {current !== '' && <button type="button" className="btn text" onClick={() => { setDraft(''); void updateSettings(classExpiryPatch(data.settings, cls, null)).then(() => setEditing(false)); }}>Remove date</button>}
           </div>
         </div>
       ) : (
