@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classExpiryOf, classExpiryPatch, collectEvents, nightCurrency, passengerCurrency, proficiencyCheckStatus, rolling, sepRevalidation } from './currency';
+import { classExpiryOf, classExpiryPatch, collectEvents, nightCurrency, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -96,18 +96,30 @@ describe('passengerCurrency', () => {
 });
 
 describe('nightCurrency', () => {
-  it('counts night take-offs and landings only', () => {
+  it('counts night take-offs and landings only: 1 of each is enough (FCL.060(b)(2))', () => {
     const r = nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5, takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today);
     expect(r.takeoffs.count).toBe(1);
-    expect(r.state).toBe('lapsed'); // the assumed (strict) requirement is 3
+    expect(r.state).toBe('current');
   });
-  it('is current with three night take-offs and landings', () => {
-    const r = nightCurrency([flight(today, { takeoffsNight: 3, landingsNight: 3 })], 'SEP_LAND', today);
-    expect(r.status).toBe('green');
+  it('day take-offs and landings do not count', () => {
+    expect(nightCurrency([flight(today, { takeoffsDay: 5, landingsDay: 5 })], 'SEP_LAND', today).state).toBe('lapsed');
   });
   it('follows the configured requirement, so a corrected rule is a one-line change', () => {
-    const rules = { ...DEFAULT_RULES, night: { ...DEFAULT_RULES.night, takeoffs: 1, landings: 1 } };
-    expect(nightCurrency([flight(today, { takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today, rules).state).toBe('current');
+    const rules = { ...DEFAULT_RULES, night: { ...DEFAULT_RULES.night, takeoffs: 3, landings: 3 } };
+    expect(nightCurrency([flight(today, { takeoffsNight: 1, landingsNight: 1 })], 'SEP_LAND', today, rules).state).toBe('lapsed');
+  });
+});
+
+describe('routeSectors (multi-engine)', () => {
+  const expiry = '2026-03-31';
+  const mep = (date: string) => ({ ...flight(date), aircraftClass: 'MEP_LAND' as const });
+  it('counts logged flights in the class in the 12 months before expiry', () => {
+    const r = routeSectors([mep('2025-06-01'), mep('2025-04-01'), mep('2025-03-31'), flight('2025-06-01')], 'MEP_LAND', expiry, '2025-12-01');
+    expect(r).toMatchObject({ have: 2, need: 10, windowStart: '2025-04-01', met: false });
+  });
+  it('only applies to multi-engine classes with an expiry date', () => {
+    expect(routeSectors([], 'SET_LAND', expiry, today)).toBeNull();
+    expect(routeSectors([], 'MEP_LAND', null, today)).toBeNull();
   });
 });
 
