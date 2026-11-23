@@ -6,10 +6,16 @@ import type { PhotoCacheEntry } from '../../domain/types';
  * back to the photo page. Responses are untrusted: URLs are restricted to
  * Planespotters hosts and text is only ever rendered as text.
  *
- * TODO(verify): the response shape below follows Planespotters' published
- * documentation but could not be tested from the development environment (its bot
- * protection blocks automated clients). If it ever differs, the lookup yields
- * nothing and the app falls back to Wikimedia Commons, then a placeholder.
+ * The response shape below was checked against the live API on 23 November 2026: `photos[]` with
+ * `thumbnail.src`, `thumbnail_large.src`, `link` and `photographer`, images on t.plnspttrs.net, pages
+ * on www.planespotters.net, and `{"photos":[]}` for a registration it has no photo of. The API sends
+ * `access-control-allow-origin: *`, which is what makes the browser call possible, and
+ * `cache-control: public, max-age=3600`. If the shape ever changes, the lookup yields nothing and the
+ * app falls back to Wikimedia Commons, then a placeholder.
+ *
+ * Keep the call in the page. The API rejects non-browser callers whose User-Agent carries no contact
+ * URL (403 with a message saying so), and a browser cannot set User-Agent, so moving this into the
+ * service worker or a server would break it until a contact URL is added there.
  */
 
 interface PsPhoto {

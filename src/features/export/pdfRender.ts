@@ -1,6 +1,6 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import {
-  type DocumentModel, type Page, type PlacedColumn, PAGE, dmy, formatCell, placeColumns, rowsPerPage, sumColumnIds, tableFor,
+  type DocumentModel, type Page, type PlacedColumn, LOGBOOK_TABLE, PAGE, dmy, formatCell, placeColumns, rowsPerPage, sumColumnIds,
 } from '../../domain/pdfLayout';
 
 /**
@@ -113,8 +113,40 @@ function drawCell(page: PDFPage, f: Fonts, c: PlacedColumn, text: string, y: num
   lines.forEach((ln, i) => page.drawText(ln, { x: c.x + pad, y: top - i * lh, size, font, color: INK }));
 }
 
-function drawHeader(page: PDFPage, f: Fonts, p: Page, cols: PlacedColumn[], top: number): void {
-  const table = tableFor(p.table);
+/**
+ * The holder block of AMC1 FCL.050: name(s), licence number and address. The AMC prints it once on
+ * the inside cover; every page carries it here so a loose sheet still identifies its holder. A value
+ * that has not been entered becomes a rule to fill in by hand, which is how the AMC's own form looks.
+ */
+function drawHolderBlock(page: PDFPage, f: Fonts, model: DocumentModel, y: number, left: number, right: number): void {
+  const size = 7;
+  const field = (label: string, value: string, x: number, width: number, yy: number) => {
+    const lab = f.clean(label);
+    page.drawText(lab, { x, y: yy, size, font: f.bold, color: INK });
+    const vx = x + f.bold.widthOfTextAtSize(lab, size) + 3;
+    const avail = width - (vx - x);
+    if (value.trim() === '') {
+      page.drawLine({ start: { x: vx, y: yy - 1.5 }, end: { x: x + width, y: yy - 1.5 }, thickness: LINE_W, color: LINE });
+      return;
+    }
+    let t = f.clean(value.replace(/\s*\n\s*/g, ', '));
+    let sz = size;
+    while (sz > 5 && f.regular.widthOfTextAtSize(t, sz) > avail) sz -= 0.25;
+    if (f.regular.widthOfTextAtSize(t, sz) > avail) {
+      f.truncated++;
+      while (t.length > 1 && f.regular.widthOfTextAtSize(`${t}...`, sz) > avail) t = t.slice(0, -1);
+      t += '...';
+    }
+    page.drawText(t, { x: vx, y: yy, size: sz, font: f.regular, color: INK });
+  };
+  const half = (right - left) / 2;
+  field("Holder's name(s):", model.pilotName, left, half - 8, y);
+  field("Holder's licence number:", model.licenceNumber, left + half, half, y);
+  field("Holder's address:", model.address, left, right - left, y - 9);
+}
+
+function drawHeader(page: PDFPage, f: Fonts, cols: PlacedColumn[], top: number): void {
+  const table = LOGBOOK_TABLE;
   const gh = PAGE.groupH, ch = PAGE.colHeadH;
   let idx = 0;
   const label = (lines: string[], x: number, w: number, yTop: number, h: number) => {
@@ -150,25 +182,21 @@ function drawHeader(page: PDFPage, f: Fonts, p: Page, cols: PlacedColumn[], top:
 
 function drawPage(doc: PDFDocument, f: Fonts, model: DocumentModel, p: Page): void {
   const page = doc.addPage([PAGE.width, PAGE.height]);
-  const table = tableFor(p.table);
+  const table = LOGBOOK_TABLE;
   const cols = placeColumns(table);
   const sums = sumColumnIds(table);
   const per = rowsPerPage();
   const left = PAGE.margin, right = PAGE.width - PAGE.margin;
 
-  // title line
-  const titleY = PAGE.height - PAGE.margin - 14;
+  // title line, then the AMC1 FCL.050 holder block
+  const titleY = PAGE.height - PAGE.margin - 11;
   page.drawText(table.title, { x: left, y: titleY, size: 12, font: f.bold, color: INK });
-  if (model.pilotName) {
-    const t = f.clean(model.pilotName);
-    const w = f.regular.widthOfTextAtSize(t, 9);
-    page.drawText(t, { x: (PAGE.width - w) / 2, y: titleY + 1, size: 9, font: f.regular, color: INK });
-  }
   const pg = `Page ${p.number} of ${p.of}`;
   page.drawText(pg, { x: right - f.regular.widthOfTextAtSize(pg, 8), y: titleY + 1, size: 8, font: f.regular, color: INK });
+  drawHolderBlock(page, f, model, titleY - 10, left, right);
 
   const top = PAGE.height - PAGE.margin - PAGE.titleH;
-  drawHeader(page, f, p, cols, top);
+  drawHeader(page, f, cols, top);
 
   // data rows (ruled lines are drawn for empty rows too, so a partly filled page still looks like a log)
   let y = top - PAGE.groupH - PAGE.colHeadH;

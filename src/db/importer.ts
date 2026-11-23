@@ -15,7 +15,7 @@ export async function readBundle(db: LogbookDB): Promise<ImportBundle> {
 
 export interface ImportExtras {
   attachments?: Attachment[];
-  settings?: { pilotName?: string; sepLandExpiry?: string | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> };
+  settings?: { pilotName?: string; licenceNumber?: string; address?: string; sepLandExpiry?: string | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> };
 }
 
 export interface ImportResult {
@@ -73,6 +73,8 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
       if (cur) {
         const patch: Partial<Settings> = {};
         if (extras.settings.pilotName && !cur.pilotName) { patch.pilotName = extras.settings.pilotName; result.settingsApplied.push('pilotName'); }
+        if (extras.settings.licenceNumber && !cur.licenceNumber) { patch.licenceNumber = extras.settings.licenceNumber; result.settingsApplied.push('licenceNumber'); }
+        if (extras.settings.address && !cur.address) { patch.address = extras.settings.address; result.settingsApplied.push('address'); }
         if (extras.settings.sepLandExpiry && !cur.sepLandExpiry) { patch.sepLandExpiry = extras.settings.sepLandExpiry; result.settingsApplied.push('sepLandExpiry'); }
         const missing = Object.entries(extras.settings.classExpiry ?? {}).filter(([k, v]) => v && !cur.classExpiry?.[k as ClassRating]);
         if (missing.length > 0) { patch.classExpiry = { ...(cur.classExpiry ?? {}), ...Object.fromEntries(missing) }; result.settingsApplied.push('classExpiry'); }
@@ -108,7 +110,7 @@ export async function applyReplace(db: LogbookDB, snapshot: Snapshot): Promise<{
     await db.previousExperience.bulkAdd(snapshot.previousExperience);
     await db.attachments.bulkAdd(snapshot.attachments.map((a) => ({ id: a.id, flightId: a.flightId, mime: a.mime, name: a.name, createdAt: a.createdAt, updatedAt: a.updatedAt, blob: new Blob([base64ToBytes(a.data) as BlobPart], { type: a.mime }) })));
     const cur = await db.settings.get('main');
-    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null, classExpiry: snapshot.settings.classExpiry ?? {} });
+    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, licenceNumber: snapshot.settings.licenceNumber ?? cur.licenceNumber, address: snapshot.settings.address ?? cur.address, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null, classExpiry: snapshot.settings.classExpiry ?? {} });
     return { flights: bundle.flights.length, fstd: bundle.fstd.length, experience: bundle.experience.length };
   });
 }

@@ -2,8 +2,14 @@
  * Regulatory parameters used by the currency checks, taken from Commission Regulation (EU) No 1178/2011
  * (Part-FCL) as published in the EASA Easy Access Rules for Aircrew, revision from October 2026
  * (https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew),
- * checked against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026.
+ * checked word by word against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026. All three
+ * carry the amendments of Regulation (EU) 2024/2076 in that revision.
  * (Ground rule: do not invent regulatory rules; flag uncertainty instead of guessing.)
+ *
+ * Check against EASA's own text, not a national library. The UK CAA's retained version of
+ * FCL.740.A(b)(1)(ii) differs: there the 12 hours may be spread over the whole validity period as long as
+ * 6 of them fall in the last 12 months. The EASA text below requires all 12 within the 12 months before
+ * expiry, so these numbers are wrong for a UK licence.
  *
  * `verified` is true when the numbers below match that text. The `todo` lists are the remaining limits of
  * the app (data the logbook does not record), not doubts about the rule itself.
@@ -23,7 +29,7 @@ export const PASSENGER_CURRENCY: RollingRule = {
   windowDays: 90,
   takeoffs: 3,
   landings: 3,
-  reference: 'Part-FCL FCL.060(b)(1): to carry passengers as PIC, at least 3 take-offs, approaches and landings as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it).',
+  reference: 'Part-FCL FCL.060(b)(1): a pilot shall not operate an aircraft in commercial air transport or to carry passengers as PIC or co-pilot unless, in the preceding 90 days, they carried out at least 3 take-offs, approaches and landings as pilot flying in an aircraft of the same type or class (or an FFS representing it).',
   verified: true,
   todo: [
     'Limit: the logbook does not record who was flying, so every logged take-off and landing is counted although the rule requires them as pilot flying.',
@@ -37,7 +43,7 @@ export const NIGHT_CURRENCY: RollingRule = {
   windowDays: 90,
   takeoffs: 1,
   landings: 1,
-  reference: 'Part-FCL FCL.060(b)(2): to act as PIC at night, at least 1 take-off, approach and landing at night as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it), or hold an IR.',
+  reference: 'Part-FCL FCL.060(b)(2)(i): to act as PIC at night, at least 1 take-off, approach and landing at night as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it). FCL.060(b)(2)(ii) exempts holders of an IR.',
   verified: true,
   todo: [
     'Limit: holders of an IR are exempt from this requirement; the app does not track ratings other than the class rating expiry dates.',
@@ -55,13 +61,14 @@ export const SEP_REVALIDATION: SepRule = {
   landings: 12,
   /** Refresher training flight with an instructor. */
   instructorTrainingMin: 60,
-  reference: 'Part-FCL FCL.740.A(b)(1)(ii): within the 12 months preceding expiry, 12 hours of flight time in the class including 6 hours as PIC, 12 take-offs and 12 landings, and refresher training of at least 1 hour with an FI or CRI. Applies to SEP (land and sea) and TMG class ratings. The alternative is a proficiency check with an examiner in the last 3 months.',
+  reference: 'Part-FCL FCL.740.A(b)(1)(ii): within the 12 months preceding the expiry date of the rating, complete 12 hours of flight time in the relevant class, including (A) 6 hours as PIC, (B) 12 take-offs and 12 landings, and (C) refresher training of at least 1 hour of total flight time with and to the satisfaction of an FI or CRI. Applies to SEP (land and sea) and TMG class ratings. The alternative, FCL.740.A(b)(1)(i), is a proficiency check with an examiner within the 3 months preceding expiry.',
   verified: true,
   todo: [
     'Limit: the training flight must be with an FI or CRI; the logbook has no instructor flag, so DUAL time is used as a stand-in.',
-    'Limit: the 1 hour refresher training is not needed if you passed a class or type proficiency check, skill test, EBT assessment or assessment of competence in any class or type of aeroplane; the app does not know about those and always asks for it.',
-    'Limit: if you hold both SEP (land) and TMG, hours may be flown in either class or a combination and count for both; if you hold SEP (land) and SEP (sea), the same applies with at least 1 hour PIC and 6 take-offs and landings in each class. The app counts the selected class only.',
+    'Limit: the 1 hour refresher training is not needed if you passed a class or type rating proficiency check, a skill test, an EBT practical assessment or an assessment of competence in any class or type of aeroplane (FCL.740.A(b)(1)(ii)(C)); the app does not know about those and always asks for it.',
+    'Limit: if you hold both SEP (land) and TMG the hours may be flown in either class or a combination and revalidate both (FCL.740.A(b)(2)); if you hold SEP (land) and SEP (sea) the same applies, with at least 1 hour of the PIC time and 6 of the 12 take-offs and landings in each class (FCL.740.A(b)(4)). The app counts the selected class only.',
     'Limit: flights before the app was used (previous experience carry-ins) have no dates and are not counted.',
+    'Limit: these are the EASA figures. A UK CAA licence follows the retained wording, which lets the 12 hours be spread over the whole validity period provided 6 fall in the last 12 months.',
   ],
 };
 
@@ -72,26 +79,32 @@ export const SEP_REVALIDATION: SepRule = {
 export const PROFICIENCY_CHECK_REVALIDATION: ProficiencyRule = {
   /** The check must be passed within this many months before the expiry date. */
   windowMonths: 3,
-  reference: 'Part-FCL FCL.740.A(b)(3) (single-engine turbo-prop) and FCL.740.A(a)(1) (multi-engine): pass a proficiency check with an examiner within the 3 months preceding the expiry date of the rating.',
+  reference: 'Part-FCL FCL.740.A(b)(3) (single-engine turbo-prop): pass a proficiency check on the relevant class in accordance with Appendix 9 with an examiner, within the 3 months preceding the expiry date of the rating. FCL.740.A(a)(1) sets the same 3-month window for multi-engine class ratings.',
   verified: true,
   todo: [
+    'Limit: for multi-engine ratings FCL.740.A(a)(1) also accepts an EBT practical assessment (Appendix 10) instead of the proficiency check, and allows it in an FSTD representing the class. The app only names the check.',
     'Limit: if you pass the check earlier than that window, the new validity period starts from the date of the check (FCL.740(a)(1)). Update the expiry date here afterwards; the app does not compute it.',
-    'Validity is 1 year, except for single-pilot single-engine class ratings (SEP, TMG, SET) which are valid for 2 years (FCL.740(a)(1)). You enter the expiry date from your licence.',
-    'The regulation names "single-engine turbo-prop" class ratings; the app applies the same rule to SET (land and sea).',
+    'Validity is 1 year, except for single-pilot single-engine class ratings (SEP, TMG, SET) which are valid for 2 years, unless the operational suitability data says otherwise (FCL.740(a)(1)). You enter the expiry date from your licence.',
+    'The regulation names "single-pilot single-engine turbo-prop aeroplanes"; the app applies the same rule to SET (land and sea).',
     'If you fail a section of the check before expiry you may not use the rating until you have passed it (FCL.740.A(c)).',
   ],
 };
 
 /** Multi-engine class ratings also need route sectors during the validity period (FCL.740.A(a)(2)). */
 export const MULTI_ENGINE_SECTORS: SectorRule = {
+  /**
+   * FCL.740.A(a)(2) counts the sectors over "the period of validity of the rating", which it does not
+   * state: FCL.740(a)(1) does, as 1 year for a multi-engine class rating. These two numbers belong
+   * together — if the validity of a multi-engine class rating ever changes, change this with it.
+   */
   validityMonths: 12,
   sectors: 10,
-  reference: 'Part-FCL FCL.740.A(a)(2): during the validity period of a multi-engine class rating, at least 10 route sectors as pilot of the class, or at least 1 route sector as pilot flown with an examiner (this may be the proficiency check itself).',
+  reference: 'Part-FCL FCL.740.A(a)(2): complete during the period of validity of the rating at least (i) 10 route sectors as pilot of the relevant class, or (ii) 1 route sector as pilot flown with an examiner, which may be flown during the proficiency check. A multi-engine class rating is valid for 1 year (FCL.740(a)(1)), so the window here is the 12 months before expiry.',
   verified: true,
   todo: [
     'Limit: the logbook does not record route sectors, so every logged flight in the class during the 12 months before expiry counts as one sector.',
     'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
-    'Limit: a pilot working for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt; not tracked.',
+    'Limit: a pilot working for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt (FCL.740.A(a)(3)); not tracked.',
   ],
 };
 
@@ -102,11 +115,12 @@ export const RENEWAL: RenewalRule = {
   steps: [
     'Assessment at an ATO to decide whether you need refresher training. For an expired non-high-performance SEP or TMG rating a DTO may do it too, and with an instructor if the rating expired no more than 3 years ago.',
     'Refresher training at that organisation or with that instructor, only if the assessment says it is necessary. The amount is decided case by case; you receive a training completion certificate to show the examiner.',
-    'Pass a proficiency check with an examiner (Appendix 9 to Part-FCL).',
+    'Pass a proficiency check with an examiner (Appendix 9 to Part-FCL), or complete an EBT practical assessment (Appendix 10) if your operator runs one.',
     'Enter the new expiry date here once it is on your licence.',
   ],
   todo: [
-    'Applicants are exempt from the assessment and refresher training if they hold a valid rating for the same class on a licence from a third country (ICAO Annex 1) and may exercise its privileges.',
+    'Applicants are exempt from the assessment and refresher training if they hold a valid rating for the same class on a licence from a third country (ICAO Annex 1) and may exercise its privileges (FCL.740(b)).',
+    'The assessment may also be done at an EBT operator specifically approved for the refresher training (FCL.740(b)(1)(iv)); not relevant to a private SEP or TMG rating.',
     'Limit: the app does not check these steps; it only lists them.',
   ],
 };

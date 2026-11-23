@@ -28,8 +28,13 @@ export const ENGINE_CLASSES: readonly EngineClass[] = ['SP-SE', 'SP-ME', 'MP'];
 
 /**
  * Class / type grouping used for totals and rating currency.
- * SET = single-pilot single-engine turbine, with land and sea variants like SEP and MEP.
- * TODO(verify): check the SET land/sea class ratings against the current EASA text.
+ *
+ * Checked on 23 November 2026 against the EASA "Class and Type Rating & Licence Endorsement List"
+ * (https://www.easa.europa.eu/en/downloads/11737/en), which is where the class ratings are actually
+ * named -- Part-FCL only ever refers to them. That list defines exactly seven aeroplane class ratings:
+ * SEP (land), SEP (sea), TMG, MEP (land), MEP (sea), SET (land) and SET (sea). The seven below are
+ * those, so the land/sea split for SET is confirmed. OTHER is ours, for type-rated aeroplanes and for
+ * anything that is not an aeroplane class rating at all.
  */
 export type ClassRating = 'SEP_LAND' | 'SEP_SEA' | 'TMG' | 'MEP_LAND' | 'MEP_SEA' | 'SET_LAND' | 'SET_SEA' | 'OTHER';
 export const CLASS_RATINGS: readonly ClassRating[] = [
@@ -272,17 +277,19 @@ export interface Settings {
   airportsImportedAt?: Timestamp | null;
   /** Colour of airports and routes on the map (device-local; see features/map/mapColors.ts). */
   mapColor?: string;
-  /** Name printed on the PDF logbook. */
+  /** Holder's name, licence number and address, for the AMC1 FCL.050 holder block on the PDF logbook. */
   pilotName?: string;
+  licenceNumber?: string;
+  address?: string;
   /** Expiry date of the SEP (land) class rating, for the revalidation check. */
   sepLandExpiry?: IsoDate | null;
   /** Expiry dates of the other class ratings (SEP (land) keeps its own field above). */
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
-  /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
   /** Device-local: notify when a currency or class rating gets worse. `night` includes night currency. */
   alerts?: { enabled: boolean; night: boolean };
   /** Device-local: the levels last seen by the alert check, so only a change for the worse notifies. */
   alertState?: Record<string, AlertLevel>;
+  /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
   driveEnabled?: boolean;
   /** Epoch ms of the last successful Drive backup (phase 5). */
   lastBackupAt: Timestamp | null;
