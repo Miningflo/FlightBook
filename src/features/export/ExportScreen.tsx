@@ -30,6 +30,8 @@ export function ExportScreen() {
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [pdfReport, setPdfReport] = useState<PdfReport | null>(null);
   const [pilot, setPilot] = useState(data.settings.pilotName ?? '');
+  const [licence, setLicence] = useState(data.settings.licenceNumber ?? '');
+  const [address, setAddress] = useState(data.settings.address ?? '');
   const [pending, setPending] = useState<PendingImport | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -60,9 +62,10 @@ export function ExportScreen() {
   });
 
   const makePdf = () => run('pdf', async () => {
-    const name = pilot.trim();
-    if (canEdit && name !== (data.settings.pilotName ?? '')) await updateSettings({ pilotName: name });
-    const model = buildDocument({ flights: data.flights, persons: data.persons, fstd: data.fstd, experience: data.previousExperience, pilotName: name, generatedOn: today });
+    const holder = { pilotName: pilot.trim(), licenceNumber: licence.trim(), address: address.trim() };
+    const changed = holder.pilotName !== (data.settings.pilotName ?? '') || holder.licenceNumber !== (data.settings.licenceNumber ?? '') || holder.address !== (data.settings.address ?? '');
+    if (canEdit && changed) await updateSettings(holder);
+    const model = buildDocument({ flights: data.flights, persons: data.persons, fstd: data.fstd, experience: data.previousExperience, ...holder, generatedOn: today });
     // loaded on demand: pdf-lib is large and only needed when a PDF is created
     const { renderLogbookPdf } = await import('./pdfRender');
     const { bytes, report } = await renderLogbookPdf(model);
@@ -118,14 +121,17 @@ export function ExportScreen() {
       <h2 className="section-label">Backup</h2>
       <div className="card">
         <div className="main">Full backup (JSON)</div>
-        <p className="hint">Everything in the logbook: flights, simulator sessions, previous experience, aircraft, people and the pilot name and class rating expiry dates. It contains personal data; keep the file somewhere safe. Restoring it adds what is missing and never changes existing records unless you choose to.</p>
+        <p className="hint">Everything in the logbook: flights, simulator sessions, previous experience, aircraft, people, the logbook holder's details and the class rating expiry dates. It contains personal data; keep the file somewhere safe. Restoring it adds what is missing and never changes existing records unless you choose to.</p>
         <button type="button" className="btn tonal" disabled={busy !== null} onClick={() => void exportBackup()}>{busy === 'backup' ? 'Preparing…' : 'Download backup'}</button>
       </div>
 
       <h2 className="section-label">PDF logbook</h2>
       <div className="card">
-        <p className="hint" style={{ marginTop: 0 }}>A4 landscape in the AMC1 FCL.050 column layout, with totals per page, totals brought forward (starting from your previous experience) and a signature and date line. Built from the records, not from the screens.</p>
-        <Field label="Name printed on the pages" htmlFor="pilot-name"><input id="pilot-name" className="input" value={pilot} onChange={(e) => setPilot(e.target.value)} autoComplete="name" /></Field>
+        <p className="hint" style={{ marginTop: 0 }}>A4 landscape in the AMC1 FCL.050 column layout: flights and simulator sessions in one table in date order, totals per page, totals brought forward (starting from your previous experience) and a signature and date line. Built from the records, not from the screens.</p>
+        <p className="hint">The three fields below are the holder block the AMC puts at the front of the logbook. Anything left empty is printed as a blank line to fill in by hand.</p>
+        <Field label="Holder's name(s)" htmlFor="pilot-name"><input id="pilot-name" className="input" value={pilot} onChange={(e) => setPilot(e.target.value)} autoComplete="name" /></Field>
+        <Field label="Holder's licence number" htmlFor="pilot-licence"><input id="pilot-licence" className="input" value={licence} onChange={(e) => setLicence(e.target.value)} autoComplete="off" spellCheck={false} /></Field>
+        <Field label="Holder's address" htmlFor="pilot-address"><textarea id="pilot-address" className="input" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" /></Field>
         <button type="button" className="btn filled" disabled={busy !== null} onClick={() => void makePdf()}>{busy === 'pdf' ? 'Creating…' : 'Create PDF'}</button>
         {pdfReport && (pdfReport.replacedCharacters > 0 || pdfReport.truncatedCells > 0) && (
           <div className="msg warning" role="status" style={{ marginTop: 12 }}>
