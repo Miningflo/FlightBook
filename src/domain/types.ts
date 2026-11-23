@@ -29,7 +29,12 @@ export const ENGINE_CLASSES: readonly EngineClass[] = ['SP-SE', 'SP-ME', 'MP'];
 /**
  * Class / type grouping used for totals and rating currency.
  * SET = single-pilot single-engine turbine, with land and sea variants like SEP and MEP.
- * TODO(verify): check the SET land/sea class ratings against the current EASA text.
+ *
+ * The revalidation rule for these is verified (FCL.740.A, see domain/rules.ts), but Part-FCL itself only
+ * ever says "single-engine turbo-prop class ratings" without naming the classes. The authoritative list of
+ * class ratings is a separate EASA publication (the licence endorsement / class and type ratings list),
+ * not Part-FCL.
+ * TODO(verify): confirm against that list that SET is split into land and sea, as assumed here.
  */
 export type ClassRating = 'SEP_LAND' | 'SEP_SEA' | 'TMG' | 'MEP_LAND' | 'MEP_SEA' | 'SET_LAND' | 'SET_SEA' | 'OTHER';
 export const CLASS_RATINGS: readonly ClassRating[] = [
@@ -278,11 +283,11 @@ export interface Settings {
   sepLandExpiry?: IsoDate | null;
   /** Expiry dates of the other class ratings (SEP (land) keeps its own field above). */
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
-  /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
   /** Device-local: notify when a currency or class rating gets worse. `night` includes night currency. */
   alerts?: { enabled: boolean; night: boolean };
   /** Device-local: the levels last seen by the alert check, so only a change for the worse notifies. */
   alertState?: Record<string, AlertLevel>;
+  /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
   driveEnabled?: boolean;
   /** Epoch ms of the last successful Drive backup (phase 5). */
   lastBackupAt: Timestamp | null;

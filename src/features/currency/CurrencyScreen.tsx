@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
 import { CLASS_RATINGS, CLASS_RATING_LABELS, type ClassRating, type IsoDate } from '../../domain/types';
 import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, classExpiryOf, classExpiryPatch, isExperienceClass, nightCurrency, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
-import { DEFAULT_RULES, type RuleSource } from '../../domain/rules';
+import { DEFAULT_RULES, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { Bar, Field, StatusPill } from '../../ui/components';
 import { formatShortDate } from '../flights/format';
@@ -20,6 +20,12 @@ function RulesNote({ rule, extra }: { rule: RuleSource; extra?: ReactNode }) {
       {!rule.verified && <p>These figures come from memory of the regulation and have not been confirmed against the current EASA text. Check them before relying on this screen.</p>}
     </details>
   );
+}
+
+/** "3 take-offs and 3 landings in 90 days", read off the rule so the text cannot drift from the number. */
+function rollingSubtitle(rule: RollingRule, kind = ''): string {
+  const n = (count: number, word: string) => `${count} ${kind}${word}${count === 1 ? '' : 's'}`;
+  return `${n(rule.takeoffs, 'take-off')} and ${n(rule.landings, 'landing')} in ${rule.windowDays} days`;
 }
 
 function rollingHeadline(c: RollingCheck): { headline: string; sub: string } {
@@ -142,7 +148,8 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
           display={p.unit === 'min' ? `${formatHHMM(p.have)} / ${formatHHMM(p.need)}` : `${p.have} / ${p.need}`} />
       ))}
       {check.state === 'expired' && <RenewalSteps />}
-      <ExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
+      {/* key: remount per class, so the date typed for one class is never carried into another. */}
+      <ExpiryEditor key={cls} cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} />
     </div>
   );
@@ -183,7 +190,8 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
         </>
       )}
       {check.state === 'expired' && <RenewalSteps />}
-      <ExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
+      {/* key: remount per class, so the date typed for one class is never carried into another. */}
+      <ExpiryEditor key={cls} cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} />
     </div>
   );
@@ -209,13 +217,11 @@ export function CurrencyScreen() {
       <p className="hint" style={{ margin: '0 4px 12px' }}>
         Status as of {formatShortDate(today)} (UTC). Currency uses logged take-offs and landings; carry-in records have no dates and are not counted.
       </p>
-      {(
-        <div className="range-chips" role="group" aria-label="Aircraft class">
-          {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}
-        </div>
-      )}
-      <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · 3 take-offs and 3 landings in 90 days`} check={passengers} rule={DEFAULT_RULES.passenger} />
-      <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · night take-offs and landings in 90 days`} check={night} rule={DEFAULT_RULES.night} />
+      <div className="range-chips" role="group" aria-label="Aircraft class">
+        {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}
+      </div>
+      <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`} check={passengers} rule={DEFAULT_RULES.passenger} />
+      <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} />
       {isExperienceClass(cls) ? <ExperienceCard cls={cls} check={experience} />
         : cls === 'OTHER' ? <p className="hint" style={{ margin: '0 4px 12px' }}>Revalidation is not tracked for the Other class.</p>
         : <CheckCard cls={cls} check={check} />}
