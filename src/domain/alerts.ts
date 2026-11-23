@@ -1,7 +1,7 @@
 import type { AlertLevel, ClassRating, Flight, IsoDate, TypeRating } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
 import { daysBetween } from './time';
-import { classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, routeSectors, sepRevalidation, typeRatingStatus, type RollingCheck } from './currency';
+import { byClass, byType, classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, type RollingCheck } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -34,15 +34,14 @@ export interface AlertSettings {
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-function currencyItem(cls: ClassRating, what: 'passengers' | 'night', c: RollingCheck): AlertItem {
-  const name = CLASS_RATING_LABELS[cls];
+function currencyItem(name: string, keyPrefix: string, what: 'passengers' | 'night', c: RollingCheck): AlertItem {
   const label = what === 'passengers' ? 'Passenger currency' : 'Night currency';
   const level: AlertLevel = c.status === 'green' ? 'green' : c.status === 'amber' ? 'amber' : 'red';
   const body =
     level === 'green' ? 'Current.'
     : level === 'amber' ? `Lapses ${c.daysLeft === 0 ? 'after today' : `in ${plural(c.daysLeft ?? 0, 'day')}`}. Fly take-offs and landings to stay current.`
     : 'Not current: not enough take-offs and landings in the last 90 days.';
-  return { key: `${cls}:${what}`, level, title: `${label} ${level === 'red' ? 'lapsed' : level === 'amber' ? 'expiring' : 'ok'}: ${name}`, body };
+  return { key: `${keyPrefix}:${what}`, level, title: `${label} ${level === 'red' ? 'lapsed' : level === 'amber' ? 'expiring' : 'ok'}: ${name}`, body };
 }
 
 function ratingItem(cls: ClassRating, flights: Flight[], expiry: IsoDate, today: IsoDate, rules: Rules): AlertItem {
@@ -104,7 +103,7 @@ function sectorsBehindPace(flights: Flight[], cls: ClassRating, expiry: IsoDate,
 }
 
 /** One type rating. Keyed by its id, so renaming it does not look like a different rating. */
-function typeRatingItem(t: TypeRating, today: IsoDate, rules: Rules): AlertItem {
+function typeRatingItem(t: TypeRating, flights: Flight[], today: IsoDate, rules: Rules): AlertItem {
   const key = `TYPE:${t.id}`;
   const date = formatShortDate(t.expiry);
   const c = typeRatingStatus(t.expiry, today, rules);
@@ -112,6 +111,14 @@ function typeRatingItem(t: TypeRating, today: IsoDate, rules: Rules): AlertItem 
   if (c.state === 'expired') return { key, level: 'expired', title: `${t.name} type rating expired`, body: `Expired on ${date}. It has to be renewed.` };
   if (c.state === 'urgent') return { key, level: 'red', title: `${t.name}: ${plural(days, 'day')} left`, body: `Book the proficiency check now. Expires ${date}.` };
   if (c.state === 'window-open') return { key, level: 'amber', title: `${t.name}: proficiency check due`, body: `The check window is open; the rating expires in ${plural(days, 'day')} (${date}).` };
+  const s = typeRouteSectors(flights, t.id, t.expiry, today, rules);
+  if (s && !s.met) {
+    const total = daysBetween(s.windowStart, t.expiry), gone = daysBetween(s.windowStart, today);
+    const elapsed = total > 0 ? gone / total : 0;
+    if (elapsed >= 0.5 && s.routeFlights < Math.floor(s.need * elapsed)) {
+      return { key, level: 'amber', title: `${t.name}: route sectors behind`, body: `${s.routeFlights} of ${s.need} route sectors flown with ${Math.round(elapsed * 100)}% of the validity period gone. One sector flown with an examiner also satisfies it. Expires ${date}.` };
+    }
+  }
   return { key, level: 'green', title: `${t.name} type rating ok`, body: `Valid until ${date}.` };
 }
 
@@ -155,14 +162,29 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
   for (const cls of CLASS_RATINGS) {
     if (cls === 'OTHER') continue;
     if (flown.has(cls)) {
-      items.push(currencyItem(cls, 'passengers', passengerCurrency(flights, cls, today, rules)));
-      if (includeNight) items.push(currencyItem(cls, 'night', nightCurrency(flights, cls, today, rules)));
+      items.push(currencyItem(CLASS_RATING_LABELS[cls], cls, 'passengers', passengerCurrency(flights, byClass(cls), today, rules)));
+      if (includeNight) items.push(currencyItem(CLASS_RATING_LABELS[cls], cls, 'night', nightCurrency(flights, byClass(cls), today, rules)));
     }
     const expiry = classExpiryOf(settings, cls);
     if (expiry) items.push(ratingItem(cls, flights, expiry, today, rules));
   }
   if (settings.irExpiry) items.push(irItem(settings.irExpiry, today, rules));
-  for (const t of settings.typeRatings ?? []) items.push(typeRatingItem(t, today, rules));
+  for (const t of settings.typeRatings ?? []) {
+    items.push(typeRatingItem(t, flights, today, rules));
+    // FCL.060 counts recent experience per type, so each rating carries its own currency
+    if (flights.some((f) => f.typeRatingId === t.id)) {
+      items.push(currencyItem(t.name, `TYPE:${t.id}`, 'passengers', passengerCurrency(flights, byType(t.id), today, rules)));
+      if (includeNight) items.push(currencyItem(t.name, `TYPE:${t.id}`, 'night', nightCurrency(flights, byType(t.id), today, rules)));
+    }
+  }
+  const stranded = unassignedTypeFlights(flights).length;
+  if (stranded > 0) {
+    items.push({
+      key: 'TYPE:unassigned', level: 'amber',
+      title: `${plural(stranded, 'flight')} not counted towards any rating`,
+      body: 'They are logged in the Other class without a type rating, so they count towards no currency. Open them and pick the rating they were flown under.',
+    });
+  }
   items.push(...licenceItems(settings, today, rules));
   return items;
 }
