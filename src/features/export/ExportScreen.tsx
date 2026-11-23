@@ -118,7 +118,7 @@ export function ExportScreen() {
       <h2 className="section-label">Backup</h2>
       <div className="card">
         <div className="main">Full backup (JSON)</div>
-        <p className="hint">Everything in the logbook: flights, simulator sessions, previous experience, aircraft, people and the pilot name and SEP expiry. It contains personal data; keep the file somewhere safe. Restoring it adds what is missing and never changes existing records unless you choose to.</p>
+        <p className="hint">Everything in the logbook: flights, simulator sessions, previous experience, aircraft, people and the pilot name and class rating expiry dates. It contains personal data; keep the file somewhere safe. Restoring it adds what is missing and never changes existing records unless you choose to.</p>
         <button type="button" className="btn tonal" disabled={busy !== null} onClick={() => void exportBackup()}>{busy === 'backup' ? 'Preparing…' : 'Download backup'}</button>
       </div>
 

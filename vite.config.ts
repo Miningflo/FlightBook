@@ -31,6 +31,8 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          // Static page outside the SPA: don't let the service worker answer it with index.html.
+          navigateFallbackDenylist: [/privacy\.html$/],
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
           runtimeCaching: [
             {
