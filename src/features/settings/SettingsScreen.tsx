@@ -106,7 +106,9 @@ export function SettingsScreen() {
       </div>
 
       <p className="hint" style={{ textAlign: 'center', margin: '16px 0' }}>
-        <a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noopener noreferrer">Privacy policy</a>
+        {/* In the installed app a new-tab link opens a window with no history, so Back would close the app: navigate in place there. */}
+        <a href={`${import.meta.env.BASE_URL}privacy.html`}
+          {...(window.matchMedia('(display-mode: standalone)').matches ? {} : { target: '_blank', rel: 'noopener noreferrer' })}>Privacy policy</a>
       </p>
 
       {takeOver && <TakeOverDialog onClose={() => setTakeOver(false)} onDone={() => setTakeOver(false)} />}
