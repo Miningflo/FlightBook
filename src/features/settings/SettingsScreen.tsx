@@ -5,6 +5,7 @@ import { Dialog } from '../../ui/components';
 import { AirportsCard } from './AirportsCard';
 import { DriveCard } from '../drive/DriveCard';
 import { MapColorCard } from './MapColorCard';
+import { AlertsCard } from './AlertsCard';
 import { TakeOverDialog } from '../drive/TakeOverDialog';
 import { ChevronIcon } from '../../ui/Icons';
 import { persistenceStatus, requestPersistence, type PersistenceStatus } from '../../pwa/storage';
@@ -72,6 +73,8 @@ export function SettingsScreen() {
       </button>
 
       <MapColorCard />
+
+      <AlertsCard />
 
       <DriveCard />
 

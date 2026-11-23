@@ -253,6 +253,9 @@ export interface Airport {
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+/** How bad a watched currency or rating is. Used by the alerts. */
+export type AlertLevel = 'green' | 'amber' | 'red' | 'expired';
+
 /** Singleton settings row (key = 'main'). */
 export interface Settings {
   key: 'main';
@@ -276,6 +279,10 @@ export interface Settings {
   /** Expiry dates of the other class ratings (SEP (land) keeps its own field above). */
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
   /** The user connected Google Drive on this device (backup on the master, snapshot loading on a viewer). */
+  /** Device-local: notify when a currency or class rating gets worse. `night` includes night currency. */
+  alerts?: { enabled: boolean; night: boolean };
+  /** Device-local: the levels last seen by the alert check, so only a change for the worse notifies. */
+  alertState?: Record<string, AlertLevel>;
   driveEnabled?: boolean;
   /** Epoch ms of the last successful Drive backup (phase 5). */
   lastBackupAt: Timestamp | null;
