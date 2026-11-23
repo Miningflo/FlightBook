@@ -23,6 +23,8 @@ function randomFlight(rnd: () => number, i: number): FlightImport {
     arrPlace: pick(['EBKT', 'EHRD', 'EGLL']), arrTimeUtc: dep + total * 60_000,
     registration: pick(['OO-ABC', 'N172SP', 'PH-LDF']), aircraftMake: pick(NASTY.slice(1)).trim() || 'Cessna', aircraftModel: pick(['172S', 'PA-28', '=bad']), aircraftVariant: pick(NASTY).trim(),
     aircraftClass: pick(CLASS_RATINGS), engineClass: split === 'se' ? 'SP-SE' : split === 'me' ? 'SP-ME' : 'MP',
+    // sometimes type-rated, so the column is exercised both ways round
+    typeRatingId: rnd() < 0.3 ? `tr-${Math.floor(rnd() * 1000)}` : null,
     spSeMin: split === 'se' ? total : 0, spMeMin: split === 'me' ? total : 0, mpMin: split === 'mp' ? total : 0, totalMin: total,
     picName: pick(['SELF', 'Jean Dupont', "O'Brien", '-x']).trim(),
     takeoffsDay: Math.floor(rnd() * 5), takeoffsNight: Math.floor(rnd() * 3), landingsDay: Math.floor(rnd() * 5), landingsNight: Math.floor(rnd() * 3),

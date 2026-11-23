@@ -38,11 +38,12 @@ const persons: Person[] = [
   { ...base('p-lv'), name: 'Lieve Vandenberghe', nameKey: 'lieve vandenberghe', isSelf: false },
 ];
 
-const fleet: { reg: string; make: string; model: string; variant: string; cls: ClassRating; eng: EngineClass }[] = [
+const fleet: { reg: string; make: string; model: string; variant: string; cls: ClassRating; eng: EngineClass; typeRatingId?: string }[] = [
   { reg: 'OO-CEU', make: 'Cessna', model: '172S', variant: 'Skyhawk SP', cls: 'SEP_LAND', eng: 'SP-SE' },
   { reg: 'OO-ILS', make: 'Piper', model: 'PA-28-181', variant: 'Archer III', cls: 'SEP_LAND', eng: 'SP-SE' },
   { reg: 'OO-KGB', make: 'Robin', model: 'DR400-120', variant: 'Dauphin', cls: 'SEP_LAND', eng: 'SP-SE' },
   { reg: 'OO-EPC', make: 'Diamond', model: 'DA42', variant: 'Twin Star', cls: 'MEP_LAND', eng: 'SP-ME' },
+  { reg: 'OO-TWO', make: 'Beechcraft', model: 'King Air', variant: 'B200', cls: 'OTHER', eng: 'SP-ME', typeRatingId: 'tr-be20' },
 ];
 const aircraft: Aircraft[] = fleet.map((a, i) => ({
   ...base(`ac-${i}`), registration: a.reg, make: a.make, model: a.model, variant: a.variant, engineClass: a.eng, classRating: a.cls,
@@ -80,7 +81,7 @@ function makeFlights(): Flight[] {
     const d = offsets[i]!;
     // rotate the three singles rather than picking at random: any run of consecutive flights then shows
     // three different aircraft, which is what makes the logbook list worth a screenshot
-    const a = i % 11 === 10 ? fleet[3]! : fleet[i % 3]!;
+    const a = i % 17 === 16 ? fleet[4]! : i % 11 === 10 ? fleet[3]! : fleet[i % 3]!;
     const acIndex = fleet.indexOf(a);
     const date = minus(d);
     const depH = 7 + Math.floor(rnd() * 11);
@@ -97,6 +98,8 @@ function makeFlights(): Flight[] {
       depPlace: from, depTimeUtc: dep, arrPlace: to, arrTimeUtc: dep + mins * 60_000,
       aircraftId: `ac-${acIndex}`, registration: a.reg, aircraftMake: a.make, aircraftModel: a.model,
       aircraftVariant: a.variant, aircraftClass: a.cls,
+      // one King Air flight is deliberately left unassigned, to show what that looks like
+      typeRatingId: a.typeRatingId && i !== 33 ? a.typeRatingId : null,
       spSeMin: isMe ? 0 : mins, spMeMin: isMe ? mins : 0, mpMin: 0, totalMin: mins,
       picNameId: dual ? 'p-dm' : 'p-self',
       takeoffsDay: night ? 0 : 1, takeoffsNight: night ? 1 : 0,

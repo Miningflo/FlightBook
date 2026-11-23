@@ -134,7 +134,7 @@ export class DexieRepository implements WritableLogbookRepository {
       const reg = normalizeRegistration(input.registration);
       let aircraft = await db.aircraft.where('registration').equals(reg).first();
       if (aircraft) {
-        const details = { make: input.aircraftMake, model: input.aircraftModel, variant: input.aircraftVariant, engineClass: input.engineClass, classRating: input.aircraftClass };
+        const details = { make: input.aircraftMake, model: input.aircraftModel, variant: input.aircraftVariant, engineClass: input.engineClass, classRating: input.aircraftClass, typeRatingId: input.typeRatingId ?? null };
         const changed = (Object.keys(details) as (keyof typeof details)[]).some((k) => aircraft![k] !== details[k]);
         if (changed) {
           const later = await db.flights.where('aircraftId').equals(aircraft.id).filter((f) => f.id !== existingId && f.depTimeUtc > input.depTimeUtc).count();
@@ -152,6 +152,7 @@ export class DexieRepository implements WritableLogbookRepository {
           variant: input.aircraftVariant,
           engineClass: input.engineClass,
           classRating: input.aircraftClass,
+          typeRatingId: input.typeRatingId ?? null,
           createdAt: now,
           updatedAt: now,
         };
