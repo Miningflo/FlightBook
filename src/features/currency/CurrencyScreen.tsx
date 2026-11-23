@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
 import { CLASS_RATINGS, CLASS_RATING_LABELS, type ClassRating, type IsoDate } from '../../domain/types';
-import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, classExpiryOf, classExpiryPatch, isExperienceClass, nightCurrency, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
+import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, classExpiryOf, classExpiryPatch, isExperienceClass, nightCurrency, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
 import { DEFAULT_RULES, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { Bar, Field, StatusPill } from '../../ui/components';
@@ -148,6 +148,8 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
 }
 
 function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }) {
+  const { data } = useApp();
+  const sectors = routeSectors(data.flights, cls, check.expiry, utcDateOf(Date.now()));
   const rule = DEFAULT_RULES.proficiencyCheck;
   const name = CLASS_RATING_LABELS[cls];
   const days = check.daysToExpiry ?? 0;
@@ -163,7 +165,7 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
   const sub: Record<string, string> = {
     'not-set': `Enter the expiry date of your ${name} class rating to track revalidation.`,
     'window-not-open': `Take the proficiency check with an examiner from ${d(check.windowStart)}.`,
-    'window-open': 'Revalidate with a proficiency check with an examiner before expiry. Flight experience alone is not enough for this class.',
+    'window-open': 'Revalidate with a proficiency check with an examiner before expiry. Flight experience alone cannot revalidate this class.',
     urgent: 'Proficiency check with an examiner still needed.',
     expired: 'Revalidation is no longer possible; the rating must be renewed.',
   };
@@ -172,6 +174,13 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
       <div className="head"><div><h3>{name} class rating</h3><div className="hint">Revalidation by proficiency check, last 3 months before expiry</div></div><StatusPill status={check.status} label={pill} /></div>
       <div className="headline">{headline[check.state]}</div>
       <div className="hint">{sub[check.state]}</div>
+      {sectors && check.state !== 'expired' && (
+        <>
+          <Row label="Route sectors in the last 12 months before expiry" have={sectors.have} need={sectors.need} display={`${sectors.have} / ${sectors.need}`} ok={sectors.met} />
+          <div className="hint">Or 1 route sector flown with an examiner, which may be the proficiency check itself.</div>
+          <RulesNote rule={DEFAULT_RULES.mepSectors} />
+        </>
+      )}
       {check.state === 'expired' && <RenewalSteps />}
       <ExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} />
