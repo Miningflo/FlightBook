@@ -84,6 +84,23 @@ export const PROFICIENCY_CHECK_REVALIDATION: ProficiencyRule = {
   ],
 };
 
+/** Renewal of a class rating that has already expired (FCL.740.A(c)). Shown as a checklist; nothing is counted. */
+export const RENEWAL: RenewalRule = {
+  reference: 'Part-FCL FCL.740.A(c), renewal of class ratings',
+  verified: false,
+  steps: [
+    'Refresher training at an ATO/DTO. The amount is decided by the training organisation (not a fixed number of hours), and its completion certificate goes to the examiner.',
+    'Pass a proficiency check with an examiner in the class.',
+    'Have the new expiry date entered in your licence, then update the date here.',
+  ],
+  todo: [
+    'TODO(verify): the refresher training is required to reach the level of proficiency; it is waived if you have passed a proficiency check, skill test or assessment on another class or type of aeroplane in the meantime.',
+    'TODO(verify): for SEP and TMG ratings that expired no more than 3 years ago, the refresher training may be given by an instructor instead of an ATO/DTO; check the exact wording and conditions.',
+    'TODO(verify): whether a proficiency check passed within 3 months after expiry needs no refresher training is disputed in forums and not confirmed; the app assumes training is needed.',
+    'TODO(verify): the app does not check these steps; it only lists them.',
+  ],
+};
+
 /** App-defined traffic-light thresholds. These are usability choices, NOT regulatory. */
 export const APP_THRESHOLDS: AppThresholds = {
   /** Amber when a rolling currency lapses within this many days. */
@@ -112,6 +129,9 @@ export interface AppThresholds {
   /** Proficiency check still not done with this many days (or fewer) to expiry: red. */
   proficiencyCheckRedDaysLeft: number;
 }
+export interface RenewalRule extends RuleSource {
+  steps: string[];
+}
 export interface ProficiencyRule extends RuleSource {
   windowMonths: number;
 }
@@ -121,6 +141,7 @@ export interface Rules {
   night: RollingRule;
   sep: SepRule;
   proficiencyCheck: ProficiencyRule;
+  renewal: RenewalRule;
   app: AppThresholds;
 }
 
@@ -129,5 +150,6 @@ export const DEFAULT_RULES: Rules = {
   night: NIGHT_CURRENCY,
   sep: SEP_REVALIDATION,
   proficiencyCheck: PROFICIENCY_CHECK_REVALIDATION,
+  renewal: RENEWAL,
   app: APP_THRESHOLDS,
 };
