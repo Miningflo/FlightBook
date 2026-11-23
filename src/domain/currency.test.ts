@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classExpiryOf, classExpiryPatch, collectEvents, irStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation } from './currency';
+import { classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -253,5 +253,37 @@ describe('renewal steps are rating-specific', () => {
   });
   it('the IR renewal carries the 7-year rule, which has no class-rating equivalent', () => {
     expect(DEFAULT_RULES.irRenewal.todo.join(' ')).toMatch(/7 years/);
+  });
+});
+
+describe('medical certificate (MED.A.045)', () => {
+  const expiry = '2026-06-30';
+  it('is unknown without a date, and valid well before expiry', () => {
+    expect(medicalStatus(null, '2026-01-01')).toMatchObject({ status: 'unknown', state: 'not-set' });
+    expect(medicalStatus(expiry, '2026-01-01')).toMatchObject({ status: 'green', state: 'valid' });
+  });
+  it('reports the 45-day window in which the revalidation examination may be done', () => {
+    expect(medicalStatus(expiry, '2026-01-01').windowStart).toBe('2026-05-16'); // 45 days before
+    expect(medicalStatus(expiry, '2026-05-16')).toMatchObject({ state: 'due', status: 'amber' });
+  });
+  it('is red in the last 30 days and after expiry', () => {
+    expect(medicalStatus(expiry, '2026-06-05')).toMatchObject({ status: 'red', state: 'urgent' });
+    expect(medicalStatus(expiry, '2026-06-30')).toMatchObject({ status: 'red', state: 'urgent' }); // expiry day: still valid
+    expect(medicalStatus(expiry, '2026-07-01')).toMatchObject({ status: 'red', state: 'expired' });
+  });
+});
+
+describe('language proficiency (FCL.055)', () => {
+  it('never expires at level 6, whatever date is stored', () => {
+    expect(languageStatus(6, null, '2026-01-01')).toMatchObject({ status: 'green', state: 'no-expiry' });
+    expect(languageStatus(6, '2020-01-01', '2026-01-01')).toMatchObject({ state: 'no-expiry' });
+  });
+  it('expires at levels 4 and 5', () => {
+    expect(languageStatus(4, '2026-06-30', '2026-01-01')).toMatchObject({ status: 'green', state: 'valid' });
+    expect(languageStatus(5, '2026-06-30', '2026-05-01')).toMatchObject({ status: 'amber', state: 'due' });
+    expect(languageStatus(4, '2026-06-30', '2026-07-01')).toMatchObject({ status: 'red', state: 'expired' });
+  });
+  it('is not-set without a level or a date', () => {
+    expect(languageStatus(null, null, '2026-01-01')).toMatchObject({ state: 'not-set' });
   });
 });

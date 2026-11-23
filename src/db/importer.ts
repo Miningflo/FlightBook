@@ -2,7 +2,7 @@ import type { LogbookDB } from './db';
 import type { ConflictPolicy, ImportPlan } from '../domain/importPlan';
 import type { FlightImport, ImportBundle } from '../domain/records';
 import { aircraftFromFlight, toFlightImports } from '../domain/records';
-import type { Aircraft, Attachment, ClassRating, Flight, IsoDate, Person, Settings } from '../domain/types';
+import type { Aircraft, Attachment, ClassRating, Flight, IsoDate, MedicalClass, Person, Settings } from '../domain/types';
 import { personKey } from '../domain/suggestions';
 import { uuid } from '../domain/id';
 import { type Snapshot, base64ToBytes, snapshotToBundle } from '../domain/snapshot';
@@ -15,7 +15,7 @@ export async function readBundle(db: LogbookDB): Promise<ImportBundle> {
 
 export interface ImportExtras {
   attachments?: Attachment[];
-  settings?: { pilotName?: string; licenceNumber?: string; address?: string; sepLandExpiry?: string | null; classExpiry?: Partial<Record<ClassRating, IsoDate>>; irExpiry?: IsoDate | null };
+  settings?: { pilotName?: string; licenceNumber?: string; address?: string; sepLandExpiry?: string | null; classExpiry?: Partial<Record<ClassRating, IsoDate>>; irExpiry?: IsoDate | null; medicalClass?: MedicalClass | null; medicalExpiry?: IsoDate | null; languageLevel?: 4 | 5 | 6 | null; languageExpiry?: IsoDate | null };
 }
 
 export interface ImportResult {
@@ -77,6 +77,9 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
         if (extras.settings.address && !cur.address) { patch.address = extras.settings.address; result.settingsApplied.push('address'); }
         if (extras.settings.sepLandExpiry && !cur.sepLandExpiry) { patch.sepLandExpiry = extras.settings.sepLandExpiry; result.settingsApplied.push('sepLandExpiry'); }
         if (extras.settings.irExpiry && !cur.irExpiry) { patch.irExpiry = extras.settings.irExpiry; result.settingsApplied.push('irExpiry'); }
+        if (extras.settings.medicalExpiry && !cur.medicalExpiry) { patch.medicalExpiry = extras.settings.medicalExpiry; patch.medicalClass = extras.settings.medicalClass ?? null; result.settingsApplied.push('medicalExpiry'); }
+        if (extras.settings.languageExpiry && !cur.languageExpiry) { patch.languageExpiry = extras.settings.languageExpiry; result.settingsApplied.push('languageExpiry'); }
+        if (extras.settings.languageLevel && !cur.languageLevel) { patch.languageLevel = extras.settings.languageLevel; result.settingsApplied.push('languageLevel'); }
         const missing = Object.entries(extras.settings.classExpiry ?? {}).filter(([k, v]) => v && !cur.classExpiry?.[k as ClassRating]);
         if (missing.length > 0) { patch.classExpiry = { ...(cur.classExpiry ?? {}), ...Object.fromEntries(missing) }; result.settingsApplied.push('classExpiry'); }
         if (Object.keys(patch).length > 0) await db.settings.put({ ...cur, ...patch });
@@ -111,7 +114,7 @@ export async function applyReplace(db: LogbookDB, snapshot: Snapshot): Promise<{
     await db.previousExperience.bulkAdd(snapshot.previousExperience);
     await db.attachments.bulkAdd(snapshot.attachments.map((a) => ({ id: a.id, flightId: a.flightId, mime: a.mime, name: a.name, createdAt: a.createdAt, updatedAt: a.updatedAt, blob: new Blob([base64ToBytes(a.data) as BlobPart], { type: a.mime }) })));
     const cur = await db.settings.get('main');
-    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, licenceNumber: snapshot.settings.licenceNumber ?? cur.licenceNumber, address: snapshot.settings.address ?? cur.address, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null, classExpiry: snapshot.settings.classExpiry ?? {}, irExpiry: snapshot.settings.irExpiry ?? null });
+    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, licenceNumber: snapshot.settings.licenceNumber ?? cur.licenceNumber, address: snapshot.settings.address ?? cur.address, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null, classExpiry: snapshot.settings.classExpiry ?? {}, irExpiry: snapshot.settings.irExpiry ?? null, medicalClass: snapshot.settings.medicalClass ?? null, medicalExpiry: snapshot.settings.medicalExpiry ?? null, languageLevel: snapshot.settings.languageLevel ?? null, languageExpiry: snapshot.settings.languageExpiry ?? null });
     return { flights: bundle.flights.length, fstd: bundle.fstd.length, experience: bundle.experience.length };
   });
 }

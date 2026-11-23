@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
-import { CLASS_RATINGS, CLASS_RATING_LABELS, type ClassRating, type IsoDate } from '../../domain/types';
-import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
+import { CLASS_RATINGS, CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass } from '../../domain/types';
+import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { Bar, Field, StatusPill } from '../../ui/components';
@@ -257,6 +257,100 @@ function IrCard({ today }: { today: IsoDate }) {
   );
 }
 
+const VALIDITY_PILL: Record<string, string> = {
+  'not-set': 'Not set', 'no-expiry': 'No expiry', valid: 'Valid', due: 'Renew soon', urgent: 'Urgent', expired: 'Expired',
+};
+
+/** Medical certificate (Part-MED). A date and a class; never a condition or a limitation. */
+function MedicalCard({ today }: { today: IsoDate }) {
+  const { data, canEdit, updateSettings } = useApp();
+  const expiry = data.settings.medicalExpiry ?? null;
+  const cls = data.settings.medicalClass ?? null;
+  const check = useMemo(() => medicalStatus(expiry, today), [expiry, today]);
+  if (!expiry && !canEdit) return null;
+  const d = (x: string | null) => (x ? formatShortDate(x) : '');
+  const days = check.daysToExpiry ?? 0;
+  const headline: Record<string, string> = {
+    'not-set': 'Add your medical certificate',
+    valid: `Valid until ${d(check.expiry)}`,
+    due: `Expires in ${days} day${days === 1 ? '' : 's'}`,
+    urgent: days === 0 ? 'Expires today' : `Only ${days} day${days === 1 ? '' : 's'} left`,
+    expired: `Expired on ${d(check.expiry)}`,
+  };
+  const sub: Record<string, string> = {
+    'not-set': 'Enter the expiry date printed on it. Nothing else about it is stored.',
+    valid: `The revalidation examination may be done from ${d(check.windowStart)}.`,
+    due: `The revalidation examination may be done from ${d(check.windowStart)}; doing it inside that window keeps this expiry date as the starting point.`,
+    urgent: 'Book the examination now.',
+    expired: 'You may not fly until it is renewed. After 2 years expired, the examiner must review your aero-medical records first.',
+  };
+  return (
+    <div className="card cur-card">
+      <div className="head"><div><h3>Medical certificate</h3><div className="hint">{cls ? `${MEDICAL_CLASS_LABELS[cls]} · ` : ''}Part-MED</div></div><StatusPill status={check.status} label={VALIDITY_PILL[check.state]} /></div>
+      <div className="headline">{headline[check.state]}</div>
+      <div className="hint">{sub[check.state]}</div>
+      {canEdit && (
+        <div className="range-chips" role="group" aria-label="Medical class" style={{ marginTop: 8 }}>
+          {(['CLASS1', 'CLASS2', 'LAPL'] as MedicalClass[]).map((c) => (
+            <button key={c} type="button" className="chip" aria-pressed={cls === c}
+              onClick={() => void updateSettings({ medicalClass: cls === c ? null : c })}>{MEDICAL_CLASS_LABELS[c]}</button>
+          ))}
+        </div>
+      )}
+      <ExpiryEditor id="expiry-medical" label="Medical expiry date" forceOpen={false} current={expiry ?? ''}
+        onSave={(date) => updateSettings({ medicalExpiry: date })} />
+      <RulesNote rule={DEFAULT_RULES.medical} title="How the medical expiry is read" />
+    </div>
+  );
+}
+
+/** Language proficiency endorsement (FCL.055). Level 6 does not expire. */
+function LanguageCard({ today }: { today: IsoDate }) {
+  const { data, canEdit, updateSettings } = useApp();
+  const level = data.settings.languageLevel ?? null;
+  const expiry = data.settings.languageExpiry ?? null;
+  const check: ValidityCheck = useMemo(() => languageStatus(level, expiry, today), [level, expiry, today]);
+  if (!level && !expiry && !canEdit) return null;
+  const d = (x: string | null) => (x ? formatShortDate(x) : '');
+  const days = check.daysToExpiry ?? 0;
+  const headline: Record<string, string> = {
+    'not-set': 'Add your language endorsement',
+    'no-expiry': 'No re-evaluation needed',
+    valid: `Valid until ${d(check.expiry)}`,
+    due: `Expires in ${days} day${days === 1 ? '' : 's'}`,
+    urgent: days === 0 ? 'Expires today' : `Only ${days} day${days === 1 ? '' : 's'} left`,
+    expired: `Expired on ${d(check.expiry)}`,
+  };
+  const sub: Record<string, string> = {
+    'not-set': 'Pick the level on your licence. Level 4 is re-evaluated every 4 years, level 5 every 6, level 6 never.',
+    'no-expiry': 'An expert level (6) endorsement is not re-evaluated.',
+    valid: 'Without a valid endorsement you may not use the radio, and so may not exercise your licence.',
+    due: 'Book the re-evaluation.',
+    urgent: 'Book the re-evaluation now.',
+    expired: 'Without it you may not use the radio, and so may not exercise the privileges of your licence.',
+  };
+  return (
+    <div className="card cur-card">
+      <div className="head"><div><h3>Language proficiency</h3><div className="hint">{level ? `Level ${level} · ` : ''}FCL.055</div></div><StatusPill status={check.status} label={VALIDITY_PILL[check.state]} /></div>
+      <div className="headline">{headline[check.state]}</div>
+      <div className="hint">{sub[check.state]}</div>
+      {canEdit && (
+        <div className="range-chips" role="group" aria-label="Language proficiency level" style={{ marginTop: 8 }}>
+          {([4, 5, 6] as const).map((l) => (
+            <button key={l} type="button" className="chip" aria-pressed={level === l}
+              onClick={() => void updateSettings({ languageLevel: level === l ? null : l })}>Level {l}</button>
+          ))}
+        </div>
+      )}
+      {level !== 6 && (
+        <ExpiryEditor id="expiry-language" label="Endorsement expiry date" forceOpen={false} current={expiry ?? ''}
+          onSave={(date) => updateSettings({ languageExpiry: date })} />
+      )}
+      <RulesNote rule={DEFAULT_RULES.language} title="How the endorsement expiry is read" />
+    </div>
+  );
+}
+
 export function CurrencyScreen() {
   const { data } = useApp();
   const today: IsoDate = utcDateOf(Date.now());
@@ -287,7 +381,12 @@ export function CurrencyScreen() {
       {isExperienceClass(cls) ? <ExperienceCard cls={cls} check={experience} />
         : cls === 'OTHER' ? <p className="hint" style={{ margin: '0 4px 12px' }}>Revalidation is not tracked for the Other class.</p>
         : <CheckCard cls={cls} check={check} />}
+
+      {/* Not class ratings: held once, and they apply whatever you are flying. */}
+      <h2 className="section-label">Your licence</h2>
       <IrCard today={today} />
+      <MedicalCard today={today} />
+      <LanguageCard today={today} />
     </div>
   );
 }

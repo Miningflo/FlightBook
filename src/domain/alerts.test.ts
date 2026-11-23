@@ -73,3 +73,22 @@ describe('watchedItems and the instrument rating', () => {
     expect(item.body).toMatch(/night currency now applies again/i);
   });
 });
+
+describe('licence documents in the alerts', () => {
+  const lvl = (e: string) => watchedItems([], { medicalExpiry: e }, today).find((i) => i.key === 'MEDICAL')!.level;
+  it('watches the medical only when a date is set', () => {
+    expect(watchedItems([], {}, today).map((i) => i.key)).not.toContain('MEDICAL');
+    expect(lvl('2027-01-01')).toBe('green');
+    expect(lvl('2025-08-15')).toBe('amber');
+    expect(lvl('2025-07-20')).toBe('red');
+    expect(lvl('2025-06-01')).toBe('expired');
+  });
+  it('says plainly that an expired medical grounds you', () => {
+    const m = watchedItems([], { medicalExpiry: '2025-06-01' }, today).find((i) => i.key === 'MEDICAL')!;
+    expect(m.body).toMatch(/may not fly/i);
+  });
+  it('never watches a level 6 language endorsement, which does not expire', () => {
+    expect(watchedItems([], { languageLevel: 6 }, today).map((i) => i.key)).not.toContain('LANGUAGE');
+    expect(watchedItems([], { languageLevel: 4, languageExpiry: '2025-06-01' }, today).map((i) => i.key)).toContain('LANGUAGE');
+  });
+});
