@@ -1,6 +1,6 @@
 import type { AlertLevel, ClassRating, Flight, IsoDate } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
-import { classExpiryOf, isExperienceClass, nightCurrency, passengerCurrency, proficiencyCheckStatus, sepRevalidation, type RollingCheck } from './currency';
+import { classExpiryOf, irStatus, isExperienceClass, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, sepRevalidation, type RollingCheck } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -23,6 +23,7 @@ export interface AlertItem {
 export interface AlertSettings {
   sepLandExpiry?: IsoDate | null;
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
+  irExpiry?: IsoDate | null;
   alerts?: { enabled: boolean; night: boolean };
 }
 
@@ -59,11 +60,24 @@ function ratingItem(cls: ClassRating, flights: Flight[], expiry: IsoDate, today:
   return { key, level: 'green', title: `${name} rating ok`, body: `Valid until ${date}.` };
 }
 
+/** The instrument rating: its own expiry, and the thing that switches night currency off. */
+function irItem(expiry: IsoDate, today: IsoDate, rules: Rules): AlertItem {
+  const key = 'IR:rating';
+  const date = formatShortDate(expiry);
+  const c = irStatus(expiry, today, rules);
+  const days = c.daysToExpiry ?? 0;
+  if (c.state === 'expired') return { key, level: 'expired', title: 'Instrument rating expired', body: `Expired on ${date}. It has to be renewed, and night currency now applies again.` };
+  if (c.state === 'urgent') return { key, level: 'red', title: `Instrument rating: ${plural(days, 'day')} left`, body: `Book the proficiency check with an examiner now. Expires ${date}.` };
+  if (c.state === 'window-open') return { key, level: 'amber', title: 'Instrument rating: check due', body: `The check window is open; the rating expires in ${plural(days, 'day')} (${date}).` };
+  return { key, level: 'green', title: 'Instrument rating ok', body: `Valid until ${date}.` };
+}
+
 /** The level of everything being watched right now (green items included). */
 export function watchedItems(flights: Flight[], settings: AlertSettings, today: IsoDate, rules: Rules = DEFAULT_RULES): AlertItem[] {
   const items: AlertItem[] = [];
   const flown = new Set(flights.map((f) => f.aircraftClass));
-  const includeNight = settings.alerts?.night ?? true;
+  // an IR removes the night requirement altogether, so there is nothing to warn about while it is valid
+  const includeNight = (settings.alerts?.night ?? true) && !nightExemptByIr(settings, today);
   for (const cls of CLASS_RATINGS) {
     if (cls === 'OTHER') continue;
     if (flown.has(cls)) {
@@ -73,6 +87,7 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
     const expiry = classExpiryOf(settings, cls);
     if (expiry) items.push(ratingItem(cls, flights, expiry, today, rules));
   }
+  if (settings.irExpiry) items.push(irItem(settings.irExpiry, today, rules));
   return items;
 }
 

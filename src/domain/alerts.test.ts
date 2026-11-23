@@ -49,3 +49,27 @@ describe('watchedItems', () => {
     expect(lapsed.level).toBe('red');
   });
 });
+
+describe('watchedItems and the instrument rating', () => {
+  const flown = [flight(today, { takeoffsNight: 0, landingsNight: 0 })];
+  it('stops watching night currency while a valid IR is held', () => {
+    const keys = (s: Parameters<typeof watchedItems>[1]) => watchedItems(flown, s, today).map((i) => i.key);
+    expect(keys({})).toContain('SEP_LAND:night');
+    expect(keys({ irExpiry: '2027-01-01' })).not.toContain('SEP_LAND:night');
+  });
+  it('watches it again once the IR has expired', () => {
+    expect(watchedItems(flown, { irExpiry: '2025-01-01' }, today).map((i) => i.key)).toContain('SEP_LAND:night');
+  });
+  it('watches the IR itself, and only when a date is set', () => {
+    expect(watchedItems([], {}, today).map((i) => i.key)).not.toContain('IR:rating');
+    const level = (e: string) => watchedItems([], { irExpiry: e }, today).find((i) => i.key === 'IR:rating')!.level;
+    expect(level('2027-06-01')).toBe('green');
+    expect(level('2025-08-15')).toBe('amber');
+    expect(level('2025-07-20')).toBe('red');
+    expect(level('2025-06-01')).toBe('expired');
+  });
+  it('says night currency applies again when the IR expires', () => {
+    const item = watchedItems([], { irExpiry: '2025-06-01' }, today).find((i) => i.key === 'IR:rating')!;
+    expect(item.body).toMatch(/night currency now applies again/i);
+  });
+});

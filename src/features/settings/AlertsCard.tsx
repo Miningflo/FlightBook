@@ -54,7 +54,7 @@ export function AlertsCard() {
           <label className="switch-row">
             <span>
               <span className="block">Include night currency</span>
-              <span className="hint block">Turn this off if you hold an instrument rating: it is exempt from the night requirement.</span>
+              <span className="hint block">An instrument rating already switches this off for you while it is valid &mdash; enter its expiry date on the Currency screen. Turn this off to stop watching night currency for any other reason.</span>
             </span>
             <input type="checkbox" aria-label="Include night currency" checked={night} onChange={(e) => void update({ alerts: { enabled: true, night: e.target.checked } })} />
           </label>
