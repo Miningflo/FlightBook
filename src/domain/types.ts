@@ -84,6 +84,11 @@ export interface Aircraft extends BaseRecord {
   variant: string;
   engineClass: EngineClass;
   classRating: ClassRating;
+  /**
+   * Which type rating this aeroplane is flown under, when `classRating` is OTHER. Held here so that
+   * typing a registration fills it in, the way make and model already are.
+   */
+  typeRatingId?: Uuid | null;
 }
 
 export interface Person extends BaseRecord {
@@ -116,6 +121,13 @@ export interface Flight extends BaseRecord {
   aircraftModel: string;
   aircraftVariant: string;
   aircraftClass: ClassRating;
+  /**
+   * The type rating this flight counts towards, when `aircraftClass` is OTHER. FCL.060 counts recent
+   * experience per "type or class", so a type-rated pilot's currency can only be worked out if each
+   * flight says which rating it belongs to. Chosen on the form rather than guessed from the model,
+   * because one rating covers several models and a guess that misses is a currency silently undercounted.
+   */
+  typeRatingId?: Uuid | null;
 
   /** Single-pilot SE / SP ME / multi-pilot time. Normally exactly one equals `totalMin`. */
   spSeMin: Minutes;

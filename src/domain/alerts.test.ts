@@ -152,3 +152,33 @@ describe('MEP route sectors in the rating alert', () => {
     expect(level([], '2026-05-25').level).toBe('red'); // inside the 30-day red threshold
   });
 });
+
+describe('per-type currency (FCL.060 counts per "type or class")', () => {
+  const t = { id: 't', name: 'B737', expiry: '2027-06-01' };
+  const other = (d: string, typeRatingId: string | null) => ({ ...flight(d), aircraftClass: 'OTHER' as const, typeRatingId });
+
+  it('watches currency for each type rating that has flights', () => {
+    const keys = watchedItems([other(today, 't')], { typeRatings: [t] }, today).map((i) => i.key);
+    expect(keys).toEqual(expect.arrayContaining(['TYPE:t', 'TYPE:t:passengers', 'TYPE:t:night']));
+  });
+  it('warns that a valid rating does not make you current', () => {
+    const items = watchedItems([other('2025-03-01', 't')], { typeRatings: [t] }, today); // flown, but long ago
+    expect(items.find((i) => i.key === 'TYPE:t')!.level).toBe('green');          // the rating is fine
+    expect(items.find((i) => i.key === 'TYPE:t:passengers')!.level).toBe('red'); // the currency is not
+  });
+  it('keeps one type\'s landings out of another\'s currency', () => {
+    const u = { id: 'u', name: 'BE20', expiry: '2027-06-01' };
+    const current = { ...other(today, 'u'), takeoffsDay: 3, landingsDay: 3 };
+    const items = watchedItems([current], { typeRatings: [t, u] }, today);
+    expect(items.some((i) => i.key === 'TYPE:t:passengers')).toBe(false); // no B737 flights, so nothing claimed
+    expect(items.find((i) => i.key === 'TYPE:u:passengers')!.level).toBe('green'); // the BE20 landings count only here
+  });
+  it('names flights that belong to no rating instead of dropping them', () => {
+    const i = watchedItems([other(today, null)], { typeRatings: [t] }, today).find((x) => x.key === 'TYPE:unassigned')!;
+    expect(i.level).toBe('amber');
+    expect(i.title).toMatch(/not counted towards any rating/);
+  });
+  it('says nothing about unassigned flights when there are none', () => {
+    expect(watchedItems([other(today, 't')], { typeRatings: [t] }, today).map((i) => i.key)).not.toContain('TYPE:unassigned');
+  });
+});

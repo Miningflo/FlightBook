@@ -32,6 +32,7 @@ import { MoonIcon } from '../../ui/Icons';
 
 export function FlightFormScreen({ flight }: { flight?: Flight }) {
   const { data, writer, go, reload, airports } = useApp();
+  const typeRatings = data.settings.typeRatings ?? [];
   const editing = flight !== undefined;
 
   const initial = useMemo<FlightFormState>(() => {
@@ -221,6 +222,27 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
             {CLASS_RATINGS.map((c) => <option key={c} value={c}>{CLASS_RATING_LABELS[c]}</option>)}
           </select>
         </Field>
+        {/* Type-rated aeroplanes are all logged as "Other", so the class alone cannot say which rating a
+            flight counts towards. Picking it here is what makes per-type currency possible at all. */}
+        {form.aircraftClass === 'OTHER' && (
+          <div className="field">
+            <span className="label">Type rating</span>
+            {typeRatings.length === 0 ? (
+              <p className="hint">No type ratings added yet. Add one under Currency → Your licence, then pick it here so this flight counts towards its currency.</p>
+            ) : (
+              <>
+                <div className="chips" role="group" aria-label="Type rating">
+                  {typeRatings.map((t) => (
+                    <button key={t.id} type="button" className="chip" aria-pressed={form.typeRatingId === t.id}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => patch({ typeRatingId: form.typeRatingId === t.id ? null : t.id })}>{t.name}</button>
+                  ))}
+                </div>
+                {form.typeRatingId === null && <p className="hint">Without a rating this flight counts towards no currency.</p>}
+              </>
+            )}
+          </div>
+        )}
         <div className="field">
           <span className="label">Pilot time category</span>
           <div className="chips" role="group" aria-label="Pilot time category">

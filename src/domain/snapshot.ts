@@ -13,7 +13,7 @@ import { validateFstd } from './fstd';
  */
 
 /** Bump together with a new entry in MIGRATIONS whenever the snapshot layout changes. */
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 export interface SnapshotAttachment {
   id: string;
@@ -50,8 +50,17 @@ export function buildSnapshot(input: Omit<Snapshot, 'app' | 'schemaVersion'>): S
 
 export const serializeSnapshot = (s: Snapshot): string => `${JSON.stringify(s)}\n`;
 
-/** Migrations from version N to N+1, applied in order on the raw parsed object. None needed yet (v1 is the first). */
-export const MIGRATIONS: Record<number, (raw: Record<string, unknown>) => Record<string, unknown>> = {};
+/**
+ * Migrations from version N to N+1, applied in order on the raw parsed object.
+ *
+ * 1 -> 2 added `typeRatingId` to flights and `typeRatings` to settings. Nothing has to be rewritten:
+ * a v1 flight simply belongs to no type rating, which is what an absent field already means. The
+ * version was still bumped so that an older copy of the app refuses a v2 backup rather than restoring
+ * it and dropping the type links on its next upload.
+ */
+export const MIGRATIONS: Record<number, (raw: Record<string, unknown>) => Record<string, unknown>> = {
+  1: (raw) => raw,
+};
 
 const ARRAYS = ['aircraft', 'persons', 'flights', 'fstdSessions', 'previousExperience', 'attachments'] as const;
 
