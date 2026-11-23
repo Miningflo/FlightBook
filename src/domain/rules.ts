@@ -1,11 +1,12 @@
 /**
- * Regulatory parameters used by the currency checks. ALL of them are UNVERIFIED:
- * they are written from memory of Commission Regulation (EU) No 1178/2011 (Part-FCL) and
- * must be confirmed against the current consolidated EASA text before being relied upon.
+ * Regulatory parameters used by the currency checks, taken from Commission Regulation (EU) No 1178/2011
+ * (Part-FCL) as published in the EASA Easy Access Rules for Aircrew, revision from October 2026
+ * (https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew),
+ * checked against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026.
  * (Ground rule: do not invent regulatory rules; flag uncertainty instead of guessing.)
  *
- * `verified` flips to true only after the owner has checked the source. The UI shows an
- * "unverified" notice for every rule while it is false.
+ * `verified` is true when the numbers below match that text. The `todo` lists are the remaining limits of
+ * the app (data the logbook does not record), not doubts about the rule itself.
  *
  * Keep every number that comes from regulation in THIS file so a correction is a one-line change.
  */
@@ -14,7 +15,7 @@ export interface RuleSource {
   /** Where the rule comes from, so it can be checked. */
   reference: string;
   verified: boolean;
-  /** Open questions about how to apply the rule to logbook data. */
+  /** Open questions or limits of how the rule is applied to logbook data. */
   todo: string[];
 }
 
@@ -22,28 +23,26 @@ export const PASSENGER_CURRENCY: RollingRule = {
   windowDays: 90,
   takeoffs: 3,
   landings: 3,
-  reference: 'Part-FCL FCL.060(b), recent experience for carrying passengers',
-  verified: false,
+  reference: 'Part-FCL FCL.060(b)(1): to carry passengers as PIC, at least 3 take-offs, approaches and landings as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it).',
+  verified: true,
   todo: [
-    'TODO(verify): confirm 3 take-offs and 3 landings in the preceding 90 days for the class being flown.',
-    'TODO(verify): the rule requires them as sole manipulator of the controls; the logbook does not record who was flying, so every logged take-off/landing is counted.',
-    'TODO(verify): whether take-offs/landings in an FSTD may count for a class rating; none are counted here.',
-    'TODO(verify): "preceding 90 days" is applied conservatively: an event counts on the day it happens and the 89 days after.',
+    'Limit: the logbook does not record who was flying, so every logged take-off and landing is counted although the rule requires them as pilot flying.',
+    'Limit: take-offs and landings in a simulator (FFS) of the class also count under the rule; none are counted here.',
+    'Limit: approaches are not recorded, only take-offs and landings.',
+    'Limit: "preceding 90 days" is applied conservatively: an event counts on the day it happens and the 89 days after.',
   ],
 };
 
 export const NIGHT_CURRENCY: RollingRule = {
   windowDays: 90,
-  // Deliberately the stricter reading of instructions.md ("3 ... passengers, and night separately").
-  // I suspect the EASA minimum for night is lower (1 night take-off and landing, or an IR), which is
-  // unverified: a stricter default can only ever show amber/red when the pilot is in fact legal, never the reverse.
-  takeoffs: 3,
-  landings: 3,
-  reference: 'Part-FCL FCL.060(b), carrying passengers at night',
-  verified: false,
+  takeoffs: 1,
+  landings: 1,
+  reference: 'Part-FCL FCL.060(b)(2): to act as PIC at night, at least 1 take-off, approach and landing at night as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it), or hold an IR.',
+  verified: true,
   todo: [
-    'TODO(verify): the number of night take-offs and landings required (3 is assumed; EASA may require fewer).',
-    'TODO(verify): holders of an instrument rating may be exempt from the night requirement; the app does not track ratings other than the SEP expiry.',
+    'Limit: holders of an IR are exempt from this requirement; the app does not track ratings other than the class rating expiry dates.',
+    'Limit: the logbook does not record who was flying, so every logged night take-off and landing is counted.',
+    'Limit: night take-offs and landings in a simulator (FFS) of the class also count under the rule; none are counted here.',
   ],
 };
 
@@ -56,48 +55,59 @@ export const SEP_REVALIDATION: SepRule = {
   landings: 12,
   /** Refresher training flight with an instructor. */
   instructorTrainingMin: 60,
-  reference: 'Part-FCL FCL.740.A(b), revalidation of SEP class ratings by experience',
-  verified: false,
+  reference: 'Part-FCL FCL.740.A(b)(1)(ii): within the 12 months preceding expiry, 12 hours of flight time in the class including 6 hours as PIC, 12 take-offs and 12 landings, and refresher training of at least 1 hour with an FI or CRI. Applies to SEP (land and sea) and TMG class ratings. The alternative is a proficiency check with an examiner in the last 3 months.',
+  verified: true,
   todo: [
-    'TODO(verify): 12 h flight time in the class in the 12 months before expiry, including 6 h as PIC, 12 take-offs and 12 landings, plus a 1 h training flight with an instructor.',
-    'TODO(verify): the training flight must be with an FI or CRI; the logbook has no instructor flag, so DUAL time is used as a stand-in.',
-    'TODO(verify): the alternative (proficiency check with an examiner) and renewal rules once the rating has expired are not evaluated.',
-    'TODO(verify): flights before the app was used (previous experience carry-ins) have no dates and are not counted.',
-    'TODO(verify): only flights in the selected class are counted; the combined SEP (land) / TMG revalidation (time in either counts towards both) is not applied.',
+    'Limit: the training flight must be with an FI or CRI; the logbook has no instructor flag, so DUAL time is used as a stand-in.',
+    'Limit: the 1 hour refresher training is not needed if you passed a class or type proficiency check, skill test, EBT assessment or assessment of competence in any class or type of aeroplane; the app does not know about those and always asks for it.',
+    'Limit: if you hold both SEP (land) and TMG, hours may be flown in either class or a combination and count for both; if you hold SEP (land) and SEP (sea), the same applies with at least 1 hour PIC and 6 take-offs and landings in each class. The app counts the selected class only.',
+    'Limit: flights before the app was used (previous experience carry-ins) have no dates and are not counted.',
   ],
 };
 
 /**
- * Classes that can be revalidated by experience (FCL.740.A(b)(1)(ii)): SEP and TMG. Every other class
- * (MEP, SET, sea variants of those) can only be revalidated with a proficiency check with an examiner.
+ * Revalidation by proficiency check only: SET (single-engine turbo-prop, FCL.740.A(b)(3)) and multi-engine
+ * class ratings (FCL.740.A(a)). There is no experience route for these.
  */
 export const PROFICIENCY_CHECK_REVALIDATION: ProficiencyRule = {
   /** The check must be passed within this many months before the expiry date. */
   windowMonths: 3,
-  reference: 'Part-FCL FCL.740.A(b), revalidation of class ratings by proficiency check with an examiner',
-  verified: false,
+  reference: 'Part-FCL FCL.740.A(b)(3) (single-engine turbo-prop) and FCL.740.A(a)(1) (multi-engine): pass a proficiency check with an examiner within the 3 months preceding the expiry date of the rating.',
+  verified: true,
   todo: [
-    'TODO(verify): MEP and SET (land/sea) class ratings can only be revalidated by a proficiency check with an examiner in the 3 months before expiry; there is no experience route.',
-    'TODO(verify): a check passed in those 3 months keeps the original expiry date; the new expiry date must be entered by hand afterwards.',
-    'TODO(verify): validity is 1 year for MEP and 2 years for single-pilot single-engine classes (SEP, TMG, SET); the app does not compute it, you enter the expiry date from your licence.',
-    'TODO(verify): renewal of an expired rating (refresher training and a new test) is not evaluated.',
+    'Limit: if you pass the check earlier than that window, the new validity period starts from the date of the check (FCL.740(a)(1)). Update the expiry date here afterwards; the app does not compute it.',
+    'Validity is 1 year, except for single-pilot single-engine class ratings (SEP, TMG, SET) which are valid for 2 years (FCL.740(a)(1)). You enter the expiry date from your licence.',
+    'The regulation names "single-engine turbo-prop" class ratings; the app applies the same rule to SET (land and sea).',
+    'If you fail a section of the check before expiry you may not use the rating until you have passed it (FCL.740.A(c)).',
   ],
 };
 
-/** Renewal of a class rating that has already expired (FCL.740.A(c)). Shown as a checklist; nothing is counted. */
+/** Multi-engine class ratings also need route sectors during the validity period (FCL.740.A(a)(2)). */
+export const MULTI_ENGINE_SECTORS: SectorRule = {
+  validityMonths: 12,
+  sectors: 10,
+  reference: 'Part-FCL FCL.740.A(a)(2): during the validity period of a multi-engine class rating, at least 10 route sectors as pilot of the class, or at least 1 route sector as pilot flown with an examiner (this may be the proficiency check itself).',
+  verified: true,
+  todo: [
+    'Limit: the logbook does not record route sectors, so every logged flight in the class during the 12 months before expiry counts as one sector.',
+    'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
+    'Limit: a pilot working for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt; not tracked.',
+  ],
+};
+
+/** Renewal of a class rating that has already expired (FCL.740(b)). Shown as a checklist; nothing is counted. */
 export const RENEWAL: RenewalRule = {
-  reference: 'Part-FCL FCL.740.A(c), renewal of class ratings',
-  verified: false,
+  reference: 'Part-FCL FCL.740(b), renewal of class and type ratings, with AMC1 FCL.740(b).',
+  verified: true,
   steps: [
-    'Refresher training at an ATO/DTO. The amount is decided by the training organisation (not a fixed number of hours), and its completion certificate goes to the examiner.',
-    'Pass a proficiency check with an examiner in the class.',
-    'Have the new expiry date entered in your licence, then update the date here.',
+    'Assessment at an ATO to decide whether you need refresher training. For an expired non-high-performance SEP or TMG rating a DTO may do it too, and with an instructor if the rating expired no more than 3 years ago.',
+    'Refresher training at that organisation or with that instructor, only if the assessment says it is necessary. The amount is decided case by case; you receive a training completion certificate to show the examiner.',
+    'Pass a proficiency check with an examiner (Appendix 9 to Part-FCL).',
+    'Enter the new expiry date here once it is on your licence.',
   ],
   todo: [
-    'TODO(verify): the refresher training is required to reach the level of proficiency; it is waived if you have passed a proficiency check, skill test or assessment on another class or type of aeroplane in the meantime.',
-    'TODO(verify): for SEP and TMG ratings that expired no more than 3 years ago, the refresher training may be given by an instructor instead of an ATO/DTO; check the exact wording and conditions.',
-    'TODO(verify): whether a proficiency check passed within 3 months after expiry needs no refresher training is disputed in forums and not confirmed; the app assumes training is needed.',
-    'TODO(verify): the app does not check these steps; it only lists them.',
+    'Applicants are exempt from the assessment and refresher training if they hold a valid rating for the same class on a licence from a third country (ICAO Annex 1) and may exercise its privileges.',
+    'Limit: the app does not check these steps; it only lists them.',
   ],
 };
 
@@ -129,6 +139,10 @@ export interface AppThresholds {
   /** Proficiency check still not done with this many days (or fewer) to expiry: red. */
   proficiencyCheckRedDaysLeft: number;
 }
+export interface SectorRule extends RuleSource {
+  validityMonths: number;
+  sectors: number;
+}
 export interface RenewalRule extends RuleSource {
   steps: string[];
 }
@@ -142,6 +156,7 @@ export interface Rules {
   sep: SepRule;
   proficiencyCheck: ProficiencyRule;
   renewal: RenewalRule;
+  mepSectors: SectorRule;
   app: AppThresholds;
 }
 
@@ -151,5 +166,6 @@ export const DEFAULT_RULES: Rules = {
   sep: SEP_REVALIDATION,
   proficiencyCheck: PROFICIENCY_CHECK_REVALIDATION,
   renewal: RENEWAL,
+  mepSectors: MULTI_ENGINE_SECTORS,
   app: APP_THRESHOLDS,
 };
