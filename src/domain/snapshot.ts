@@ -1,4 +1,4 @@
-import type { Aircraft, ClassRating, Flight, FstdSession, IsoDate, Person, PreviousExperience } from './types';
+import type { Aircraft, ClassRating, Flight, FstdSession, IsoDate, MedicalClass, Person, PreviousExperience } from './types';
 import { type FlightImport, type ImportBundle, toFlightImport, validateFlightImport } from './records';
 import { validateExperience } from './experience';
 import { validateFstd } from './fstd';
@@ -33,7 +33,7 @@ export interface Snapshot {
   /** Device that wrote the snapshot (optional: older snapshots do not have it). */
   deviceId?: string;
   deviceName: string;
-  settings: { pilotName?: string; licenceNumber?: string; address?: string; sepLandExpiry?: IsoDate | null; classExpiry?: Partial<Record<ClassRating, IsoDate>>; irExpiry?: IsoDate | null };
+  settings: { pilotName?: string; licenceNumber?: string; address?: string; sepLandExpiry?: IsoDate | null; classExpiry?: Partial<Record<ClassRating, IsoDate>>; irExpiry?: IsoDate | null; medicalClass?: MedicalClass | null; medicalExpiry?: IsoDate | null; languageLevel?: 4 | 5 | 6 | null; languageExpiry?: IsoDate | null };
   aircraft: Aircraft[];
   persons: Person[];
   flights: Flight[];

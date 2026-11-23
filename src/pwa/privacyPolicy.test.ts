@@ -64,6 +64,17 @@ describe('privacy policy stays published', () => {
     expect(read('src/pwa/alerts.ts') + read('src/sw.ts')).not.toContain('pushManager');
   });
 
+  it('is explicit that the medical is a class and a date, never health data', () => {
+    expect(page).toMatch(/Article 9/);
+    expect(page).toMatch(/conditions, limitations or findings/);
+    // and the data model must actually keep that promise
+    const settings = read('src/domain/types.ts');
+    const block = settings.slice(settings.indexOf('interface Settings'), settings.indexOf('interface Settings') + 2500);
+    for (const forbidden of ['medicalCondition', 'medicalLimitation', 'medicalRestriction', 'medicalNotes']) {
+      expect(block, `Settings must not record ${forbidden}: that is Article 9 health data`).not.toContain(forbidden);
+    }
+  });
+
   it('is linked from Settings', () => {
     expect(read('src/features/settings/SettingsScreen.tsx')).toContain('privacy.html');
   });

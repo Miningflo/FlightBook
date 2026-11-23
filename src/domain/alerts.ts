@@ -1,6 +1,6 @@
 import type { AlertLevel, ClassRating, Flight, IsoDate } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
-import { classExpiryOf, irStatus, isExperienceClass, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, sepRevalidation, type RollingCheck } from './currency';
+import { classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, sepRevalidation, type RollingCheck } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -24,6 +24,9 @@ export interface AlertSettings {
   sepLandExpiry?: IsoDate | null;
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
   irExpiry?: IsoDate | null;
+  medicalExpiry?: IsoDate | null;
+  languageLevel?: 4 | 5 | 6 | null;
+  languageExpiry?: IsoDate | null;
   alerts?: { enabled: boolean; night: boolean };
 }
 
@@ -72,6 +75,37 @@ function irItem(expiry: IsoDate, today: IsoDate, rules: Rules): AlertItem {
   return { key, level: 'green', title: 'Instrument rating ok', body: `Valid until ${date}.` };
 }
 
+/**
+ * The medical certificate and the language endorsement. Neither is a rating, but either one lapsing
+ * stops you flying, so they are worth more warning than a currency.
+ */
+function licenceItems(settings: AlertSettings, today: IsoDate, rules: Rules): AlertItem[] {
+  const out: AlertItem[] = [];
+  if (settings.medicalExpiry) {
+    const c = medicalStatus(settings.medicalExpiry, today, rules);
+    const date = formatShortDate(settings.medicalExpiry);
+    const days = c.daysToExpiry ?? 0;
+    out.push(
+      c.state === 'expired' ? { key: 'MEDICAL', level: 'expired', title: 'Medical certificate expired', body: `Expired on ${date}. You may not fly until it is renewed.` }
+      : c.state === 'urgent' ? { key: 'MEDICAL', level: 'red', title: `Medical expires in ${plural(days, 'day')}`, body: `Book the examination now. Expires ${date}.` }
+      : c.state === 'due' ? { key: 'MEDICAL', level: 'amber', title: `Medical expires in ${plural(days, 'day')}`, body: `Expires ${date}. The revalidation examination may be done from ${c.windowStart ? formatShortDate(c.windowStart) : ''}.` }
+      : { key: 'MEDICAL', level: 'green', title: 'Medical certificate ok', body: `Valid until ${date}.` },
+    );
+  }
+  const lang = languageStatus(settings.languageLevel, settings.languageExpiry, today, rules);
+  if (lang.state !== 'not-set' && lang.state !== 'no-expiry') {
+    const date = settings.languageExpiry ? formatShortDate(settings.languageExpiry) : '';
+    const days = lang.daysToExpiry ?? 0;
+    out.push(
+      lang.state === 'expired' ? { key: 'LANGUAGE', level: 'expired', title: 'Language endorsement expired', body: `Expired on ${date}. Without it you may not use the radio, and so may not exercise your licence.` }
+      : lang.state === 'urgent' ? { key: 'LANGUAGE', level: 'red', title: `Language endorsement expires in ${plural(days, 'day')}`, body: `Book the re-evaluation now. Expires ${date}.` }
+      : lang.state === 'due' ? { key: 'LANGUAGE', level: 'amber', title: `Language endorsement expires in ${plural(days, 'day')}`, body: `Expires ${date}.` }
+      : { key: 'LANGUAGE', level: 'green', title: 'Language endorsement ok', body: `Valid until ${date}.` },
+    );
+  }
+  return out;
+}
+
 /** The level of everything being watched right now (green items included). */
 export function watchedItems(flights: Flight[], settings: AlertSettings, today: IsoDate, rules: Rules = DEFAULT_RULES): AlertItem[] {
   const items: AlertItem[] = [];
@@ -88,6 +122,7 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
     if (expiry) items.push(ratingItem(cls, flights, expiry, today, rules));
   }
   if (settings.irExpiry) items.push(irItem(settings.irExpiry, today, rules));
+  items.push(...licenceItems(settings, today, rules));
   return items;
 }
 

@@ -1,6 +1,6 @@
 import type { ClassRating, Flight, IsoDate, Minutes } from './types';
 import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
-import { DEFAULT_RULES, type Rules } from './rules';
+import { DEFAULT_RULES, type LanguageLevel, type Rules } from './rules';
 
 /**
  * Currency checks (green / amber / red). All regulatory numbers come from rules.ts, checked against the EASA Easy Access Rules (October 2026 revision). `today` is a UTC date passed in, so everything is deterministic.
@@ -232,4 +232,60 @@ export function routeSectors(flights: Flight[], cls: ClassRating, expiry: IsoDat
   const windowEnd = today < expiry ? today : expiry;
   const have = flights.filter((f) => f.aircraftClass === cls && f.date >= windowStart && f.date <= windowEnd).length;
   return { have, need: r.sectors, windowStart, met: have >= r.sectors };
+}
+
+// ---------- licence documents: medical certificate and language endorsement ----------
+
+/**
+ * Documents that simply run out on a date, as opposed to ratings revalidated by a check inside a
+ * window. `windowStart`, where a rule gives one, is the first day the renewal may be done.
+ */
+export type ValidityState = 'not-set' | 'no-expiry' | 'valid' | 'due' | 'urgent' | 'expired';
+
+export interface ValidityCheck {
+  status: Status;
+  state: ValidityState;
+  expiry: IsoDate | null;
+  windowStart: IsoDate | null;
+  daysToExpiry: number | null;
+}
+
+function validityStatus(
+  expiry: IsoDate | null | undefined,
+  today: IsoDate,
+  o: { windowStart?: IsoDate | null; amberDaysLeft: number; redDaysLeft: number },
+): ValidityCheck {
+  if (!expiry) return { status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null };
+  const daysToExpiry = daysBetween(today, expiry);
+  const windowStart = o.windowStart ?? null;
+  const base = { expiry, windowStart, daysToExpiry };
+  if (daysToExpiry < 0) return { ...base, status: 'red', state: 'expired' };
+  if (daysToExpiry <= o.redDaysLeft) return { ...base, status: 'red', state: 'urgent' };
+  if (daysToExpiry <= o.amberDaysLeft || (windowStart !== null && today >= windowStart)) return { ...base, status: 'amber', state: 'due' };
+  return { ...base, status: 'green', state: 'valid' };
+}
+
+/** Medical certificate (MED.A.045). The 45-day revalidation window is regulatory; the colours are ours. */
+export function medicalStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ValidityCheck {
+  return validityStatus(expiry, today, {
+    windowStart: expiry ? addDays(expiry, -rules.medical.revalidationWindowDays) : null,
+    amberDaysLeft: rules.app.licenceAmberDaysLeft,
+    redDaysLeft: rules.app.licenceRedDaysLeft,
+  });
+}
+
+/**
+ * Language proficiency endorsement (FCL.055(c)). Level 6 is not re-evaluated, so it reports
+ * `no-expiry` rather than pretending a date it does not have.
+ */
+export function languageStatus(
+  level: LanguageLevel | null | undefined,
+  expiry: IsoDate | null | undefined,
+  today: IsoDate,
+  rules: Rules = DEFAULT_RULES,
+): ValidityCheck {
+  if (level && rules.language.yearsByLevel[level] === null) {
+    return { status: 'green', state: 'no-expiry', expiry: null, windowStart: null, daysToExpiry: null };
+  }
+  return validityStatus(expiry, today, { amberDaysLeft: rules.app.licenceAmberDaysLeft, redDaysLeft: rules.app.licenceRedDaysLeft });
 }
