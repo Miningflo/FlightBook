@@ -151,7 +151,11 @@ export function CurrencyScreen() {
       )}
       <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · 3 take-offs and 3 landings in 90 days`} check={passengers} rule={DEFAULT_RULES.passenger} />
       <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · night take-offs and landings in 90 days`} check={night} rule={DEFAULT_RULES.night} />
-      <SepCard check={sep} />
+      {cls === 'SEP_LAND' ? <SepCard check={sep} /> : (
+        <p className="hint" style={{ margin: '0 4px 12px' }}>
+          Revalidation tracking is only available for the SEP (land) class rating. Select SEP (land) to see it.
+        </p>
+      )}
     </div>
   );
 }
