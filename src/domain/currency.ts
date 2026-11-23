@@ -3,7 +3,6 @@ import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
 import { DEFAULT_RULES, type Rules } from './rules';
 
 /**
- * Currency checks (green / amber / red). All regulatory numbers come from rules.ts and are
  * Currency checks (green / amber / red). All regulatory numbers come from rules.ts, checked against the EASA Easy Access Rules (October 2026 revision). `today` is a UTC date passed in, so everything is deterministic.
  */
 
