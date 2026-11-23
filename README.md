@@ -8,9 +8,9 @@ The Android phone is the master logbook; the same app in a desktop browser is a 
 **The regulatory numbers are checked against the EASA text** — see [Totals and currency](#totals-and-currency) for what was checked, against which revision, and what the app still cannot know.
 
 ## Screenshots
-Every screenshot shows an **invented** logbook: a fictional pilot, with flights, times, remarks and people that are made up. The airports and routes are real. Night time and the day/night take-offs and landings were calculated by the app itself, and the currency and rating states are the app's own, not mock-ups &mdash; the demo logbook is seeded so that one class rating is comfortably valid, one has its proficiency-check window open, and one has expired. Some screens are in dark mode and the map uses the "Aviation magenta" colour, to show the theme and colour settings.
+Every screenshot shows an **invented** logbook: a fictional pilot, with flights, times, remarks and people that are made up. The airports and routes are real. Night time and the day/night take-offs and landings were calculated by the app itself, and the currency and rating states are the app's own, not mock-ups &mdash; the demo logbook is seeded so that SEP (land) has its revalidation experience met but night currency lapsed, MEP (land) has its proficiency-check window open, and SET (land) has expired. The Alerts screen is in dark mode, to show the theme setting.
 
-Five of them &mdash; **Currency**, **Class rating revalidation**, **Alerts**, **Holder details** and the **PDF logbook** &mdash; are **reproducible**: `scripts/make-demo-logbook.ts` writes a demo logbook from a fixed seed, and `scripts/make-screenshots.mjs` drives a real build of the app in headless Chromium with the clock pinned to the demo's date, so re-running them gives the same images. See [Regenerating the screenshots](#regenerating-the-screenshots). The rest (Logbook, Flight, New flight, Totals, Map) predate that script and show an earlier invented logbook, the one with the aircraft photos credited [below](#photo-credits).
+They are all **reproducible**: `scripts/make-demo-logbook.ts` writes the logbook from a fixed seed, and `scripts/make-screenshots.mjs` drives a real build of the app in headless Chromium with the clock pinned to the demo's date, so re-running them gives the same images. See [Regenerating the screenshots](#regenerating-the-screenshots). The aircraft photos are real ones the app looked up on Wikimedia Commons, under free licences, credited [below](#photo-credits).
 
 | Logbook | Flight | New flight |
 |---|---|---|
@@ -30,21 +30,25 @@ npx playwright install chromium                 # once
 npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
 VITE_BASE=/FlightBook/ npm run build
 npx vite preview --port 4330 --strictPort &
-node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.json
+curl -sLo /tmp/airports.csv https://davidmegginson.github.io/ourairports-data/airports.csv
+node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.json /tmp/airports.csv
 ```
-The script loads the demo logbook through the app's own import, so the screenshots can only show states the app can really reach. It also saves the PDF the app generates; `pdf-logbook.png` is a page of that file rendered to an image.
+The script loads the demo logbook through the app's own import and imports the airport database the same way, so the screenshots can only show states the app can really reach: the airport names on the flight form and the routes on the map are looked up, not drawn in. It also saves the PDF the app generates; `pdf-logbook.png` is a page of that file rendered to an image. The `airports.csv` argument is optional; without it the map and the airport names are skipped.
 
-Aircraft photo lookup is left at its default in the demo, but the screens it regenerates show no aircraft photos. **Turn it off before regenerating the first row**: Planespotters photos are not freely licensed, so one must never end up committed in `docs/screenshots/`.
+**Planespotters is blocked for the whole run**, so aircraft photos can only come from Wikimedia Commons, and the run aborts if a photo from anywhere else was used. This is a licensing rule, not a preference: Commons photos are freely licensed and can be credited, Planespotters photos are not and must never be committed under `docs/`. The run prints the author and licence of every photo it actually used, read from the app's own cache, so the credits below are written from what was really shown.
 
 ### Photo credits
-Two third-party photos appear in the screenshots `docs/screenshots/logbook.png` (both photos) and `docs/screenshots/flight.png` (the Archer). In the screenshots they are cropped and scaled to fit the app's cards, and shown inside the app's screen.
+Three third-party photos appear in the screenshots: all three in `docs/screenshots/logbook.png`, and the Cessna again in `docs/screenshots/flight.png`. The app looked each one up on Wikimedia Commons by registration and displays the author and licence itself, as you can see in the Flight screenshot. In the screenshots they are cropped and scaled to fit the app's cards, and shown inside the app's screen.
 
 | Photo | Author | Licence | Source |
 |---|---|---|---|
 | "Keiheuvel Cessna 172S Skyhawk OO-CEU 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG) |
+| "Keiheuvel Robin DR400 120 Dauphin OO-KGB 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Robin_DR400_120_Dauphin_OO-KGB_02.JPG) |
 | "Piper PA28-181 'OO-ILS'" | Alan Wilson | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Piper_PA28-181_OO-ILS_(8439360388).jpg) |
 
-Because the screenshots contain these photos in changed form, **`flight.png` is shared under CC BY-SA 2.0 and `logbook.png` under CC BY-SA 4.0**; this applies to those two image files only, not to the FlightBook code or the other images. This is allowed: [CC BY-SA 2.0 §4(b)](https://creativecommons.org/licenses/by-sa/2.0/legalcode) lets a derivative work be distributed under "a later version of this License with the same License Elements", and CC BY-SA 4.0 is exactly that (Attribution, ShareAlike), which is also the only licence that covers both photos in `logbook.png` at once.
+Because those two screenshots contain the photos in changed form, **`docs/screenshots/logbook.png` and `docs/screenshots/flight.png` are shared under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0)**. This applies to those two image files only, not to the FlightBook code or to the other screenshots, none of which contain a third-party photo.
+
+`flight.png` holds only the Cessna, which is already CC BY-SA 4.0. `logbook.png` also holds the Archer, which is CC BY-SA 2.0, and 4.0 is the one licence that covers the mixture: [CC BY-SA 2.0 §4(b)](https://creativecommons.org/licenses/by-sa/2.0/legalcode) lets a derivative work be distributed under "a later version of this License with the same License Elements", and CC BY-SA 4.0 is exactly that (Attribution, ShareAlike).
 
 ## Setup
 Node 20 or newer (Vite 8 and TypeScript 7; CI uses Node 20).
