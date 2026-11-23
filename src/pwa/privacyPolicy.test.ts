@@ -31,6 +31,39 @@ describe('privacy policy stays published', () => {
     expect(new RegExp(route.match(/\/(privacy[^/]*)\//)?.[1] ?? 'no-match').test('privacy.html')).toBe(true);
   });
 
+  it('only claims the one Google scope the app actually requests', () => {
+    const scopes = [...read('src/drive/config.ts').matchAll(/https:\/\/www\.googleapis\.com\/auth\/[\w.]+/g)].map((m) => m[0]);
+    expect(scopes).toEqual(['https://www.googleapis.com/auth/drive.file']);
+    for (const s of scopes) expect(page).toContain(s);
+  });
+
+  it('names every outside host the app can contact', () => {
+    const src = ['src/features/photos/planespotters.ts', 'src/features/photos/commons.ts', 'src/features/airports/airportStore.ts', 'src/drive/config.ts']
+      .map((f) => { try { return read(f); } catch { return ''; } }).join('\n');
+    const hosts = new Set([...src.matchAll(/https:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]!));
+    // every third party the code can reach must be disclosed, by host or by the name the page uses for it
+    const disclosed: Record<string, string> = {
+      'api.planespotters.net': 'planespotters.net', 'www.planespotters.net': 'planespotters.net', 't.plnspttrs.net': 'planespotters.net',
+      'commons.wikimedia.org': 'wikimedia.org', 'upload.wikimedia.org': 'wikimedia.org',
+      'davidmegginson.github.io': 'GitHub', 'ourairports.com': 'ourairports.com',
+      'www.googleapis.com': 'googleapis.com', 'accounts.google.com': 'google',
+    };
+    for (const h of hosts) {
+      expect(disclosed, `undisclosed host ${h}: add it to the privacy policy`).toHaveProperty(h);
+      expect(page.toLowerCase()).toContain(disclosed[h]!.toLowerCase());
+    }
+  });
+
+  it('covers the GDPR disclosures a reader needs', () => {
+    for (const needed of ['Legal basis', 'Your rights', 'Portability', 'international transfers', 'data protection', 'Other people in your logbook']) {
+      expect(page, `privacy policy is missing: ${needed}`).toContain(needed);
+    }
+  });
+
+  it('does not promise a push service the app does not use', () => {
+    expect(read('src/pwa/alerts.ts') + read('src/sw.ts')).not.toContain('pushManager');
+  });
+
   it('is linked from Settings', () => {
     expect(read('src/features/settings/SettingsScreen.tsx')).toContain('privacy.html');
   });

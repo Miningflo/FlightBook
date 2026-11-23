@@ -28,7 +28,7 @@ Two third-party photos appear in the screenshots `docs/screenshots/logbook.png` 
 | "Keiheuvel Cessna 172S Skyhawk OO-CEU 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG) |
 | "Piper PA28-181 'OO-ILS'" | Alan Wilson | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Piper_PA28-181_OO-ILS_(8439360388).jpg) |
 
-Because the screenshots contain these photos in changed form, **`flight.png` is shared under CC BY-SA 2.0 and `logbook.png` under CC BY-SA 4.0**; this applies to those two image files only, not to the FlightBook code or the other images. `TODO(verify)`: relicensing a CC BY-SA 2.0 photo inside `logbook.png` under 4.0 relies on the "later version" clause of the 2.0 licence; check this, or replace the photo, before relying on it.
+Because the screenshots contain these photos in changed form, **`flight.png` is shared under CC BY-SA 2.0 and `logbook.png` under CC BY-SA 4.0**; this applies to those two image files only, not to the FlightBook code or the other images. This is allowed: [CC BY-SA 2.0 §4(b)](https://creativecommons.org/licenses/by-sa/2.0/legalcode) lets a derivative work be distributed under "a later version of this License with the same License Elements", and CC BY-SA 4.0 is exactly that (Attribution, ShareAlike), which is also the only licence that covers both photos in `logbook.png` at once.
 
 ## Setup
 Node 20 or newer (Vite 8 and TypeScript 7; CI uses Node 20).
@@ -51,7 +51,7 @@ Copy `.env.example` to `.env.local` to override `VITE_BASE` (default `/`) or set
 ## Logging a flight
 - **All times are UTC** (off-blocks / on-blocks). The take-off date is the date column of the logbook. The **landing date** follows automatically: the same day, or the next day when the on-blocks time is earlier than off-blocks (the flight crossed midnight UTC). It can be set by hand for anything else (a flight over 24 h gets a warning; a landing before take-off is refused). Saved flights that landed on a later UTC date show **+1** after the landing time.
 - **Aircraft are remembered by registration.** Typing a registration you have flown fills in make, model, variant, class and pilot-time category. Each flight keeps its own copy of those details; the remembered ones follow the aircraft's most recent flight, so correcting an old entry never changes what is filled in today. There are no suggestion lists: a new flight starts with the last aircraft, the last pilot in command and "From" set to where the last flight landed.
-- **Classes**: SEP (land/sea), TMG, MEP (land/sea), SET (single-engine turbine, land/sea) and Other. The revalidation rules for each are verified against Part-FCL, but Part-FCL never lists the class ratings themselves — that list is a separate EASA publication, so the land/sea split for SET still carries a `TODO(verify)` in `src/domain/types.ts`. A class that contradicts the pilot-time category (an MEP flight logged as single-engine, or a single-engine class logged as multi-engine) gets a warning, never a block.
+- **Classes**: SEP (land/sea), TMG, MEP (land/sea), SET (single-engine turbine, land/sea) and Other. Those seven are exactly the aeroplane class ratings in the EASA [Class and Type Rating & Licence Endorsement List](https://www.easa.europa.eu/en/downloads/11737/en) (Part-FCL only refers to class ratings, it never names them); "Other" is for type-rated aeroplanes and anything that is not an aeroplane class rating. A class that contradicts the pilot-time category (an MEP flight logged as single-engine, or a single-engine class logged as multi-engine) gets a warning, never a block.
 - **Pilot function**: PIC / COPI / DUAL / INS chips (selected ones are filled and ticked); their time defaults to the total. The chips and +/− counters do not take the focus from a text field, so one tap works while the keyboard is open.
 
 ## Install on Android
@@ -115,8 +115,14 @@ An optional notification when something gets **worse**: a currency or class rati
 - Night currency can be left out, for a pilot holding an instrument rating (FCL.060(b)(2)(ii) exempts them).
 - There is a "Send a test notification" button. It needs a registered service worker, so it does nothing under `npm run dev` — use `npm run build && npm run preview`.
 
-## Privacy policy
-[`public/privacy.html`](public/privacy.html) is a plain static page, published at **`https://<user>.github.io/<repo>/privacy.html`**. Google's OAuth verification points at that URL, so it has to stay reachable: it is deliberately a file in `public/` (copied to the root of `dist/`, needs no JavaScript), it is linked from Settings, it is precached so it also opens offline, and the service worker's navigation fallback explicitly excludes it so the single-page app never swallows the request. `src/pwa/privacyPolicy.test.ts` fails if any of that is broken. It needs updating whenever the app starts contacting a new service or asking for a new Google scope.
+## Privacy policy and GDPR
+[`public/privacy.html`](public/privacy.html) is a plain static page, published at **`https://<user>.github.io/<repo>/privacy.html`**. Google's OAuth verification points at that URL, so it has to stay reachable: it is deliberately a file in `public/` (copied to the root of `dist/`, needs no JavaScript), it is linked from Settings, it is precached so it also opens offline, and the service worker's navigation fallback explicitly excludes it so the single-page app never swallows the request.
+
+It carries the Article 13 disclosures: what is stored on the device, the one Google scope, every outside service with what it receives and how to avoid it, international transfers, legal basis, the data-subject rights (which you exercise in the app itself, since nothing reaches a server), and the right to complain to a supervisory authority. Two points worth knowing as the developer:
+- **No cookie banner is needed.** The app sets no cookies and stores nothing for analytics or profiling; IndexedDB is strictly necessary for an offline logbook, which is the ePrivacy exemption.
+- **The logbook holds other people's names** (pilots in command, instructors). The policy explains that this is normally covered by the household exemption, Article 2(2)(c) GDPR, but that a pilot keeping the logbook professionally may have their own obligations.
+
+`src/pwa/privacyPolicy.test.ts` keeps the page honest: it fails if the policy stops being reachable, if the app requests a Google scope the page does not name, **if the code gains an outside host the page does not disclose**, if a GDPR section goes missing, or if a push service appears. Update the page before shipping any change to what the app contacts.
 
 ## Airports and night time
 1. **Settings → Airports database** (any device, since it is reference data): download the public OurAirports `airports.csv` (about 13 MB) or choose a file you downloaded yourself. About 44,000 airports with a 4-character ICAO/GPS code are kept; closed airports and fields without a code are skipped and counted. Import only adds and updates, and a bad file is rejected before anything is written. The data is reference data: not part of backups, re-importable any time.
@@ -136,7 +142,7 @@ Photos are decoration only, and the app stores no image data. Each aircraft show
 Look-ups are polite to these free services: a list thumbnail is only looked up when its card scrolls near the screen, at most two look-ups run at a time, a found photo is re-checked twice a year and a missing one after two weeks, and a failed look-up is never remembered as "no photo".
 
 There is deliberately no way to upload your own photos. The cache is device-local metadata and is never backed up, so it is not part of the logbook data.
-The Planespotters response format follows its public documentation but could not be tested from the development environment (its bot protection blocks automated clients); see the `TODO(verify)` in `src/features/photos/planespotters.ts`. If it misbehaves, the app falls back to Commons, then a placeholder.
+The Planespotters response format was verified against the live API (November 2026) and is documented in `src/features/photos/planespotters.ts`; it sends `access-control-allow-origin: *`, which is what allows the browser to call it. Keep that call in the page: the API rejects non-browser callers whose User-Agent has no contact URL, and a browser cannot set one. If the shape ever changes, the app falls back to Commons, then a placeholder.
 
 ## Dependencies (each justified)
 | Package | Why |

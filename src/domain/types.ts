@@ -28,13 +28,13 @@ export const ENGINE_CLASSES: readonly EngineClass[] = ['SP-SE', 'SP-ME', 'MP'];
 
 /**
  * Class / type grouping used for totals and rating currency.
- * SET = single-pilot single-engine turbine, with land and sea variants like SEP and MEP.
  *
- * The revalidation rule for these is verified (FCL.740.A, see domain/rules.ts), but Part-FCL itself only
- * ever says "single-engine turbo-prop class ratings" without naming the classes. The authoritative list of
- * class ratings is a separate EASA publication (the licence endorsement / class and type ratings list),
- * not Part-FCL.
- * TODO(verify): confirm against that list that SET is split into land and sea, as assumed here.
+ * Checked on 23 November 2026 against the EASA "Class and Type Rating & Licence Endorsement List"
+ * (https://www.easa.europa.eu/en/downloads/11737/en), which is where the class ratings are actually
+ * named -- Part-FCL only ever refers to them. That list defines exactly seven aeroplane class ratings:
+ * SEP (land), SEP (sea), TMG, MEP (land), MEP (sea), SET (land) and SET (sea). The seven below are
+ * those, so the land/sea split for SET is confirmed. OTHER is ours, for type-rated aeroplanes and for
+ * anything that is not an aeroplane class rating at all.
  */
 export type ClassRating = 'SEP_LAND' | 'SEP_SEA' | 'TMG' | 'MEP_LAND' | 'MEP_SEA' | 'SET_LAND' | 'SET_SEA' | 'OTHER';
 export const CLASS_RATINGS: readonly ClassRating[] = [
