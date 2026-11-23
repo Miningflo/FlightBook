@@ -4,7 +4,10 @@
  * (https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew),
  * checked word by word against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026 (all three
  * carrying the amendments of Regulation (EU) 2024/2076 in that revision), and FCL.625 and FCL.625.A
- * (Regulation (EU) 2020/2193) on the same day.
+ * (Regulation (EU) 2020/2193) on the same day, and FCL.055 and MED.A.045 (Regulation (EU) 2019/27).
+ *
+ * MED.A.045 is Part-MED, not Part-FCL: the medical certificate is the one document that grounds you
+ * whatever your ratings say, so it is tracked here even though it comes from a different Annex.
  * (Ground rule: do not invent regulatory rules; flag uncertainty instead of guessing.)
  *
  * Check against EASA's own text, not a national library. The UK CAA's retained version of
@@ -167,6 +170,41 @@ export const IR_RENEWAL: RenewalRule = {
   ],
 };
 
+/**
+ * Medical certificate (Annex IV, Part-MED). The app stores the expiry date printed on the certificate
+ * and never computes it: the validity period depends on the class and on your age, and the age bands
+ * have edges the app could not get right without knowing your date of birth, which it deliberately
+ * does not ask for.
+ */
+export const MEDICAL: MedicalRule = {
+  /** The revalidation examination may be done this many days before expiry (MED.A.045(b)). */
+  revalidationWindowDays: 45,
+  reference: 'Part-MED MED.A.045(a): a class 1 medical certificate is valid for 12 months (6 months from age 60, or from 40 in single-pilot commercial air transport with passengers); a class 2 certificate for 60 months until age 40, 24 months from 40 to 50, and 12 months above 50; a LAPL certificate for 60 months until age 40 and 24 months after. MED.A.045(b): the revalidation examination may be undertaken up to 45 days before the expiry date.',
+  verified: true,
+  todo: [
+    'The app does not know your age, so it does not work out the validity period. Enter the expiry date printed on the certificate, which already accounts for it.',
+    'Watch the age edges: a class 2 or LAPL certificate issued before you turn 40 stops being valid once you reach 42, and a class 2 issued before 50 stops once you reach 51 (MED.A.045(a)(3)-(4)). The printed expiry date may therefore be later than the date it actually ceases to be valid.',
+    'Revalidating inside the 45-day window keeps the old expiry date as the starting point; an examination outside it counts as a renewal and the new period runs from the examination (MED.A.045(a)(5)).',
+    'Once expired, a renewal examination is needed, and after 2 years (and again after 5) the examiner has to look at your aero-medical records first (MED.A.045(c)). The app only tells you it has expired.',
+  ],
+};
+
+/**
+ * Language proficiency endorsement (FCL.055). Without it you may not use the radio, and without the
+ * radio you may not exercise the privileges of the licence at all -- so it grounds you like a medical.
+ */
+export const LANGUAGE_PROFICIENCY: LanguageRule = {
+  /** Re-evaluation interval in years, by the level demonstrated. Level 6 never expires. */
+  yearsByLevel: { 4: 4, 5: 6, 6: null },
+  reference: 'Part-FCL FCL.055(a): pilots required to use the radio telephone shall not exercise the privileges of their licences and ratings without a language proficiency endorsement. FCL.055(c): the endorsement is re-evaluated every 4 years at operational level (level 4) and every 6 years at extended level (level 5); an expert level (level 6) endorsement is not re-evaluated.',
+  verified: true,
+  todo: [
+    'The app stores the expiry date from your licence, not the interval: it does not work out when the re-evaluation falls due.',
+    'Level 6 is recorded as not expiring, which is what FCL.055(c) says. Some authorities re-assess it anyway; if yours does, enter it as a level 5 with the date they gave you.',
+    'Limit: only the endorsement for the language you fly in is tracked, and only one of them.',
+  ],
+};
+
 /** App-defined traffic-light thresholds. These are usability choices, NOT regulatory. */
 export const APP_THRESHOLDS: AppThresholds = {
   /** Amber when a rolling currency lapses within this many days. */
@@ -174,6 +212,8 @@ export const APP_THRESHOLDS: AppThresholds = {
   /** Revalidation requirements still unmet with this many days (or fewer) to expiry: red. */
   revalidationRedDaysLeft: 60,
   proficiencyCheckRedDaysLeft: 30,
+  licenceAmberDaysLeft: 90,
+  licenceRedDaysLeft: 30,
 };
 
 export interface RollingRule extends RuleSource {
@@ -194,7 +234,19 @@ export interface AppThresholds {
   revalidationRedDaysLeft: number;
   /** Proficiency check still not done with this many days (or fewer) to expiry: red. */
   proficiencyCheckRedDaysLeft: number;
+  /** A licence document (medical, language endorsement) expiring within this many days: amber. */
+  licenceAmberDaysLeft: number;
+  /** ...and within this many: red. */
+  licenceRedDaysLeft: number;
 }
+export interface MedicalRule extends RuleSource {
+  revalidationWindowDays: number;
+}
+export interface LanguageRule extends RuleSource {
+  yearsByLevel: Record<LanguageLevel, number | null>;
+}
+/** Operational, extended, expert (FCL.055(c) / Appendix 2). */
+export type LanguageLevel = 4 | 5 | 6;
 export interface SectorRule extends RuleSource {
   validityMonths: number;
   sectors: number;
@@ -212,6 +264,8 @@ export interface Rules {
   sep: SepRule;
   ir: ProficiencyRule;
   irRenewal: RenewalRule;
+  medical: MedicalRule;
+  language: LanguageRule;
   proficiencyCheck: ProficiencyRule;
   renewal: RenewalRule;
   mepSectors: SectorRule;
@@ -224,6 +278,8 @@ export const DEFAULT_RULES: Rules = {
   sep: SEP_REVALIDATION,
   ir: IR_REVALIDATION,
   irRenewal: IR_RENEWAL,
+  medical: MEDICAL,
+  language: LANGUAGE_PROFICIENCY,
   proficiencyCheck: PROFICIENCY_CHECK_REVALIDATION,
   renewal: RENEWAL,
   mepSectors: MULTI_ENGINE_SECTORS,

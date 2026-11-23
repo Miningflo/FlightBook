@@ -258,6 +258,12 @@ export interface Airport {
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+/** Medical certificate class (Part-MED). */
+export type MedicalClass = 'CLASS1' | 'CLASS2' | 'LAPL';
+export const MEDICAL_CLASS_LABELS: Record<MedicalClass, string> = {
+  CLASS1: 'Class 1', CLASS2: 'Class 2', LAPL: 'LAPL',
+};
+
 /** How bad a watched currency or rating is. Used by the alerts. */
 export type AlertLevel = 'green' | 'amber' | 'red' | 'expired';
 
@@ -287,6 +293,16 @@ export interface Settings {
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
   /** Expiry date of the instrument rating. Also switches off the night recent-experience requirement. */
   irExpiry?: IsoDate | null;
+  /**
+   * Medical certificate: the class and the expiry date printed on it. Administrative data only --
+   * deliberately no conditions, limitations or findings, which would be health data under Article 9 GDPR
+   * and have no place in a logbook.
+   */
+  medicalClass?: MedicalClass | null;
+  medicalExpiry?: IsoDate | null;
+  /** Language proficiency endorsement (FCL.055): the level, and the expiry unless the level is 6. */
+  languageLevel?: 4 | 5 | 6 | null;
+  languageExpiry?: IsoDate | null;
   /** Device-local: notify when a currency or class rating gets worse. `night` includes night currency. */
   alerts?: { enabled: boolean; night: boolean };
   /** Device-local: the levels last seen by the alert check, so only a change for the worse notifies. */

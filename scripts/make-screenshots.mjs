@@ -153,10 +153,14 @@ await shot(light.page, 'new-flight', { anchor: '#f-date', offset: 92 });
 await go(light.page, '/currency');
 await shot(light.page, 'currency');
 
-// the proficiency-check route: pick MEP (land), whose check window is open
+// the proficiency-check route: pick MEP (land), whose check window is open. Anchor on the class card
+// itself, not on the last one: the licence cards below it are not class ratings.
 await light.page.getByRole('button', { name: 'MEP (land)', exact: true }).click();
 await light.page.waitForTimeout(400);
-await shot(light.page, 'currency-rating', { anchor: '.cur-card:last-of-type' });
+await shot(light.page, 'currency-rating', { anchor: '.cur-card:has-text("class rating")' });
+
+// the licence section: the ratings and documents that are not tied to a class
+await shot(light.page, 'licence', { anchor: 'text=Your licence', offset: 112 }); // clear the title bar
 
 // the PDF, made by the app itself from this same logbook
 await go(light.page, '/export');
