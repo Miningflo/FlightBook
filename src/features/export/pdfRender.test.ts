@@ -29,9 +29,28 @@ describe('renderLogbookPdf', () => {
     const { bytes } = await renderLogbookPdf(model(0));
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
   });
-  it('includes an FSTD section after the flights', async () => {
+  it('keeps a flight and a simulator session on one page, as AMC1 FCL.050 does', async () => {
     const m = buildDocument({ flights: [flight('2025-03-01')], persons: [self], fstd: [{ id: 's', createdAt: 1, updatedAt: 1, date: '2025-03-02', fstdType: 'FNPT II', totalMin: 60, remarks: '' }], experience: [{ id: 'e', createdAt: 1, updatedAt: 1, ...emptyExperience('2024-12-31') }], pilotName: '', generatedOn: '2025-06-30' });
-    expect((await PDFDocument.load((await renderLogbookPdf(m)).bytes)).getPageCount()).toBe(2);
+    expect(m.pages).toHaveLength(1);
+    expect((await PDFDocument.load((await renderLogbookPdf(m)).bytes)).getPageCount()).toBe(1);
+  });
+  it('never cuts a long PIC name: NAME(S) OF PIC is a required AMC column', async () => {
+    const long = { id: 'v', name: 'Jean-Baptiste Vandenbroucke', nameKey: 'v', isSelf: false, createdAt: 1, updatedAt: 1 };
+    const m = buildDocument({
+      flights: [flight('2025-03-01', { picNameId: 'v', remarks: '' })], persons: [self, long], fstd: [], experience: [],
+      pilotName: 'SELF', generatedOn: '2025-06-30',
+    });
+    expect(m.pages[0]!.rows[0]!.picName).toBe('Jean-Baptiste Vandenbroucke');
+    expect((await renderLogbookPdf(m)).report.truncatedCells).toBe(0);
+  });
+  it('draws the holder block without truncating a normal name, licence number and address', async () => {
+    const m = buildDocument({
+      flights: [flight('2025-03-01')], persons: [self], fstd: [], experience: [],
+      pilotName: 'Flore De Bosscher', licenceNumber: 'BE.FCL.PPL.123456', address: 'Grote Markt 1\n9000 Gent, Belgium',
+      generatedOn: '2025-06-30',
+    });
+    const { report } = await renderLogbookPdf(m);
+    expect(report.truncatedCells).toBe(0);
   });
   it('reports characters the PDF font cannot show instead of failing or hiding it', async () => {
     const m = buildDocument({ flights: [flight('2025-03-01', { remarks: 'Łódź Café 日本' })], persons: [self], fstd: [], experience: [], pilotName: 'Zoë', generatedOn: '2025-06-30' });

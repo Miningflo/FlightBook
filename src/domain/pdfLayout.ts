@@ -19,25 +19,30 @@ import { clockOfTimestamp, formatHHMM } from './time';
  * and it has no take-off and no PICUS/SPIC column, so printing landings only and putting PICUS/SPIC
  * in the remarks is right.
  *
- * Two deliberate divergences from the AMC, both of which a competent authority could object to:
- *   - Column 11 (FSTD SESSION) is not in FLIGHTS_TABLE. The AMC keeps simulator sessions in the same
- *     table, on a row that fills only columns 1, 11 and 12; this prints them as a separate FSTD_TABLE.
- *     Inline would need about 140 pt that the page does not have (655 pt of the 786 usable are already
- *     fixed, leaving 131 pt for remarks), so moving it back means re-balancing every column width.
- *   - The AMC logbook opens with the holder's name(s), licence number and address (with spaces for
- *     later address changes). Only the name is printed, because the licence number and address are
- *     not recorded anywhere in the app.
+ * One table, as in the AMC: a simulator session is a row that fills only the FSTD SESSION group
+ * (column 11, which carries its own date) and the remarks, so sessions and flights stay in one
+ * chronological sequence and the flight-time columns are never polluted by session time. Column
+ * widths are therefore tight: 680 pt of the 786 usable points are fixed, leaving 106 pt for remarks.
+ * The renderer shrinks and wraps text that does not fit and counts what it had to cut, so a narrow
+ * column degrades visibly rather than silently.
+ *
+ * The holder block the AMC puts on the inside cover (holder's name(s), licence number, address) is
+ * printed on every page instead of once, so each sheet identifies its holder on its own. Where a
+ * value has not been entered, a blank rule is drawn to be filled in by hand.
+ *
  * TODO(verify): FCL.050 itself only says the record must be kept "in a form and manner established by
  * the competent authority", and this AMC is one acceptable means, not the only one. Check what the
  * authority that issued your licence actually requires before using the printout as your logbook of
- * record; the header says DATE (dd/mm/yy) where this prints 4-digit years.
+ * record. Known cosmetic difference: the AMC header reads DATE (dd/mm/yy) where this prints 4-digit
+ * years, which is deliberate -- a two-digit year in a lifetime logbook is ambiguous.
  */
 
 export const PAGE = {
   width: 841.89, // A4 landscape, points
   height: 595.28,
   margin: 28,
-  titleH: 24,
+  /** Title line plus the two holder-block lines (AMC1 FCL.050). 36 pt costs no data rows. */
+  titleH: 36,
   groupH: 14,
   colHeadH: 24,
   rowH: 18,
@@ -68,7 +73,7 @@ export interface GroupSpec {
 }
 
 export interface TableSpec {
-  id: 'flights' | 'fstd';
+  id: 'logbook';
   title: string;
   groups: GroupSpec[];
 }
@@ -78,32 +83,27 @@ const col = (id: string, label: string[], width: number | 'flex', kind: CellKind
 });
 const dur = (id: string, label: string[], width = 27): ColumnSpec => col(id, label, width, 'duration', { sum: true });
 
-export const FLIGHTS_TABLE: TableSpec = {
-  id: 'flights',
-  title: "PILOT'S LOGBOOK",
+/** The twelve numbered column groups of AMC1 FCL.050, in the AMC's order. */
+export const LOGBOOK_TABLE: TableSpec = {
+  id: 'logbook',
+  title: 'PILOT LOGBOOK',
   groups: [
-    { label: ['DATE', '(dd/mm/yyyy)'], columns: [col('date', ['DATE'], 44, 'date')] },
-    { label: ['DEPARTURE'], columns: [col('depPlace', ['Place'], 28, 'text'), col('depTime', ['Time', '(UTC)'], 26, 'time')] },
-    { label: ['ARRIVAL'], columns: [col('arrPlace', ['Place'], 28, 'text'), col('arrTime', ['Time', '(UTC)'], 26, 'time')] },
-    { label: ['AIRCRAFT'], columns: [col('aircraftType', ['Make, model,', 'variant'], 80, 'text'), col('registration', ['Registration'], 40, 'text')] },
-    { label: ['SINGLE-PILOT', 'TIME'], columns: [dur('spSe', ['SE']), dur('spMe', ['ME'])] },
-    { label: ['MULTI-PILOT', 'TIME'], columns: [dur('mp', ['MP'], 34)] },
-    { label: ['TOTAL TIME', 'OF FLIGHT'], columns: [dur('total', ['TOTAL'], 36)] },
-    { label: ['NAME(S) OF PIC'], columns: [col('picName', ['NAME(S) OF PIC'], 52, 'text')] },
-    { label: ['LANDINGS'], columns: [col('ldgDay', ['Day'], 20, 'count', { sum: true }), col('ldgNight', ['Night'], 22, 'count', { sum: true })] },
-    { label: ['OPERATIONAL', 'CONDITION TIME'], columns: [dur('night', ['Night']), dur('ifr', ['IFR'])] },
-    { label: ['PILOT FUNCTION TIME'], columns: [dur('pic', ['PIC']), dur('copi', ['CO-PILOT'], 30), dur('dual', ['DUAL']), dur('inst', ['INSTR.'])] },
-    { label: ['REMARKS AND', 'ENDORSEMENTS'], columns: [col('remarks', ['REMARKS AND ENDORSEMENTS'], 'flex', 'text')] },
-  ],
-};
-
-export const FSTD_TABLE: TableSpec = {
-  id: 'fstd',
-  title: 'FSTD SESSIONS',
-  groups: [
-    { label: ['DATE', '(dd/mm/yyyy)'], columns: [col('date', ['DATE'], 60, 'date')] },
-    { label: ['FSTD TYPE'], columns: [col('fstdType', ['TYPE'], 160, 'text')] },
-    { label: ['TOTAL TIME', 'OF SESSION'], columns: [dur('total', ['TOTAL'], 60)] },
+    { label: ['DATE', '(dd/mm/yyyy)'], columns: [col('date', ['DATE'], 36, 'date')] },
+    { label: ['DEPARTURE'], columns: [col('depPlace', ['Place'], 25, 'text'), col('depTime', ['Time', '(UTC)'], 23, 'time')] },
+    { label: ['ARRIVAL'], columns: [col('arrPlace', ['Place'], 25, 'text'), col('arrTime', ['Time', '(UTC)'], 23, 'time')] },
+    { label: ['AIRCRAFT'], columns: [col('aircraftType', ['Make, model,', 'variant'], 56, 'text'), col('registration', ['Registration'], 33, 'text')] },
+    { label: ['SINGLE-PILOT', 'TIME'], columns: [dur('spSe', ['SE'], 26), dur('spMe', ['ME'], 26)] },
+    { label: ['MULTI-PILOT', 'TIME'], columns: [dur('mp', ['MP'], 28)] },
+    { label: ['TOTAL TIME', 'OF FLIGHT'], columns: [dur('total', ['TOTAL'], 30)] },
+    // 54 pt, not less. Above 40 the renderer wraps to two lines, and 54 is what it takes for a long
+    // surname ("Vandenbroucke") to fit one of them: NAME(S) OF PIC is a required column, so a name
+    // must never come out with an ellipsis.
+    { label: ['NAME(S) OF PIC'], columns: [col('picName', ['NAME(S) OF PIC'], 54, 'text')] },
+    { label: ['LANDINGS'], columns: [col('ldgDay', ['Day'], 18, 'count', { sum: true }), col('ldgNight', ['Night'], 19, 'count', { sum: true })] },
+    { label: ['OPERATIONAL', 'CONDITION TIME'], columns: [dur('night', ['Night'], 25), dur('ifr', ['IFR'], 25)] },
+    { label: ['PILOT FUNCTION TIME'], columns: [dur('pic', ['PIC'], 26), dur('copi', ['CO-PILOT'], 27), dur('dual', ['DUAL'], 26), dur('inst', ['INSTR.'], 26)] },
+    // Column 11. Carries its own date, so a session row leaves the flight columns empty.
+    { label: ['FSTD SESSION'], columns: [col('fstdDate', ['Date'], 36, 'date'), col('fstdType', ['Type'], 40, 'text'), dur('fstdTotal', ['Total'], 27)] },
     { label: ['REMARKS AND', 'ENDORSEMENTS'], columns: [col('remarks', ['REMARKS AND ENDORSEMENTS'], 'flex', 'text')] },
   ],
 };
@@ -172,29 +172,40 @@ export function flightRow(f: Flight, persons: Person[]): PdfRow {
   };
 }
 
+/**
+ * A simulator session fills column 11 only: that group has its own date, so leaving column 1 and
+ * every flight-time column empty keeps session time out of the flight totals, exactly as on paper.
+ */
 export function fstdRow(s: FstdSession): PdfRow {
-  return { date: s.date, fstdType: s.fstdType, total: s.totalMin, remarks: s.remarks.trim() };
+  return { fstdDate: s.date, fstdType: s.fstdType, fstdTotal: s.totalMin, remarks: s.remarks.trim() };
+}
+
+/** Flights and simulator sessions as one chronological sequence, as the AMC's single table expects. */
+export function logbookRows(flights: Flight[], fstd: FstdSession[], persons: Person[]): PdfRow[] {
+  const items = [
+    // a session has no clock time, so it sorts before the day's flights; createdAt keeps ties stable
+    ...flights.map((f) => ({ date: f.date, at: f.depTimeUtc, createdAt: f.createdAt, row: flightRow(f, persons) })),
+    ...fstd.map((s) => ({ date: s.date, at: 0, createdAt: s.createdAt, row: fstdRow(s) })),
+  ];
+  items.sort((a, b) => a.date.localeCompare(b.date) || a.at - b.at || a.createdAt - b.createdAt);
+  return items.map((i) => i.row);
 }
 
 /** Previous-experience records summed into the "brought forward" figures of the first page. */
-export function flightCarryIn(experience: PreviousExperience[]): Totals {
-  let spSe = 0, spMe = 0, mp = 0, total = 0, ldgDay = 0, ldgNight = 0, night = 0, ifr = 0, pic = 0, copi = 0, dual = 0, inst = 0;
+export function carryInTotals(experience: PreviousExperience[]): Totals {
+  let spSe = 0, spMe = 0, mp = 0, total = 0, ldgDay = 0, ldgNight = 0, night = 0, ifr = 0, pic = 0, copi = 0, dual = 0, inst = 0, fstdTotal = 0;
   for (const e of experience) {
     spSe += e.spSeMin; spMe += e.spMeMin; mp += e.mpMin; total += e.totalMin;
     ldgDay += e.landingsDay; ldgNight += e.landingsNight; night += e.nightMin; ifr += e.ifrMin;
     pic += e.picMin; copi += e.copiMin; dual += e.dualMin; inst += e.instMin;
+    fstdTotal += e.fstdMin;
   }
-  return { spSe, spMe, mp, total, ldgDay, ldgNight, night, ifr, pic, copi, dual, inst };
-}
-
-export function fstdCarryIn(experience: PreviousExperience[]): Totals {
-  return { total: experience.reduce((a, e) => a + e.fstdMin, 0) };
+  return { spSe, spMe, mp, total, ldgDay, ldgNight, night, ifr, pic, copi, dual, inst, fstdTotal };
 }
 
 // ---------------- pagination and totals ----------------
 
 export interface Page {
-  table: TableSpec['id'];
   /** 1-based number across the whole document. */
   number: number;
   /** Total pages in the document. */
@@ -227,7 +238,7 @@ export function paginate(table: TableSpec, rows: PdfRow[], carryIn: Totals, perP
   let previous = add(zero(ids), carryIn);
   return chunks.map((chunk, i) => {
     const thisPage = sumRows(ids, chunk);
-    const page = { table: table.id, rows: chunk, thisPage, previous, toDate: add(previous, thisPage), includesCarryIn: i === 0 };
+    const page = { rows: chunk, thisPage, previous, toDate: add(previous, thisPage), includesCarryIn: i === 0 };
     previous = page.toDate;
     return page;
   });
@@ -238,33 +249,34 @@ export interface DocumentInput {
   persons: Person[];
   fstd: FstdSession[];
   experience: PreviousExperience[];
+  /** AMC1 FCL.050 holder block. Blank values are printed as a rule to fill in by hand. */
   pilotName: string;
+  licenceNumber?: string;
+  address?: string;
   /** "Generated on" date, dd/mm/yyyy. Passed in so the layout stays deterministic. */
   generatedOn: IsoDate;
 }
 
 export interface DocumentModel {
   pilotName: string;
+  licenceNumber: string;
+  address: string;
   generatedOn: IsoDate;
   pages: Page[];
 }
 
-/** The whole printed logbook: flight pages, then (if there is anything to show) FSTD pages. */
+/** The whole printed logbook: one table, flights and simulator sessions in date order. */
 export function buildDocument(input: DocumentInput): DocumentModel {
-  const flights = [...input.flights].sort((a, b) => a.depTimeUtc - b.depTimeUtc || a.createdAt - b.createdAt);
-  const fstd = [...input.fstd].sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
-  const flightPages = paginate(FLIGHTS_TABLE, flights.map((f) => flightRow(f, input.persons)), flightCarryIn(input.experience));
-  const showFstd = fstd.length > 0 || input.experience.some((e) => e.fstdMin > 0);
-  const fstdPages = showFstd ? paginate(FSTD_TABLE, fstd.map(fstdRow), fstdCarryIn(input.experience)) : [];
-  const all = [...flightPages, ...fstdPages];
+  const rows = logbookRows(input.flights, input.fstd, input.persons);
+  const pages = paginate(LOGBOOK_TABLE, rows, carryInTotals(input.experience));
   return {
     pilotName: input.pilotName,
+    licenceNumber: input.licenceNumber ?? '',
+    address: input.address ?? '',
     generatedOn: input.generatedOn,
-    pages: all.map((p, i) => ({ ...p, number: i + 1, of: all.length })),
+    pages: pages.map((p, i) => ({ ...p, number: i + 1, of: pages.length })),
   };
 }
-
-export const tableFor = (id: TableSpec['id']): TableSpec => (id === 'flights' ? FLIGHTS_TABLE : FSTD_TABLE);
 
 /** Minutes in a totals cell, for tests and callers that want plain numbers. */
 export const minutesOf = (t: Totals, id: string): Minutes => t[id] ?? 0;

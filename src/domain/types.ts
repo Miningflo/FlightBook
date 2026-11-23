@@ -277,8 +277,10 @@ export interface Settings {
   airportsImportedAt?: Timestamp | null;
   /** Colour of airports and routes on the map (device-local; see features/map/mapColors.ts). */
   mapColor?: string;
-  /** Name printed on the PDF logbook. */
+  /** Holder's name, licence number and address, for the AMC1 FCL.050 holder block on the PDF logbook. */
   pilotName?: string;
+  licenceNumber?: string;
+  address?: string;
   /** Expiry date of the SEP (land) class rating, for the revalidation check. */
   sepLandExpiry?: IsoDate | null;
   /** Expiry dates of the other class ratings (SEP (land) keeps its own field above). */
