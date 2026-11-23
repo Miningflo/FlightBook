@@ -139,6 +139,11 @@ const snapshot: Snapshot = buildSnapshot({
     classExpiry: { MEP_LAND: minus(-48), SET_LAND: minus(190) },
     // valid, and inside its 3-month check window: shows the IR card working and night currency exempt
     irExpiry: minus(-71),
+    // a class 2 medical inside its 45-day revalidation window, and a level 4 endorsement still valid
+    medicalClass: 'CLASS2',
+    medicalExpiry: minus(-38),
+    languageLevel: 4,
+    languageExpiry: minus(-400),
   },
   aircraft, persons, flights: makeFlights(), fstdSessions, previousExperience, attachments: [],
 });
