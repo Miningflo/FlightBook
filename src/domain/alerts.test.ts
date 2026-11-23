@@ -92,3 +92,23 @@ describe('licence documents in the alerts', () => {
     expect(watchedItems([], { languageLevel: 4, languageExpiry: '2025-06-01' }, today).map((i) => i.key)).toContain('LANGUAGE');
   });
 });
+
+describe('type ratings in the alerts', () => {
+  const t = (id: string, name: string, expiry: string) => ({ id, name, expiry });
+  it('watches one item per rating, keyed by id so a rename is not a new rating', () => {
+    const items = watchedItems([], { typeRatings: [t('a', 'B737 300-900', '2025-08-15'), t('b', 'BE20', '2027-01-01')] }, today);
+    expect(items.map((i) => i.key)).toEqual(expect.arrayContaining(['TYPE:a', 'TYPE:b']));
+    expect(items.find((i) => i.key === 'TYPE:a')!.level).toBe('amber');
+    expect(items.find((i) => i.key === 'TYPE:b')!.level).toBe('green');
+    const renamed = watchedItems([], { typeRatings: [t('a', 'Boeing 737', '2025-08-15')] }, today);
+    expect(renamed[0]!.key).toBe('TYPE:a'); // same key, so the alert does not re-fire
+  });
+  it('names the rating in the alert, so several are tellable apart', () => {
+    const i = watchedItems([], { typeRatings: [t('a', 'BE20', '2025-06-01')] }, today)[0]!;
+    expect(i.level).toBe('expired');
+    expect(i.title).toContain('BE20');
+  });
+  it('watches nothing when none are held', () => {
+    expect(watchedItems([], { typeRatings: [] }, today).map((i) => i.key)).not.toContain('TYPE:a');
+  });
+});

@@ -106,14 +106,24 @@ async function go(page, hash) {
   await page.waitForTimeout(500);
 }
 
-/** Viewport shot, optionally scrolled so `anchor` sits just under the title bar. */
+/**
+ * Viewport shot, optionally scrolled so `anchor` sits just under the title bar. The scroll is verified
+ * afterwards: a shot that silently missed its anchor still produces a plausible-looking image, which is
+ * exactly the kind of wrong screenshot that gets committed without anyone noticing.
+ */
 async function shot(page, name, { anchor, offset = 76 } = {}) {
   if (anchor) {
-    await page.locator(anchor).first().evaluate((el, off) => {
-      const y = el.getBoundingClientRect().top + window.scrollY - off;
+    const el = page.locator(anchor).first();
+    await el.evaluate((node, off) => {
+      const y = node.getBoundingClientRect().top + window.scrollY - off;
       window.scrollTo({ top: Math.max(0, y), behavior: 'instant' });
     }, offset);
     await page.waitForTimeout(400);
+    const ok = await el.evaluate((node, off) => {
+      const top = node.getBoundingClientRect().top;
+      return Math.abs(top - off) < 6 || (top >= 0 && top < window.innerHeight - 40);
+    }, offset);
+    if (!ok) throw new Error(`${name}: the anchor ${anchor} is not in frame after scrolling`);
   }
   await page.screenshot({ path: `${OUT}/${name}.png` });
   console.log(`${OUT}/${name}.png`);
@@ -160,7 +170,7 @@ await light.page.waitForTimeout(400);
 await shot(light.page, 'currency-rating', { anchor: '.cur-card:has-text("class rating")' });
 
 // the licence section: the ratings and documents that are not tied to a class
-await shot(light.page, 'licence', { anchor: 'text=Your licence', offset: 112 }); // clear the title bar
+await shot(light.page, 'licence', { anchor: 'h2:has-text("Your licence")', offset: 112 }); // clear the title bar
 
 // the PDF, made by the app itself from this same logbook
 await go(light.page, '/export');

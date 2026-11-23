@@ -1,9 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
-import { CLASS_RATINGS, CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass } from '../../domain/types';
-import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
+import { CLASS_RATINGS, CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
+import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
+import { uuid } from '../../domain/id';
 import { Bar, Field, StatusPill } from '../../ui/components';
 import { formatShortDate } from '../flights/format';
 
@@ -91,8 +92,8 @@ function RenewalSteps({ rule = DEFAULT_RULES.renewal }: { rule?: RenewalRule }) 
 }
 
 /** Edit a rating's expiry date. `onSave(null)` clears it. */
-function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry date' }: {
-  id: string; current: string; forceOpen: boolean; label?: string;
+function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry date', removeLabel = 'Remove date' }: {
+  id: string; current: string; forceOpen: boolean; label?: string; removeLabel?: string;
   onSave: (date: IsoDate | null) => Promise<unknown>;
 }) {
   const { canEdit } = useApp();
@@ -114,7 +115,7 @@ function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry d
           <div className="row">
             <button type="button" className="btn tonal" onClick={() => void save()}>Save date</button>
             {editing && <button type="button" className="btn text" onClick={() => setEditing(false)}>Cancel</button>}
-            {current !== '' && <button type="button" className="btn text" onClick={() => { setDraft(''); void onSave(null).then(() => setEditing(false)); }}>Remove date</button>}
+            {current !== '' && <button type="button" className="btn text" onClick={() => { setDraft(''); void onSave(null).then(() => setEditing(false)); }}>{removeLabel}</button>}
           </div>
         </div>
       ) : (
@@ -351,6 +352,78 @@ function LanguageCard({ today }: { today: IsoDate }) {
   );
 }
 
+/**
+ * Type ratings. A list, not a single card: a pilot may hold several at once and each expires on its own
+ * date. Flights in a type-rated aeroplane are logged under the OTHER class, which is why nothing here
+ * is driven by the class chips.
+ */
+function TypeRatingsCard({ today }: { today: IsoDate }) {
+  const { data, canEdit, updateSettings } = useApp();
+  const ratings = data.settings.typeRatings ?? [];
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [date, setDate] = useState('');
+  if (ratings.length === 0 && !canEdit) return null;
+
+  const save = (next: TypeRating[]) => updateSettings({ typeRatings: next });
+  const add = async () => {
+    if (name.trim() === '' || !isValidIsoDate(date)) return;
+    await save([...ratings, { id: uuid(), name: name.trim(), expiry: date }]);
+    setName(''); setDate(''); setAdding(false);
+  };
+
+  return (
+    <div className="card cur-card">
+      <div className="head"><div><h3>Type ratings</h3><div className="hint">Valid 1 year unless the OSD says otherwise · proficiency check in the last 3 months</div></div></div>
+      {ratings.length === 0 && <div className="hint">None added. Add one for each type rating on your licence.</div>}
+      {ratings.map((t) => {
+        const c = typeRatingStatus(t.expiry, today);
+        const days = c.daysToExpiry ?? 0;
+        const label = { green: 'Valid', amber: 'Check due', red: c.state === 'expired' ? 'Expired' : 'Urgent', unknown: 'Not set' }[c.status];
+        return (
+          <div key={t.id} className="progress-row">
+            <div className="line">
+              <span><strong>{t.name}</strong></span>
+              <StatusPill status={c.status} label={label} />
+            </div>
+            <div className="hint">
+              {c.state === 'expired' ? `Expired on ${formatShortDate(t.expiry)} — it has to be renewed.`
+                : c.state === 'window-not-open' ? `Valid until ${formatShortDate(t.expiry)}. The check may be taken from ${c.windowStart ? formatShortDate(c.windowStart) : ''}.`
+                : `Proficiency check due · ${days} day${days === 1 ? '' : 's'} to expiry (${formatShortDate(t.expiry)}).`}
+            </div>
+            {canEdit && (
+              <div className="row">
+                {/* clearing a type rating's date removes the rating itself, so the button has to say so */}
+                <ExpiryEditor id={`expiry-type-${t.id}`} label={`${t.name} expiry date`} removeLabel="Remove rating" forceOpen={false} current={t.expiry}
+                  onSave={(d) => (d === null
+                    ? save(ratings.filter((r) => r.id !== t.id))
+                    : save(ratings.map((r) => (r.id === t.id ? { ...r, expiry: d } : r))))} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {canEdit && (adding ? (
+        <div className="sub-form">
+          <Field label="Type rating, as written on your licence" htmlFor="type-name">
+            <input id="type-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="B737 300-900" autoComplete="off" />
+          </Field>
+          <Field label="Expiry date" htmlFor="type-date">
+            <input id="type-date" className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          <div className="row">
+            <button type="button" className="btn tonal" onClick={() => void add()}>Add</button>
+            <button type="button" className="btn text" onClick={() => { setAdding(false); setName(''); setDate(''); }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="sub-form"><button type="button" className="btn text" onClick={() => setAdding(true)}>Add a type rating</button></div>
+      ))}
+      <RulesNote rule={DEFAULT_RULES.typeRating} title="How a type rating deadline is worked out" />
+    </div>
+  );
+}
+
 export function CurrencyScreen() {
   const { data } = useApp();
   const today: IsoDate = utcDateOf(Date.now());
@@ -379,12 +452,13 @@ export function CurrencyScreen() {
       <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`} check={passengers} rule={DEFAULT_RULES.passenger} />
       <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} exemptUntil={nightExempt} />
       {isExperienceClass(cls) ? <ExperienceCard cls={cls} check={experience} />
-        : cls === 'OTHER' ? <p className="hint" style={{ margin: '0 4px 12px' }}>Revalidation is not tracked for the Other class.</p>
+        : cls === 'OTHER' ? <p className="hint" style={{ margin: '0 4px 12px' }}>Flights in a type-rated aeroplane are logged here. The ratings themselves are tracked under <strong>Your licence</strong> below, because one pilot may hold several.</p>
         : <CheckCard cls={cls} check={check} />}
 
       {/* Not class ratings: held once, and they apply whatever you are flying. */}
       <h2 className="section-label">Your licence</h2>
       <IrCard today={today} />
+      <TypeRatingsCard today={today} />
       <MedicalCard today={today} />
       <LanguageCard today={today} />
     </div>

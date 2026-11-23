@@ -1,6 +1,6 @@
-import type { AlertLevel, ClassRating, Flight, IsoDate } from './types';
+import type { AlertLevel, ClassRating, Flight, IsoDate, TypeRating } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
-import { classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, sepRevalidation, type RollingCheck } from './currency';
+import { classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, type RollingCheck } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -27,6 +27,7 @@ export interface AlertSettings {
   medicalExpiry?: IsoDate | null;
   languageLevel?: 4 | 5 | 6 | null;
   languageExpiry?: IsoDate | null;
+  typeRatings?: TypeRating[];
   alerts?: { enabled: boolean; night: boolean };
 }
 
@@ -73,6 +74,18 @@ function irItem(expiry: IsoDate, today: IsoDate, rules: Rules): AlertItem {
   if (c.state === 'urgent') return { key, level: 'red', title: `Instrument rating: ${plural(days, 'day')} left`, body: `Book the proficiency check with an examiner now. Expires ${date}.` };
   if (c.state === 'window-open') return { key, level: 'amber', title: 'Instrument rating: check due', body: `The check window is open; the rating expires in ${plural(days, 'day')} (${date}).` };
   return { key, level: 'green', title: 'Instrument rating ok', body: `Valid until ${date}.` };
+}
+
+/** One type rating. Keyed by its id, so renaming it does not look like a different rating. */
+function typeRatingItem(t: TypeRating, today: IsoDate, rules: Rules): AlertItem {
+  const key = `TYPE:${t.id}`;
+  const date = formatShortDate(t.expiry);
+  const c = typeRatingStatus(t.expiry, today, rules);
+  const days = c.daysToExpiry ?? 0;
+  if (c.state === 'expired') return { key, level: 'expired', title: `${t.name} type rating expired`, body: `Expired on ${date}. It has to be renewed.` };
+  if (c.state === 'urgent') return { key, level: 'red', title: `${t.name}: ${plural(days, 'day')} left`, body: `Book the proficiency check now. Expires ${date}.` };
+  if (c.state === 'window-open') return { key, level: 'amber', title: `${t.name}: proficiency check due`, body: `The check window is open; the rating expires in ${plural(days, 'day')} (${date}).` };
+  return { key, level: 'green', title: `${t.name} type rating ok`, body: `Valid until ${date}.` };
 }
 
 /**
@@ -122,6 +135,7 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
     if (expiry) items.push(ratingItem(cls, flights, expiry, today, rules));
   }
   if (settings.irExpiry) items.push(irItem(settings.irExpiry, today, rules));
+  for (const t of settings.typeRatings ?? []) items.push(typeRatingItem(t, today, rules));
   items.push(...licenceItems(settings, today, rules));
   return items;
 }

@@ -144,6 +144,11 @@ const snapshot: Snapshot = buildSnapshot({
     medicalExpiry: minus(-38),
     languageLevel: 4,
     languageExpiry: minus(-400),
+    // one type rating comfortably valid, one inside its check window
+    typeRatings: [
+      { id: 'tr-be20', name: 'BE20', expiry: minus(-215) },
+      { id: 'tr-b737', name: 'B737 300-900', expiry: minus(-26) },
+    ],
   },
   aircraft, persons, flights: makeFlights(), fstdSessions, previousExperience, attachments: [],
 });
