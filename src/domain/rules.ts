@@ -125,7 +125,8 @@ export const MULTI_ENGINE_SECTORS: SectorRule = {
   reference: 'Part-FCL FCL.740.A(a)(2): complete during the period of validity of the rating at least (i) 10 route sectors as pilot of the relevant class, or (ii) 1 route sector as pilot flown with an examiner, which may be flown during the proficiency check. A multi-engine class rating is valid for 1 year (FCL.740(a)(1)), so the window here is the 12 months before expiry.',
   verified: true,
   todo: [
-    'Limit: the logbook does not record route sectors, so every logged flight in the class during the 12 months before expiry counts as one sector.',
+    'Part-FCL asks for "route sectors" and nowhere says what one is. The only definition EASA gives is in Part-ORO, ORO.FTL.105: the segment between the aircraft first moving to take off and coming to rest after landing -- one flight, with no requirement that it end anywhere else. "Route" is usually read as a flight from one aerodrome to another, which would leave local flying out.',
+    'Both readings are therefore shown: every flight in the class, and the subset that landed away. The status follows the narrower one, so it can tell you that you are short when you are not, but never the reverse. Check which reading the authority that issued your licence takes.',
     'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
     'Limit: a pilot working for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt (FCL.740.A(a)(3)); not tracked.',
   ],

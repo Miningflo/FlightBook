@@ -1,6 +1,7 @@
 import type { AlertLevel, ClassRating, Flight, IsoDate, TypeRating } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
-import { classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, type RollingCheck } from './currency';
+import { daysBetween } from './time';
+import { classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, routeSectors, sepRevalidation, typeRatingStatus, type RollingCheck } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -61,6 +62,8 @@ function ratingItem(cls: ClassRating, flights: Flight[], expiry: IsoDate, today:
   if (c.state === 'expired') return { key, level: 'expired', title: `${name} rating expired`, body: `Expired on ${date}. It has to be renewed.` };
   if (c.state === 'urgent') return { key, level: 'red', title: `${name} rating: ${plural(days, 'day')} left`, body: `Book the proficiency check with an examiner now. Expires ${date}.` };
   if (c.state === 'window-open') return { key, level: 'amber', title: `${name}: proficiency check due`, body: `The check window is open; the rating expires in ${plural(days, 'day')} (${date}).` };
+  const behind = sectorsBehindPace(flights, cls, expiry, today, rules);
+  if (behind) return { key, level: 'amber', title: `${name}: route sectors behind`, body: `${behind} Expires ${date}. One route sector flown with an examiner also satisfies the requirement, as does the commercial-operator exemption.` };
   return { key, level: 'green', title: `${name} rating ok`, body: `Valid until ${date}.` };
 }
 
@@ -74,6 +77,30 @@ function irItem(expiry: IsoDate, today: IsoDate, rules: Rules): AlertItem {
   if (c.state === 'urgent') return { key, level: 'red', title: `Instrument rating: ${plural(days, 'day')} left`, body: `Book the proficiency check with an examiner now. Expires ${date}.` };
   if (c.state === 'window-open') return { key, level: 'amber', title: 'Instrument rating: check due', body: `The check window is open; the rating expires in ${plural(days, 'day')} (${date}).` };
   return { key, level: 'green', title: 'Instrument rating ok', body: `Valid until ${date}.` };
+}
+
+/**
+ * The proficiency check is not the whole of FCL.740.A(a): the route sectors have to be flown "during
+ * the period of validity", so the time to notice a shortfall is early, while there is still a year to
+ * fix it. The check-window states say nothing about that, which left the alert green for most of the
+ * validity period and amber only once it was nearly too late to fly eight more sectors.
+ *
+ * Amber and not red, deliberately: the examiner alternative in (a)(2)(ii) and the commercial-operator
+ * exemption in (a)(3) are both invisible to the logbook, and "route sector" is itself undefined, so a
+ * shortfall here is a thing worth knowing rather than a fact.
+ */
+function sectorsBehindPace(flights: Flight[], cls: ClassRating, expiry: IsoDate, today: IsoDate, rules: Rules): string | null {
+  const s = routeSectors(flights, cls, expiry, today, rules);
+  if (!s || s.met) return null;
+  const total = daysBetween(s.windowStart, expiry);
+  const gone = daysBetween(s.windowStart, today);
+  if (total <= 0 || gone <= 0) return null;
+  const elapsed = gone / total;
+  // leave the first half of the validity period alone: a slow start is normal and nagging is not useful
+  if (elapsed < 0.5) return null;
+  if (s.routeFlights >= Math.floor(s.need * elapsed)) return null;
+  const pct = Math.round(elapsed * 100);
+  return `${s.routeFlights} of ${s.need} route sectors flown with ${pct}% of the validity period gone${s.metIfLocalCount ? ` (${s.flights} if local flights count as sectors)` : ''}.`;
 }
 
 /** One type rating. Keyed by its id, so renaming it does not look like a different rating. */
