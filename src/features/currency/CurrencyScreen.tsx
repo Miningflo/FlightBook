@@ -7,12 +7,12 @@ import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/tim
 import { Bar, Field, StatusPill } from '../../ui/components';
 import { formatShortDate } from '../flights/format';
 
-function RulesNote({ rule, extra }: { rule: RuleSource; extra?: ReactNode }) {
+function RulesNote({ rule, extra, title = 'How this is calculated' }: { rule: RuleSource; extra?: ReactNode; title?: string }) {
   return (
     <details className="rules">
       <summary>
         {!rule.verified && <span className="chip unverified">Unverified rule</span>}
-        <span>How this is calculated</span>
+        <span>{title}</span>
       </summary>
       <div>{rule.reference}</div>
       {extra}
@@ -186,13 +186,13 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
         <>
           <Row label="Route sectors in the last 12 months before expiry" have={sectors.have} need={sectors.need} display={`${sectors.have} / ${sectors.need}`} ok={sectors.met} />
           <div className="hint">Or 1 route sector flown with an examiner, which may be the proficiency check itself.</div>
-          <RulesNote rule={DEFAULT_RULES.mepSectors} />
+          <RulesNote rule={DEFAULT_RULES.mepSectors} title="How route sectors are counted" />
         </>
       )}
       {check.state === 'expired' && <RenewalSteps />}
       {/* key: remount per class, so the date typed for one class is never carried into another. */}
       <ExpiryEditor key={cls} cls={cls} forceOpen={check.state === 'not-set'} />
-      <RulesNote rule={rule} />
+      <RulesNote rule={rule} title="How the revalidation deadline is worked out" />
     </div>
   );
 }
