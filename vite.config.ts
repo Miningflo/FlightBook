@@ -30,22 +30,14 @@ export default defineConfig(({ mode }) => {
             { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
-        workbox: {
-          // Static page outside the SPA: don't let the service worker answer it with index.html.
-          navigateFallbackDenylist: [/privacy\.html$/],
+        // The service worker is src/sw.ts (offline caching plus the daily alert check).
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
+        injectManifest: {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-          runtimeCaching: [
-            {
-              // Aircraft photos (Planespotters, Wikimedia): cached after first view so they work offline.
-              urlPattern: ({ url }) => ['t.plnspttrs.net', 'upload.wikimedia.org', 'thumb.wikimedia.org'].includes(url.hostname),
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'aircraft-photos',
-                expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 90 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-          ],
+          // a single self-contained file, so it can be registered as a classic worker
+          rollupFormat: 'iife',
         },
       }),
     ],
