@@ -16,7 +16,7 @@ function RulesNote({ rule, extra }: { rule: RuleSource; extra?: ReactNode }) {
       </summary>
       <div>{rule.reference}</div>
       {extra}
-      <ul>{rule.todo.map((t) => <li key={t}>{t.replace(/^TODO\(verify\):\s*/, '')}</li>)}</ul>
+      <ul>{rule.todo.map((t) => <li key={t}>{t}</li>)}</ul>
       {!rule.verified && <p>These figures come from memory of the regulation and have not been confirmed against the current EASA text. Check them before relying on this screen.</p>}
     </details>
   );
