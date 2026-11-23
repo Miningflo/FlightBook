@@ -4,9 +4,10 @@
  *   npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
  *
  * The logbook is invented: the pilot, the flights, the times, the remarks and the people never existed.
- * Only the airports and the four registrations are real (chosen because Wikimedia Commons has a photo of
- * each). Everything is derived from a fixed seed, so re-running this produces byte-identical output and the
- * screenshots stay reproducible.
+ * Only the airports and the four registrations are real. The registrations are chosen because Wikimedia
+ * Commons has a freely licensed photo of each, so the screenshots can show real aircraft photos with a
+ * credit; see the photo credits in README.md. Everything is derived from a fixed seed, so re-running this
+ * produces byte-identical output and the screenshots stay reproducible.
  *
  * Dates are relative to DEMO_TODAY, not to the real clock, so the currency and rating cards always show the
  * same mix of green, amber, red and expired.
@@ -40,8 +41,8 @@ const persons: Person[] = [
 const fleet: { reg: string; make: string; model: string; variant: string; cls: ClassRating; eng: EngineClass }[] = [
   { reg: 'OO-CEU', make: 'Cessna', model: '172S', variant: 'Skyhawk SP', cls: 'SEP_LAND', eng: 'SP-SE' },
   { reg: 'OO-ILS', make: 'Piper', model: 'PA-28-181', variant: 'Archer III', cls: 'SEP_LAND', eng: 'SP-SE' },
-  { reg: 'OO-ROB', make: 'Robin', model: 'DR400', variant: '180 Régent', cls: 'SEP_LAND', eng: 'SP-SE' },
-  { reg: 'OO-SEN', make: 'Piper', model: 'PA-34-200T', variant: 'Seneca II', cls: 'MEP_LAND', eng: 'SP-ME' },
+  { reg: 'OO-KGB', make: 'Robin', model: 'DR400-120', variant: 'Dauphin', cls: 'SEP_LAND', eng: 'SP-SE' },
+  { reg: 'OO-EPC', make: 'Diamond', model: 'DA42', variant: 'Twin Star', cls: 'MEP_LAND', eng: 'SP-ME' },
 ];
 const aircraft: Aircraft[] = fleet.map((a, i) => ({
   ...base(`ac-${i}`), registration: a.reg, make: a.make, model: a.model, variant: a.variant, engineClass: a.eng, classRating: a.cls,
@@ -53,12 +54,33 @@ const REMARKS = [
   'Night currency', 'Sightseeing along the coast', 'Fuel stop at Lille', '',
 ];
 
+const FLIGHT_COUNT = 52;
+const OLDEST_DAYS = 790;
+const NEWEST_DAYS = 9;
+
+/**
+ * One date per flight, strictly decreasing from OLDEST_DAYS to NEWEST_DAYS before DEMO_TODAY.
+ * The gaps are random but rescaled to fit the span exactly, so no two flights can collide on the
+ * same day and the newest is always NEWEST_DAYS old however the gaps fall.
+ */
+function flightDayOffsets(): number[] {
+  const gaps = Array.from({ length: FLIGHT_COUNT - 1 }, () => 0.3 + rnd());
+  const scale = (OLDEST_DAYS - NEWEST_DAYS) / gaps.reduce((a, g) => a + g, 0);
+  const days = [OLDEST_DAYS];
+  let d = OLDEST_DAYS;
+  for (const g of gaps) { d -= Math.max(1, Math.round(g * scale)); days.push(d); }
+  return days;
+}
+
 /** 52 flights over the last ~26 months, the most recent 9 days ago. */
 function makeFlights(): Flight[] {
   const out: Flight[] = [];
-  let d = 790; // days before DEMO_TODAY for the oldest flight
-  for (let i = 0; i < 52; i++) {
-    const a = i % 11 === 10 ? fleet[3]! : pick(fleet.slice(0, 3));
+  const offsets = flightDayOffsets();
+  for (let i = 0; i < FLIGHT_COUNT; i++) {
+    const d = offsets[i]!;
+    // rotate the three singles rather than picking at random: any run of consecutive flights then shows
+    // three different aircraft, which is what makes the logbook list worth a screenshot
+    const a = i % 11 === 10 ? fleet[3]! : fleet[i % 3]!;
     const acIndex = fleet.indexOf(a);
     const date = minus(d);
     const depH = 7 + Math.floor(rnd() * 11);
@@ -84,8 +106,6 @@ function makeFlights(): Flight[] {
       isPicus: false, isSpic: dual && i % 16 === 3,
       remarks: pick(REMARKS), attachmentIds: [], overrides: {},
     });
-    d -= Math.max(3, Math.round(790 / 52 - 4 + rnd() * 16));
-    if (d < 9) d = 9;
   }
   return out.sort((x, y) => x.depTimeUtc - y.depTimeUtc);
 }
