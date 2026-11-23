@@ -171,6 +171,23 @@ export const IR_RENEWAL: RenewalRule = {
 };
 
 /**
+ * Type ratings. FCL.740.A(a) covers "multi-engine class ratings AND type ratings" in one breath, so the
+ * revalidation rule is the one already used for MEP; only the validity period and the route-sector
+ * counting differ in what the app can do about them.
+ */
+export const TYPE_RATING: ProficiencyRule = {
+  windowMonths: 3,
+  reference: 'Part-FCL FCL.740.A(a)(1): pass a proficiency check in accordance with Appendix 9, or complete an EBT practical assessment in accordance with Appendix 10, in the relevant type of aeroplane or an FSTD representing it, within the 3 months immediately preceding the expiry date. FCL.740(a)(1): a type rating is valid for 1 year unless the operational suitability data says otherwise.',
+  verified: true,
+  todo: [
+    'Validity is 1 year "unless otherwise determined in the OSD" (FCL.740(a)(1)), and for many types the OSD does determine otherwise. Enter the expiry date from your licence; the app never works it out.',
+    'Limit: FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. The app does not count them: the logbook records a make and model per flight, not which type rating they fall under, and one rating can cover several models. The counter shown for MEP is not shown here for that reason.',
+    'A pilot flying for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt from the route sectors (FCL.740.A(a)(3)).',
+    'If you fail a section of the check before expiry you may not use the rating until you have passed it (FCL.740.A(c)). An expired type rating is renewed under FCL.740(b), the same steps as a class rating.',
+  ],
+};
+
+/**
  * Medical certificate (Annex IV, Part-MED). The app stores the expiry date printed on the certificate
  * and never computes it: the validity period depends on the class and on your age, and the age bands
  * have edges the app could not get right without knowing your date of birth, which it deliberately
@@ -264,6 +281,7 @@ export interface Rules {
   sep: SepRule;
   ir: ProficiencyRule;
   irRenewal: RenewalRule;
+  typeRating: ProficiencyRule;
   medical: MedicalRule;
   language: LanguageRule;
   proficiencyCheck: ProficiencyRule;
@@ -278,6 +296,7 @@ export const DEFAULT_RULES: Rules = {
   sep: SEP_REVALIDATION,
   ir: IR_REVALIDATION,
   irRenewal: IR_RENEWAL,
+  typeRating: TYPE_RATING,
   medical: MEDICAL,
   language: LANGUAGE_PROFICIENCY,
   proficiencyCheck: PROFICIENCY_CHECK_REVALIDATION,

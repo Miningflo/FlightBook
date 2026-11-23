@@ -113,7 +113,7 @@ export class DexieRepository implements WritableLogbookRepository {
     const next = { ...(await this.getSettings()), ...patch };
     await this.db.settings.put(next);
     if ('pilotName' in patch || 'licenceNumber' in patch || 'address' in patch || 'sepLandExpiry' in patch || 'classExpiry' in patch || 'irExpiry' in patch
-      || 'medicalClass' in patch || 'medicalExpiry' in patch || 'languageLevel' in patch || 'languageExpiry' in patch) this.onWrite?.();
+      || 'medicalClass' in patch || 'medicalExpiry' in patch || 'languageLevel' in patch || 'languageExpiry' in patch || 'typeRatings' in patch) this.onWrite?.();
     return next;
   }
 

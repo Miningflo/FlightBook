@@ -184,6 +184,11 @@ export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today
 
 // ---------- instrument rating ----------
 
+/** Status of one type rating (FCL.740.A(a)(1)): the same check window as a multi-engine class rating. */
+export function typeRatingStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {
+  return checkWindowStatus(expiry, today, rules.typeRating.windowMonths, rules.app.proficiencyCheckRedDaysLeft);
+}
+
 /** Status of the instrument rating itself (FCL.625): valid 1 year, check in the last 3 months. */
 export function irStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ProficiencyCheck {
   return checkWindowStatus(expiry, today, rules.ir.windowMonths, rules.app.proficiencyCheckRedDaysLeft);
