@@ -204,8 +204,14 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
       <div className="hint">{sub[check.state]}</div>
       {sectors && check.state !== 'expired' && (
         <>
-          <Row label="Route sectors in the last 12 months before expiry" have={sectors.have} need={sectors.need} display={`${sectors.have} / ${sectors.need}`} ok={sectors.met} />
-          <div className="hint">Or 1 route sector flown with an examiner, which may be the proficiency check itself.</div>
+          <Row label="Route sectors: flights between different aerodromes" have={sectors.routeFlights} need={sectors.need} display={`${sectors.routeFlights} / ${sectors.need}`} ok={sectors.met} />
+          <Row label="…counting local flights too" have={sectors.flights} need={sectors.need} display={`${sectors.flights} / ${sectors.need}`} ok={sectors.metIfLocalCount} />
+          <div className="hint">
+            Part-FCL does not say what a route sector is. The only EASA definition (ORO.FTL.105) is one flight,
+            block to block, which would count local flights; "route" is usually read as a flight that lands
+            somewhere else. Both are shown, and the status follows the stricter one. Either way, 1 route sector
+            flown with an examiner also satisfies the requirement, and that may be the proficiency check itself.
+          </div>
           <RulesNote rule={DEFAULT_RULES.mepSectors} title="How route sectors are counted" />
         </>
       )}

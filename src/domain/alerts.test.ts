@@ -112,3 +112,43 @@ describe('type ratings in the alerts', () => {
     expect(watchedItems([], { typeRatings: [] }, today).map((i) => i.key)).not.toContain('TYPE:a');
   });
 });
+
+describe('MEP route sectors in the rating alert', () => {
+  const expiry = '2026-06-01';              // validity window runs 2025-06-02 .. 2026-06-01
+  const mep = (d: string, away = true) => ({ ...flight(d), aircraftClass: 'MEP_LAND' as const, depPlace: 'EBKT', arrPlace: away ? 'EBOS' : 'EBKT' });
+  const level = (flights: ReturnType<typeof mep>[], on: string) =>
+    watchedItems(flights, { classExpiry: { MEP_LAND: expiry } as never }, on).find((i) => i.key === 'MEP_LAND:rating')!;
+
+  it('stays quiet through the first half of the validity period', () => {
+    expect(level([], '2025-09-01').level).toBe('green'); // ~25% gone, no sectors yet: a slow start is normal
+  });
+  it('goes amber once past halfway and behind the pace', () => {
+    const a = level([], '2026-01-01'); // ~59% gone, 0 of 10
+    expect(a.level).toBe('amber');
+    expect(a.title).toMatch(/route sectors behind/i);
+    expect(a.body).toMatch(/0 of 10 route sectors/);
+  });
+  it('stays green when the sectors are keeping pace', () => {
+    const onPace = Array.from({ length: 7 }, (_, i) => mep(`2025-1${i % 2}-0${(i % 9) + 1}`));
+    expect(level(onPace, '2026-01-01').level).toBe('green');
+  });
+  it('stays green once the requirement is met outright', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => mep(`2025-08-${String(i + 1).padStart(2, '0')}`));
+    expect(level(ten, '2026-01-01').level).toBe('green');
+  });
+  it('still goes amber when the check window opens, sectors met or not', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => mep(`2025-08-${String(i + 1).padStart(2, '0')}`));
+    const a = level(ten, '2026-05-01'); // inside the 3-month check window
+    expect(a.level).toBe('amber');
+    expect(a.title).toMatch(/proficiency check due/i); // the check, not the sectors
+  });
+  it('mentions the wider reading when local flights would have met it', () => {
+    const local = Array.from({ length: 12 }, (_, i) => mep(`2025-08-${String(i + 1).padStart(2, '0')}`, false));
+    const a = level(local, '2026-01-01');
+    expect(a.level).toBe('amber');
+    expect(a.body).toMatch(/12 if local flights count/);
+  });
+  it('does not override a check-window warning that is already more urgent', () => {
+    expect(level([], '2026-05-25').level).toBe('red'); // inside the 30-day red threshold
+  });
+});

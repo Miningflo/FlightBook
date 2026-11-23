@@ -222,21 +222,47 @@ export function classExpiryPatch(s: { classExpiry?: Partial<Record<ClassRating, 
 /** Multi-engine class ratings: route sectors during the validity period (FCL.740.A(a)(2)). */
 export const SECTOR_CLASSES: readonly ClassRating[] = ['MEP_LAND', 'MEP_SEA'];
 
+/**
+ * Part-FCL asks for "route sectors" and never says what one is. The only definition EASA gives anywhere
+ * is in Part-ORO, ORO.FTL.105: a sector is the segment between the aircraft first moving to take off and
+ * coming to rest after landing -- one flight, block to block, with no requirement that it end somewhere
+ * else. But FCL.740.A(a)(2) says "route" sector, and the usual reading of that is a flight from one
+ * aerodrome to another, which would leave out local flying.
+ *
+ * Rather than pick one and present it as a count, both are reported: every flight in the class, and the
+ * subset that landed away. `met` follows the narrow reading, because being told you are short when you
+ * are not is the harmless way round -- the reverse lets a rating lapse.
+ */
 export interface SectorProgress {
-  have: number;
+  /** Every logged flight in the class in the validity period (ORO.FTL.105's reading of a sector). */
+  flights: number;
+  /** ...of which departed and landed at different aerodromes (the narrow reading of "route"). */
+  routeFlights: number;
   need: number;
   windowStart: IsoDate;
+  /** Met on the narrow reading. */
   met: boolean;
+  /** Met only if local flights count too. */
+  metIfLocalCount: boolean;
 }
 
-/** Logged flights in the class in the validity period before expiry; one flight counts as one route sector. */
+const place = (s: string) => s.trim().toUpperCase();
+
 export function routeSectors(flights: Flight[], cls: ClassRating, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
   if (!expiry || !SECTOR_CLASSES.includes(cls)) return null;
   const r = rules.mepSectors;
   const windowStart = addDays(addMonths(expiry, -r.validityMonths), 1);
   const windowEnd = today < expiry ? today : expiry;
-  const have = flights.filter((f) => f.aircraftClass === cls && f.date >= windowStart && f.date <= windowEnd).length;
-  return { have, need: r.sectors, windowStart, met: have >= r.sectors };
+  const inWindow = flights.filter((f) => f.aircraftClass === cls && f.date >= windowStart && f.date <= windowEnd);
+  const routeFlights = inWindow.filter((f) => place(f.depPlace) !== place(f.arrPlace)).length;
+  return {
+    flights: inWindow.length,
+    routeFlights,
+    need: r.sectors,
+    windowStart,
+    met: routeFlights >= r.sectors,
+    metIfLocalCount: inWindow.length >= r.sectors,
+  };
 }
 
 // ---------- licence documents: medical certificate and language endorsement ----------

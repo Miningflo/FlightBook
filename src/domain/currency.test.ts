@@ -113,9 +113,23 @@ describe('nightCurrency', () => {
 describe('routeSectors (multi-engine)', () => {
   const expiry = '2026-03-31';
   const mep = (date: string) => ({ ...flight(date), aircraftClass: 'MEP_LAND' as const });
-  it('counts logged flights in the class in the 12 months before expiry', () => {
+  it('counts flights in the class in the 12 months before expiry, both readings of "sector"', () => {
     const r = routeSectors([mep('2025-06-01'), mep('2025-04-01'), mep('2025-03-31'), flight('2025-06-01')], 'MEP_LAND', expiry, '2025-12-01');
-    expect(r).toMatchObject({ have: 2, need: 10, windowStart: '2025-04-01', met: false });
+    expect(r).toMatchObject({ flights: 2, routeFlights: 2, need: 10, windowStart: '2025-04-01', met: false });
+  });
+  it('separates flights that landed away from local ones, and the status follows the stricter count', () => {
+    const local = (d: string) => ({ ...mep(d), depPlace: 'EBKT', arrPlace: 'EBKT' });
+    const away = (d: string) => ({ ...mep(d), depPlace: 'EBKT', arrPlace: 'EBOS' });
+    const flights = [...Array.from({ length: 6 }, (_, i) => local(`2025-05-0${i + 1}`)), ...Array.from({ length: 5 }, (_, i) => away(`2025-06-0${i + 1}`))];
+    const r = routeSectors(flights, 'MEP_LAND', expiry, '2025-12-01')!;
+    expect(r.flights).toBe(11);
+    expect(r.routeFlights).toBe(5);
+    expect(r.metIfLocalCount).toBe(true);   // 11 flights, if every flight is a sector
+    expect(r.met).toBe(false);              // only 5 landed away, so the strict reading is not met
+  });
+  it('treats the same aerodrome written differently as local', () => {
+    const r = routeSectors([{ ...mep('2025-06-01'), depPlace: ' ebkt ', arrPlace: 'EBKT' }], 'MEP_LAND', expiry, '2025-12-01')!;
+    expect(r.routeFlights).toBe(0);
   });
   it('only applies to multi-engine classes with an expiry date', () => {
     expect(routeSectors([], 'SET_LAND', expiry, today)).toBeNull();
