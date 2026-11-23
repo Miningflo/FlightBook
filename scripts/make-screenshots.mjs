@@ -79,6 +79,10 @@ async function openApp({ dark = false } = {}) {
     await page.getByText(/airports? (imported|ready)|imported/i).first().waitFor({ timeout: 180_000 }).catch(() => {});
     await page.waitForTimeout(3000);
   }
+  // A real reload, not a hash change: the import leaves its summary dialog open, and that dialog
+  // swallows clicks on whatever is behind it. go() only changes the hash, which the SPA handles
+  // without reloading, so the dialog would survive into the next step.
+  await page.reload({ waitUntil: 'networkidle' });
   return { ctx, page };
 }
 
@@ -115,63 +119,91 @@ async function shot(page, name, { anchor, offset = 76 } = {}) {
   console.log(`${OUT}/${name}.png`);
 }
 
-// ---- light: the logbook itself, with aircraft photos from Commons ----
-const { ctx, page } = await openApp();
-await go(page, '/');
-await page.waitForTimeout(4000); // photo look-ups are lazy and rate-limited
-await shot(page, 'logbook');
-await page.locator('.flight-card, [class*=flight] a, main a').first().click().catch(() => {});
-await page.waitForTimeout(2500);
-await shot(page, 'flight');
+/** Credits for the photos this context loaded, printed and checked. */
+async function reportCredits(page, label) {
+  const credits = await photoCredits(page);
+  for (const c of credits) console.log(`  ${c.registration} | ${c.source} | ${c.title ?? ''} | ${c.artist ?? ''} | ${c.license ?? ''} | ${c.pageUrl ?? ''}`);
+  if (credits.some((c) => c.source !== 'commons')) throw new Error(`${label}: a non-Commons photo was used; do not commit these screenshots`);
+  return credits;
+}
 
-// read the credits here, while the only screens that show photos are the ones just taken
-const credits = await photoCredits(page);
-console.log('\n--- aircraft photos actually used (for the README credits) ---');
-for (const c of credits) console.log(`${c.registration} | ${c.source} | ${c.title ?? ''} | ${c.artist ?? ''} | ${c.license ?? ''} | ${c.pageUrl ?? ''}`);
-if (credits.some((c) => c.source !== 'commons')) throw new Error('a non-Commons photo was used; do not commit these screenshots');
-console.log('');
+/**
+ * Which screens are dark is deliberate, not incidental: the README shows the theme setting by having
+ * some screens in dark mode, and the map colour options by putting the map on "Aviation magenta".
+ */
+
+// ---------- light ----------
+const light = await openApp();
+await go(light.page, '/');
+await light.page.waitForTimeout(4000); // photo look-ups are lazy and rate-limited
+await shot(light.page, 'logbook');
 
 // the new-flight form, filled the way a pilot would: the aircraft and the airport names are the
 // app's own autofill, not typed in
-await go(page, '/new');
-await page.fill('#f-dep', '09:30');
-await page.fill('#f-arr', '11:05');
-await page.fill('#f-from', 'EBKT');
-await page.fill('#f-to', 'EHRD');
-await page.fill('#f-reg', 'OO-CEU');
-await page.locator('#f-reg').blur();
-await page.waitForTimeout(1500);
-await shot(page, 'new-flight', { anchor: '#f-date', offset: 92 });
+await go(light.page, '/new');
+await light.page.fill('#f-dep', '09:30');
+await light.page.fill('#f-arr', '11:05');
+await light.page.fill('#f-from', 'EBKT');
+await light.page.fill('#f-to', 'EHRD');
+await light.page.fill('#f-reg', 'OO-CEU');
+await light.page.locator('#f-reg').blur();
+await light.page.waitForTimeout(1500);
+await shot(light.page, 'new-flight', { anchor: '#f-date', offset: 92 });
 
-await go(page, '/totals');
-await shot(page, 'totals');
-if (airportsPath) { await go(page, '/map'); await page.waitForTimeout(2500); await shot(page, 'map'); }
-
-await go(page, '/currency');
-await shot(page, 'currency');
+await go(light.page, '/currency');
+await shot(light.page, 'currency');
 
 // the proficiency-check route: pick MEP (land), whose check window is open
-await page.getByRole('button', { name: 'MEP (land)', exact: true }).click();
-await page.waitForTimeout(400);
-await shot(page, 'currency-rating', { anchor: '.cur-card:last-of-type' });
+await light.page.getByRole('button', { name: 'MEP (land)', exact: true }).click();
+await light.page.waitForTimeout(400);
+await shot(light.page, 'currency-rating', { anchor: '.cur-card:last-of-type' });
 
 // the PDF, made by the app itself from this same logbook
-await go(page, '/export');
-const dl = page.waitForEvent('download', { timeout: 60_000 });
-await page.getByRole('button', { name: /Create PDF/i }).click();
+await go(light.page, '/export');
+const dl = light.page.waitForEvent('download', { timeout: 60_000 });
+await light.page.getByRole('button', { name: /Create PDF/i }).click();
 await (await dl).saveAs('/tmp/demo-logbook.pdf');
 console.log('/tmp/demo-logbook.pdf');
-await shot(page, 'export', { anchor: '#pilot-name', offset: 110 }); // 110: keep the field's label in frame
-await ctx.close();
+await shot(light.page, 'export', { anchor: '#pilot-name', offset: 110 }); // 110: keep the field's label in frame
 
-// ---- dark: the alerts card in Settings ----
-const d = await openApp({ dark: true });
-await go(d.page, '/settings');
+console.log('\n--- aircraft photos used (for the README credits) ---');
+const lightCredits = await reportCredits(light.page, 'light');
+await light.ctx.close();
+
+// ---------- dark ----------
+const dark = await openApp({ dark: true });
+
+// the map colour options are a setting worth showing, so put the map on "Aviation magenta"
+await go(dark.page, '/settings');
+await dark.page.getByRole('radio', { name: /Aviation magenta/i }).click(); // role=radio, not button
+await dark.page.waitForTimeout(600);
+const chosen = await dark.page.getByRole('radio', { name: /Aviation magenta/i }).getAttribute('aria-checked');
+if (chosen !== 'true') throw new Error('the map colour did not change; the map screenshot would be wrong');
 // plain click, not .check(): the switch only flips once the permission request and the seed resolve,
 // which is slower than check()'s own state assertion allows for
-await d.page.locator('input[aria-label="Alerts for currency and ratings"]').click();
-await d.page.waitForTimeout(2500);
-await shot(d.page, 'alerts', { anchor: 'text=Alerts for currency and ratings' });
-await d.ctx.close();
+await dark.page.locator('input[aria-label="Alerts for currency and ratings"]').click();
+await dark.page.waitForTimeout(2500);
+await shot(dark.page, 'alerts', { anchor: 'text=Alerts for currency and ratings' });
+
+await go(dark.page, '/');
+await dark.page.waitForTimeout(4000);
+await dark.page.locator('.flight-card, [class*=flight] a, main a').first().click().catch(() => {});
+await dark.page.waitForTimeout(3000);
+await shot(dark.page, 'flight');
+
+await go(dark.page, '/totals');
+await shot(dark.page, 'totals');
+
+if (airportsPath) {
+  await go(dark.page, '/map');
+  await dark.page.waitForTimeout(2500);
+  await shot(dark.page, 'map');
+}
+
+const darkCredits = await reportCredits(dark.page, 'dark');
+await dark.ctx.close();
 
 await browser.close();
+
+const all = new Map([...lightCredits, ...darkCredits].map((c) => [c.registration, c]));
+console.log(`\n${all.size} aircraft photo(s) in the screenshots, all from Wikimedia Commons.`);
