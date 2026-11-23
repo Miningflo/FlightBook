@@ -285,6 +285,8 @@ export interface Settings {
   sepLandExpiry?: IsoDate | null;
   /** Expiry dates of the other class ratings (SEP (land) keeps its own field above). */
   classExpiry?: Partial<Record<ClassRating, IsoDate>>;
+  /** Expiry date of the instrument rating. Also switches off the night recent-experience requirement. */
+  irExpiry?: IsoDate | null;
   /** Device-local: notify when a currency or class rating gets worse. `night` includes night currency. */
   alerts?: { enabled: boolean; night: boolean };
   /** Device-local: the levels last seen by the alert check, so only a change for the worse notifies. */

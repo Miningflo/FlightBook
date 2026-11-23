@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
 import { CLASS_RATINGS, CLASS_RATING_LABELS, type ClassRating, type IsoDate } from '../../domain/types';
-import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, classExpiryOf, classExpiryPatch, isExperienceClass, nightCurrency, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
-import { DEFAULT_RULES, type RollingRule, type RuleSource } from '../../domain/rules';
+import { type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation } from '../../domain/currency';
+import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { Bar, Field, StatusPill } from '../../ui/components';
 import { formatShortDate } from '../flights/format';
@@ -54,11 +54,18 @@ const countRow = (label: string, c: RollingCurrency) => (
     ok={c.count >= c.need} bad={c.state === 'lapsed'} warn={c.state === 'expiring'} />
 );
 
-function RollingCard({ title, subtitle, check, rule }: { title: string; subtitle: string; check: RollingCheck; rule: RuleSource }) {
-  const h = rollingHeadline(check);
+/** An exemption is not a currency state: the counts still show, but nothing is required of them. */
+function RollingCard({ title, subtitle, check, rule, exemptUntil }: { title: string; subtitle: string; check: RollingCheck; rule: RuleSource; exemptUntil?: IsoDate }) {
+  const h = exemptUntil
+    ? { headline: 'Not required', sub: `You hold an instrument rating, valid until ${formatShortDate(exemptUntil)}. FCL.060(b)(2)(ii) exempts IR holders from the night requirement.` }
+    : rollingHeadline(check);
   return (
     <div className="card cur-card">
-      <div className="head"><div><h3>{title}</h3><div className="hint">{subtitle}</div></div><StatusPill status={check.status} label={check.status === 'green' ? 'Current' : check.status === 'amber' ? 'Expiring soon' : 'Lapsed'} /></div>
+      <div className="head"><div><h3>{title}</h3><div className="hint">{subtitle}</div></div>
+        {exemptUntil
+          ? <StatusPill status="unknown" label="Exempt" />
+          : <StatusPill status={check.status} label={check.status === 'green' ? 'Current' : check.status === 'amber' ? 'Expiring soon' : 'Lapsed'} />}
+      </div>
       <div className="headline">{h.headline}</div>
       <div className="hint">{h.sub}</div>
       {countRow('Take-offs in the last 90 days', check.takeoffs)}
@@ -72,9 +79,8 @@ const SEP_LABELS: Record<string, string> = {
   flight: 'Flight time in class', pic: 'of which as PIC', takeoffs: 'Take-offs', landings: 'Landings', training: 'Training flight with instructor (DUAL time)',
 };
 
-/** Shown when a rating has expired: what is needed to get it back. */
-function RenewalSteps() {
-  const rule = DEFAULT_RULES.renewal;
+/** Shown when a rating has expired: what is needed to get it back. The steps differ by rating. */
+function RenewalSteps({ rule = DEFAULT_RULES.renewal }: { rule?: RenewalRule }) {
   return (
     <div className="renewal">
       <strong>To renew this rating</strong>
@@ -84,36 +90,50 @@ function RenewalSteps() {
   );
 }
 
-/** Edit the expiry date of the rating of one class. */
-function ExpiryEditor({ cls, forceOpen }: { cls: ClassRating; forceOpen: boolean }) {
-  const { canEdit, updateSettings, data } = useApp();
-  const current = classExpiryOf(data.settings, cls) ?? '';
+/** Edit a rating's expiry date. `onSave(null)` clears it. */
+function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry date' }: {
+  id: string; current: string; forceOpen: boolean; label?: string;
+  onSave: (date: IsoDate | null) => Promise<unknown>;
+}) {
+  const { canEdit } = useApp();
   const [draft, setDraft] = useState(current);
   const [editing, setEditing] = useState(false);
   if (!canEdit) return null;
   const save = async () => {
     if (draft !== '' && !isValidIsoDate(draft)) return;
-    await updateSettings(classExpiryPatch(data.settings, cls, draft === '' ? null : draft));
+    await onSave(draft === '' ? null : draft);
     setEditing(false);
   };
-  const id = `expiry-${cls}`;
   return (
     <div className="sub-form">
       {editing || forceOpen ? (
         <div>
-          <Field label="Rating expiry date" htmlFor={id}>
+          <Field label={label} htmlFor={id}>
             <input id={id} className="input" type="date" value={draft} onChange={(e) => setDraft(e.target.value)} />
           </Field>
           <div className="row">
             <button type="button" className="btn tonal" onClick={() => void save()}>Save date</button>
             {editing && <button type="button" className="btn text" onClick={() => setEditing(false)}>Cancel</button>}
-            {current !== '' && <button type="button" className="btn text" onClick={() => { setDraft(''); void updateSettings(classExpiryPatch(data.settings, cls, null)).then(() => setEditing(false)); }}>Remove date</button>}
+            {current !== '' && <button type="button" className="btn text" onClick={() => { setDraft(''); void onSave(null).then(() => setEditing(false)); }}>Remove date</button>}
           </div>
         </div>
       ) : (
         <button type="button" className="btn text" onClick={() => { setDraft(current); setEditing(true); }}>Change expiry date</button>
       )}
     </div>
+  );
+}
+
+/** The expiry of one class rating. key={cls}: remount per class, so a date typed for one is never
+ * carried into another. */
+function ClassExpiryEditor({ cls, forceOpen }: { cls: ClassRating; forceOpen: boolean }) {
+  const { updateSettings, data } = useApp();
+  return (
+    <ExpiryEditor
+      key={cls} id={`expiry-${cls}`} forceOpen={forceOpen}
+      current={classExpiryOf(data.settings, cls) ?? ''}
+      onSave={(date) => updateSettings(classExpiryPatch(data.settings, cls, date))}
+    />
   );
 }
 
@@ -148,8 +168,7 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
           display={p.unit === 'min' ? `${formatHHMM(p.have)} / ${formatHHMM(p.need)}` : `${p.have} / ${p.need}`} />
       ))}
       {check.state === 'expired' && <RenewalSteps />}
-      {/* key: remount per class, so the date typed for one class is never carried into another. */}
-      <ExpiryEditor key={cls} cls={cls} forceOpen={check.state === 'not-set'} />
+      <ClassExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} />
     </div>
   );
@@ -190,9 +209,50 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
         </>
       )}
       {check.state === 'expired' && <RenewalSteps />}
-      {/* key: remount per class, so the date typed for one class is never carried into another. */}
-      <ExpiryEditor key={cls} cls={cls} forceOpen={check.state === 'not-set'} />
+      <ClassExpiryEditor cls={cls} forceOpen={check.state === 'not-set'} />
       <RulesNote rule={rule} title="How the revalidation deadline is worked out" />
+    </div>
+  );
+}
+
+/**
+ * The instrument rating. Not a class rating, so it sits outside the class chips: it is held once and
+ * applies across the classes you are rated for, and it is what switches the night requirement off.
+ */
+function IrCard({ today }: { today: IsoDate }) {
+  const { data, canEdit, updateSettings } = useApp();
+  const expiry = data.settings.irExpiry ?? null;
+  const check = useMemo(() => irStatus(expiry, today), [expiry, today]);
+  const rule = DEFAULT_RULES.ir;
+  if (!expiry && !canEdit) return null;
+  const days = check.daysToExpiry ?? 0;
+  const d = (x: string | null) => (x ? formatShortDate(x) : '');
+  const pill = { green: 'OK', amber: 'Check due', red: check.state === 'expired' ? 'Expired' : 'Urgent', unknown: 'Not set' }[check.status];
+  const headline: Record<string, string> = {
+    'not-set': 'Do you hold an instrument rating?',
+    'window-not-open': `Valid until ${d(check.expiry)}`,
+    'window-open': `Proficiency check due · ${days} days to expiry`,
+    urgent: days === 0 ? 'Expires today' : `Only ${days} day${days === 1 ? '' : 's'} left`,
+    expired: `Expired on ${d(check.expiry)}`,
+  };
+  const sub: Record<string, string> = {
+    'not-set': 'Enter its expiry date to track it. While it is valid, night currency is not required of you.',
+    'window-not-open': `Night currency is not required while this is valid. The check may be taken from ${d(check.windowStart)}.`,
+    'window-open': 'Revalidate with a proficiency check before expiry. Night currency is not required while it is valid.',
+    urgent: 'Proficiency check still needed. Night currency applies again once it expires.',
+    expired: 'Revalidation is no longer possible; the rating must be renewed. Night currency applies again.',
+  };
+  return (
+    <div className="card cur-card">
+      <div className="head"><div><h3>Instrument rating</h3><div className="hint">Valid 1 year · revalidation by proficiency check, last 3 months before expiry</div></div><StatusPill status={check.status} label={pill} /></div>
+      <div className="headline">{headline[check.state]}</div>
+      <div className="hint">{sub[check.state]}</div>
+      {check.state === 'expired' && <RenewalSteps rule={DEFAULT_RULES.irRenewal} />}
+      <ExpiryEditor
+        id="expiry-ir" label="IR expiry date" forceOpen={false} current={expiry ?? ''}
+        onSave={(date) => updateSettings({ irExpiry: date })}
+      />
+      <RulesNote rule={rule} title="How the IR deadline is worked out" />
     </div>
   );
 }
@@ -211,6 +271,8 @@ export function CurrencyScreen() {
   const expiry = classExpiryOf(data.settings, cls);
   const experience = useMemo(() => sepRevalidation(data.flights, expiry, today, DEFAULT_RULES, cls), [data.flights, expiry, today, cls]);
   const check = useMemo(() => proficiencyCheckStatus(expiry, today), [expiry, today]);
+  // an IR removes the night requirement entirely (FCL.060(b)(2)(ii)), for every class
+  const nightExempt = nightExemptByIr(data.settings, today) ? data.settings.irExpiry ?? undefined : undefined;
 
   return (
     <div>
@@ -221,10 +283,11 @@ export function CurrencyScreen() {
         {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}
       </div>
       <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`} check={passengers} rule={DEFAULT_RULES.passenger} />
-      <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} />
+      <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} exemptUntil={nightExempt} />
       {isExperienceClass(cls) ? <ExperienceCard cls={cls} check={experience} />
         : cls === 'OTHER' ? <p className="hint" style={{ margin: '0 4px 12px' }}>Revalidation is not tracked for the Other class.</p>
         : <CheckCard cls={cls} check={check} />}
+      <IrCard today={today} />
     </div>
   );
 }
