@@ -1,0 +1,12 @@
+Copyright (c) 2026 Miningflo. All rights reserved.
+
+The FlightBook source code in this repository is published for reference only. No licence is granted:
+you may read it here, and GitHub's terms let you view and fork it on GitHub, but you may not otherwise
+copy, modify, distribute or use it, in whole or in part, without the copyright holder's written permission.
+
+Exceptions, each under its own terms:
+- The screenshots that contain third-party photos, listed in the "Photo credits" section of README.md
+  (and in docs/screenshots/photo-credits.json), are shared under CC BY-SA 4.0, as explained there.
+- The basemap data in src/features/map/basemap.json is derived from Natural Earth, which is in the public
+  domain.
+- The packages listed in package.json are not part of this repository and keep their own licences.

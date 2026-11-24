@@ -5,7 +5,7 @@ import { CLASS_RATING_LABELS } from '../../domain/types';
 import { rolesOfFlight } from '../../domain/roles';
 import { formatHHMM } from '../../domain/time';
 import { engineClassOfFlight } from '../../domain/flightForm';
-import { typeRatingOf } from '../../domain/currency';
+import { routeSectorApplies, typeRatingOf } from '../../domain/currency';
 import { RoleChip } from '../../ui/components';
 import { ArrivalIcon, ClockIcon, MoonIcon, PlaneGlyph, TakeoffIcon } from '../../ui/Icons';
 import { PhotoCreditLine, PhotoFrame } from '../photos/AircraftPhoto';
@@ -79,6 +79,9 @@ export function FlightDetail({ flight, onEdit }: { flight: Flight; onEdit: () =>
           <div className="fact-warn"><span className="fact-icon">Type</span>
             <span>{rating.kind === 'none' ? 'No type rating' : 'Its type rating has been removed'}: this flight counts towards no currency.{canEdit ? ' Edit it to pick one.' : ''}</span>
           </div>
+        )}
+        {routeSectorApplies(flight.aircraftClass) && (
+          <div><span className="fact-icon">RS</span><span>{flight.routeSector ? 'Route sector (FCL.010)' : 'Not marked as a route sector'}</span></div>
         )}
         <div><span className="fact-icon">PIC</span><span>{pic}</span></div>
       </div>

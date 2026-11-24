@@ -16,6 +16,7 @@ import {
 } from './roles';
 import { blockMinutes, clockOfTimestamp, dateOfTimestamp, resolveBlockTimes } from './time';
 import { normalizeRegistration } from './suggestions';
+import { routeSectorApplies } from './currency';
 
 /**
  * Editable state of the flight form. Kept framework-free so the rules
@@ -37,6 +38,8 @@ export interface FlightFormState {
   aircraftClass: ClassRating;
   /** Which type rating this flight counts towards. Only meaningful when the class is OTHER. */
   typeRatingId: string | null;
+  /** Confirmed as a route sector (FCL.010). Only meaningful for multi-engine classes and OTHER. */
+  routeSector: boolean;
   engineClass: EngineClass;
 
   picName: string;
@@ -92,6 +95,7 @@ export function emptyForm(d: FormDefaults): FlightFormState {
     variant: '',
     aircraftClass: 'SEP_LAND',
     typeRatingId: null,
+    routeSector: false,
     engineClass: 'SP-SE',
     picName: d.picName,
     totalMin: 0,
@@ -135,6 +139,7 @@ export function formFromFlight(f: Flight, picName: string): FlightFormState {
     variant: f.aircraftVariant,
     aircraftClass: f.aircraftClass,
     typeRatingId: f.typeRatingId ?? null,
+    routeSector: f.routeSector === true,
     engineClass: engineClassOfFlight(f),
     picName,
     totalMin: f.totalMin,
@@ -327,6 +332,13 @@ export function validateForm(s: FlightFormState): ValidationIssue[] {
   if (!anyRole) warn('roles', 'No pilot function selected (PIC / COPI / DUAL / INS).');
   if (s.roles.PIC.on && s.roles.DUAL.on) warn('roles', 'PIC and DUAL are both selected; check this is intended.');
   if (s.isPicus && s.engineClass !== 'MP') warn('isPicus', 'PICUS is normally logged on multi-pilot flights.');
+  // AMC1 FCL.050: "A pilot flying as 'PICUS' or 'SPIC' enters flying time as 'PIC'", countersigned in the remarks
+  if ((s.isPicus || s.isSpic) && !s.roles.PIC.on) {
+    warn('supervisedPic', `${s.isPicus ? 'PICUS' : 'SPIC'} time is entered as PIC (AMC1 FCL.050), and the PIC or instructor countersigns it in the remarks. Select PIC.`);
+  }
+  if (s.routeSector && routeSectorApplies(s.aircraftClass) && s.totalMin > 0 && s.totalMin < 15) {
+    warn('routeSector', 'A route sector includes at least 15 minutes of cruise (FCL.010), but this whole flight is shorter than that.');
+  }
   // Class and pilot-time category describe the same aircraft; a contradiction is almost always a slip.
   // Only the engine count is checked (single-pilot SE vs ME); multi-pilot is left alone.
   const multiEngineClass = s.aircraftClass === 'MEP_LAND' || s.aircraftClass === 'MEP_SEA';
@@ -353,6 +365,8 @@ export interface FlightInput {
   aircraftVariant: string;
   aircraftClass: ClassRating;
   typeRatingId?: string | null;
+  /** Confirmed route sector (FCL.010); false where the question does not apply. */
+  routeSector: boolean;
   engineClass: EngineClass;
   picName: string;
   spSeMin: Minutes;
@@ -390,7 +404,7 @@ export function formToFlightInput(
 ): FlightInput {
   if (hasErrors(validateForm(s))) throw new Error('Flight form has validation errors');
   const times = resolveBlockTimes(s.date, s.depClock, s.arrClock, s.arrDate)!;
-  const overrides: Overrides = { ...(extra.previousOverrides ?? {}) };
+  const overrides: Overrides = { ...extra.previousOverrides };
   const flag = (key: keyof Overrides, on: boolean) => { if (on) overrides[key] = true; else delete overrides[key]; };
   flag('totalMin', s.totalManual);
   flag('nightMin', s.nightManual);
@@ -411,6 +425,8 @@ export function formToFlightInput(
     aircraftClass: s.aircraftClass,
     // only the Other class is type-rated; anything else must not carry a stale rating, and neither may a removed one
     typeRatingId: s.aircraftClass === 'OTHER' && s.typeRatingId !== null && (extra.typeRatingIds?.includes(s.typeRatingId) ?? true) ? s.typeRatingId : null,
+    // only multi-engine classes and type ratings count route sectors; a class change must not leave one behind
+    routeSector: routeSectorApplies(s.aircraftClass) && s.routeSector,
     engineClass: s.engineClass,
     picName: s.picName.trim(),
     spSeMin: s.engineClass === 'SP-SE' ? s.totalMin : 0,

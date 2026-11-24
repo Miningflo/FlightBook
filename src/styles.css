@@ -313,10 +313,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 .tile.tone-daynight { --tile-accent: var(--surface-3); --tile-on-accent: var(--on-surface); }
 /* thin segmented bar: one whole split in two, rounded ends, a 2px gap between the parts.
    Day is a sun yellow kept apart from the simulator amber just above; night is the Night tile's violet. */
-.tile.stat .split { display: flex; gap: 2px; height: 8px; margin-top: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-3); }
-.tile.stat .split > span { min-width: 4px; }
-.tile.stat .split .day { background: light-dark(#e0c000, #c98500); }
-.tile.stat .split .night { background: #5b3a9e; box-shadow: inset 0 0 0 1px light-dark(transparent, rgb(255 255 255 / 0.2)); }
+/* not ".split": that is the wide-screen list/detail layout, whose align-items: start squashed these to 0 px */
+.tile.stat .daynight-bar { display: flex; align-items: stretch; gap: 2px; height: 8px; margin-top: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-3); }
+.tile.stat .daynight-bar > span { min-width: 4px; }
+.tile.stat .daynight-bar .day { background: light-dark(#e0c000, #c98500); }
+.tile.stat .daynight-bar .night { background: #5b3a9e; box-shadow: inset 0 0 0 1px light-dark(transparent, rgb(255 255 255 / 0.2)); }
 .detail .card.summary { margin-top: 12px; }
 .detail .summary .date { font-size: 14px; color: var(--on-surface-variant); }
 .facts { display: grid; gap: 10px; }
@@ -389,7 +390,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 .class-row .name { font-weight: 500; }
 .class-row .sub { font-size: 13px; color: var(--on-surface-variant); }
 .class-row .val { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; }
+/* .card.tappable sets display: block, and is more specific than .link-card alone: without the full selector the chevron dropped below the text */
+.card.tappable.link-card, .link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; }
 .link-card svg { color: var(--on-surface-variant); flex: none; }
 /* rows that open something, inside a card (e.g. the flights without a type rating on Currency) */
 .link-list { list-style: none; margin: 8px 0 0; padding: 0; }

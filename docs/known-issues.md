@@ -28,13 +28,16 @@ What the logbook cannot know or does not track is listed per rule in the `todo` 
 `src/domain/rules.ts`, and shown on the matching card under "How this is calculated". That file is the source
 of truth; the main ones:
 
-- There is no "pilot flying" flag, so every logged take-off and landing counts towards recent experience.
+- Every logged take-off and landing counts towards recent experience; the rule wants them as pilot flying, which is how the AMC logbook records landings, so log only the ones you flew.
 - Simulator (FFS) take-offs and landings never count, although FCL.060 allows them. Approaches are not recorded.
 - DUAL time stands in for the SEP/TMG refresher flight with an FI or CRI.
 - SEP/TMG revalidation counts the selected class only; combined SEP/TMG or land/sea holdings are not modelled.
-- "Route sector" is not defined in Part-FCL, so both readings are shown and the stricter one sets the status.
-  The one-sector-with-an-examiner alternative is not tracked, and for type ratings the 12-month window assumes
-  the default 1-year validity rather than one set by the OSD.
+- Route sectors (FCL.010: take-off to landing with at least 15 minutes of cruise) count only when you mark
+  them on the flight form: the logbook does not record the cruise. The one-sector-with-an-examiner
+  alternative is not tracked, and for type ratings the 12-month window assumes the default 1-year validity
+  rather than one set by the OSD.
+- Not modelled: recent experience credited between similar types through the OSD (FCL.060(b)(4)), and the
+  120-day extension in commercial air transport (FCL.060(c)).
 - The app never works out a validity period itself (medical, type rating, language endorsement): you enter the
   date from your licence. Medical age-band edges are explained on the card but not checked.
 - The figures are EASA's; a UK CAA licence follows different wording.
@@ -42,7 +45,5 @@ of truth; the main ones:
 ## Tooling
 
 - **No UI tests.** Vitest runs in Node without a DOM, so screens are checked by hand in a browser.
-- **ESLint is not installed**, although the code carries `eslint-disable react-hooks` comments; the hooks rules
-  are never actually checked.
 - **`npm audit`** reports 4 moderate issues, all in build-time tooling (minimatch via vite-plugin-pwa). The
   suggested fix downgrades vite-plugin-pwa, so they are left until upstream updates.

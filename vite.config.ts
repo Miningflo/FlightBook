@@ -43,7 +43,8 @@ export default defineConfig(({ mode }) => {
     ],
     test: {
       environment: 'node',
-      include: ['src/**/*.test.ts'],
+      // scripts/photo-credits.test.mjs: the README screenshots' photo credits are checked in CI too
+      include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
     },
   };
 });

@@ -6,10 +6,11 @@ export type Route =
   | { name: 'flight'; id: string }
   | { name: 'new' }
   /**
-   * `from: 'unassigned'`: opened from the Currency list of flights without a type rating, so saving or
-   * cancelling goes back to that list rather than to the flight, ready for the next one.
+   * `from`: opened from a list on the Currency screen (flights without a type rating, flights not marked
+   * as route sectors), showing that class chip. Saving or cancelling goes back to that list rather than
+   * to the flight, ready for the next one.
    */
-  | { name: 'edit'; id: string; from?: 'unassigned' }
+  | { name: 'edit'; id: string; from?: ClassRating }
   | { name: 'settings' }
   | { name: 'export' }
   | { name: 'totals' }
@@ -23,16 +24,18 @@ export type Route =
   | { name: 'experience-new' }
   | { name: 'experience-edit'; id: string };
 
+const isClass = (s: string): s is ClassRating => (CLASS_RATINGS as readonly string[]).includes(s);
+
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-  const [a, b, c] = parts;
+  const [a, b, c, d] = parts;
   if (a === 'flight' && b) return { name: 'flight', id: b };
-  if (a === 'edit' && b) return c === 'unassigned' ? { name: 'edit', id: b, from: 'unassigned' } : { name: 'edit', id: b };
+  if (a === 'edit' && b) return c === 'currency' && d && isClass(d) ? { name: 'edit', id: b, from: d } : { name: 'edit', id: b };
   if (a === 'new') return { name: 'new' };
   if (a === 'settings') return { name: 'settings' };
   if (a === 'export') return { name: 'export' };
   if (a === 'totals') return { name: 'totals' };
-  if (a === 'currency') return b && (CLASS_RATINGS as readonly string[]).includes(b) ? { name: 'currency', cls: b as ClassRating } : { name: 'currency' };
+  if (a === 'currency') return b && isClass(b) ? { name: 'currency', cls: b } : { name: 'currency' };
   if (a === 'map') return { name: 'map' };
   if (a === 'fstd') return b === 'new' ? { name: 'fstd-new' } : b === 'edit' && c ? { name: 'fstd-edit', id: c } : { name: 'fstd' };
   if (a === 'experience') return b === 'new' ? { name: 'experience-new' } : b === 'edit' && c ? { name: 'experience-edit', id: c } : { name: 'experience' };
@@ -43,7 +46,7 @@ export function routeToHash(r: Route): string {
   switch (r.name) {
     case 'list': return '#/';
     case 'flight': return `#/flight/${r.id}`;
-    case 'edit': return r.from ? `#/edit/${r.id}/${r.from}` : `#/edit/${r.id}`;
+    case 'edit': return r.from ? `#/edit/${r.id}/currency/${r.from}` : `#/edit/${r.id}`;
     case 'new': return '#/new';
     case 'settings': return '#/settings';
     case 'export': return '#/export';
@@ -59,6 +62,9 @@ export function routeToHash(r: Route): string {
   }
 }
 
+/** The Currency screen showing a class chip; the default chip keeps the plain address. */
+export const currencyRoute = (cls: ClassRating): Route => (cls === 'SEP_LAND' ? { name: 'currency' } : { name: 'currency', cls });
+
 /**
  * Where the top-left "Back" button goes: one level UP the screen hierarchy, never "wherever the browser came
  * from". (Browser history can contain screens the user has already left, e.g. an edit form after saving.)
@@ -66,7 +72,7 @@ export function routeToHash(r: Route): string {
 export function parentRoute(r: Route): Route | null {
   switch (r.name) {
     case 'flight': case 'new': case 'settings': return { name: 'list' };
-    case 'edit': return r.from === 'unassigned' ? { name: 'currency', cls: 'OTHER' } : { name: 'flight', id: r.id };
+    case 'edit': return r.from ? currencyRoute(r.from) : { name: 'flight', id: r.id };
     case 'export': return { name: 'settings' };
     case 'fstd': case 'experience': return { name: 'totals' };
     case 'fstd-new': case 'fstd-edit': return { name: 'fstd' };

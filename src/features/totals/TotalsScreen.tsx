@@ -39,7 +39,7 @@ function DayNightTile({ icon, label, day, night }: { icon: ReactNode; label: str
     <div className="tile stat tone-daynight">
       <div className="tile-label"><span className="badge">{icon}</span>{label}</div>
       <div className="tile-value">{day} <span className="unit">day</span> · {night} <span className="unit">night</span></div>
-      <div className="split" role="img" aria-label={`${day} by day, ${night} at night`}>
+      <div className="daynight-bar" role="img" aria-label={`${day} by day, ${night} at night`}>
         {day > 0 && <span className="day" style={{ flexGrow: day }} />}
         {night > 0 && <span className="night" style={{ flexGrow: night }} />}
       </div>
