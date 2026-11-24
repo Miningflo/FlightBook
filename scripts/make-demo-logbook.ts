@@ -92,6 +92,8 @@ function makeFlights(): Flight[] {
     // a few night flights, and the most recent night landing is deliberately old (night currency lapsed)
     const night = d > 150 && i % 9 === 4;
     const dual = i % 8 === 3;
+    // a supervised solo as student pilot-in-command: AMC1 FCL.050 has that time entered as PIC, not DUAL
+    const spic = dual && i % 16 === 3;
     const isMe = a.eng === 'SP-ME';
     out.push({
       ...base(`f-${i}`), createdAt: ts - (52 - i) * 1000, date,
@@ -108,8 +110,8 @@ function makeFlights(): Flight[] {
       takeoffsDay: night ? 0 : 1, takeoffsNight: night ? 1 : 0,
       landingsDay: night ? 0 : 1 + (rnd() < 0.2 ? 2 : 0), landingsNight: night ? 2 : 0,
       nightMin: night ? Math.round(mins * 0.7) : 0, ifrMin: i % 13 === 0 ? 20 : 0,
-      picMin: dual ? 0 : mins, copiMin: 0, dualMin: dual ? mins : 0, instMin: 0,
-      isPicus: false, isSpic: dual && i % 16 === 3,
+      picMin: dual && !spic ? 0 : mins, copiMin: 0, dualMin: dual && !spic ? mins : 0, instMin: 0,
+      isPicus: false, isSpic: spic,
       remarks: pick(REMARKS), attachmentIds: [], overrides: {},
     });
   }
