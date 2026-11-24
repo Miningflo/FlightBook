@@ -67,16 +67,19 @@ npm run dev          # http://localhost:5173
 npm test             # Vitest unit tests
 npm run typecheck
 npm run lint         # Oxlint: React hooks rules and correctness checks (CI runs it before the tests)
+npm run test:e2e     # Playwright: the built app in a real browser (flows, and layout measured at phone and desktop width)
 npm run build        # type-check + production build into dist/
 npm run preview      # serve dist/ locally (service worker active)
 ```
+The end-to-end tests need Playwright's Chromium once: `npx playwright install chromium`. Where Playwright cannot install it (it no longer supports Ubuntu 20.04, for example), point `PLAYWRIGHT_CHROMIUM` at any recent Chromium binary instead. They import the demo logbook from `e2e/fixtures/demo-logbook.json`; regenerate it with `npx vite-node scripts/make-demo-logbook.ts -- e2e/fixtures/demo-logbook.json` when the demo changes.
+
 Copy `.env.example` to `.env.local` to override `VITE_BASE` (default `/`) or set `VITE_GOOGLE_CLIENT_ID` (Google Drive backup).
 
 ## Deploy to GitHub Pages
 1. Push to a GitHub repo, then Settings → Pages → Source: **GitHub Actions**.
 2. `.github/workflows/deploy.yml` builds with `VITE_BASE=/<repo-name>/` and publishes `dist/` on every push to `main`.
 3. The app uses hash routing (`#/flight/…`), so no rewrite rules are needed.
-4. For Google Drive, add `https://<user>.github.io` (origins carry no path) to the OAuth client's authorised JavaScript origins, and set the repository variable `VITE_GOOGLE_CLIENT_ID`. The workflow runs the unit tests before every deploy.
+4. For Google Drive, add `https://<user>.github.io` (origins carry no path) to the OAuth client's authorised JavaScript origins, and set the repository variable `VITE_GOOGLE_CLIENT_ID`. The workflow runs the lint, the unit tests and the end-to-end tests before every deploy, and keeps the Playwright traces of a failed run for a week.
 
 ## Logging a flight
 - **All times are UTC** (off-blocks / on-blocks). The take-off date is the date column of the logbook. The **landing date** follows automatically: the same day, or the next day when the on-blocks time is earlier than off-blocks (the flight crossed midnight UTC). It can be set by hand for anything else (a flight over 24 h gets a warning; a landing before take-off is refused). Saved flights that landed on a later UTC date show **+1** after the landing time.
@@ -221,6 +224,7 @@ The Planespotters response format was verified against the live API (November 20
 | workbox-precaching, -routing, -strategies, -expiration, -cacheable-response, -core | the caching primitives `src/sw.ts` is built from; direct dependencies now that the worker is hand-written rather than generated |
 | pdf-lib | writes the PDF logbook (no native code, works offline; loaded on demand) |
 | vitest, fake-indexeddb | unit tests, including database tests without a browser |
+| @playwright/test | end-to-end tests of the built app in Chromium (`e2e/`) |
 | oxlint | linting, mainly the React hooks rules that no Node-run test can catch; Oxlint rather than ESLint because TypeScript 7 has no JavaScript API for typescript-eslint to use |
 | @types/node | types for `vite.config.ts` |
 | suncalc (dev only) | independent cross-check of the sun calculation in tests |

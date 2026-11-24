@@ -22,6 +22,15 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # end-to-end tests in a real browser (they build and serve the app themselves)
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
       - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
