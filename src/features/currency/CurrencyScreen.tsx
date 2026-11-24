@@ -666,6 +666,9 @@ export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
       <p className="hint" style={{ margin: '0 4px 12px' }}>
         Status as of {formatShortDate(today)}. Currency uses logged take-offs and landings; carry-in records have no dates and are not counted.
       </p>
+      <p className="hint" style={{ margin: '0 4px 12px' }}>
+        A guide, not an approval: you remain responsible for your currency and ratings. Check your licence and the authority that issued it.
+      </p>
       <div className="range-chips" role="group" aria-label="Aircraft class">
         {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}
       </div>

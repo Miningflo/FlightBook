@@ -5,6 +5,8 @@ The Android phone is the master logbook; the same app in a desktop browser is a 
 
 **Status:** complete and in use. Core flight logging (with aircraft photos), airports and automatic night time, totals, currency and class-rating revalidation, notification alerts, the map, export / import / PDF, and Google Drive backup with a read-only viewer. Drive needs a Google client ID before it does anything (see [docs/google-cloud-setup.md](docs/google-cloud-setup.md)); without one the app works fully offline and the Drive screens say so.
 
+**Not an approved tool.** FlightBook is a personal aid. Its currency and rating statuses are worked out from what you log and from the EASA text as this app reads it; they can be wrong, out of date or incomplete, and no authority has approved them. You remain responsible for meeting every requirement: check your licence, your logbook of record and the authority that issued your licence. The Currency screen says the same.
+
 **Known issues and limits** are kept in [docs/known-issues.md](docs/known-issues.md): what the app does imperfectly, what it cannot know, and where each one lives in the code.
 
 **The regulatory numbers are checked against the EASA text** — see [Totals and currency](#totals-and-currency) for what was checked, against which revision, and what the app still cannot know.
@@ -82,9 +84,23 @@ Copy `.env.example` to `.env.local` to override `VITE_BASE` (default `/`) or set
 - **Pilot function**: PIC / COPI / DUAL / INS chips (selected ones are filled and ticked); their time defaults to the total. The chips and +/− counters do not take the focus from a text field, so one tap works while the keyboard is open. PICUS and SPIC time is entered as PIC (AMC1 FCL.050), countersigned in the remarks; the form says so when PICUS or SPIC is ticked without PIC.
 - **Route sector**: on a multi-engine or type-rated flight, a toggle records that the flight was a route sector as FCL.010 defines one (take-off to landing with at least 15 minutes of cruise). The logbook does not record the cruise, so this is never guessed; see [route sectors](#totals-and-currency) below.
 
-## Install on Android
+## Install, and which browsers
 Open the deployed HTTPS URL in Chrome → ⋮ menu → **Install app** (or "Add to Home screen"). It then starts full-screen and works offline.
+
+**Browsers from 2024 on:** Chrome or Edge 123+, Firefox 120+, Safari 17.5+. The styles use CSS `light-dark()` for the light and dark themes, which those versions were the first to support (Baseline since May 2024); an older browser shows the app without most of its colours. The daily background alert check needs periodic background sync, which only Chrome offers (Android, app installed); everywhere else alerts are checked when the app is opened.
 On first start choose **This device is the master logbook**; the app then asks the browser for *persistent storage* so Android does not evict your data. Settings shows whether it was granted.
+
+## Settings (⚙ in the top bar)
+- **Device name**, and **This device is the master logbook**: the role is set here, never inferred from screen size. Only the master edits; turning it off asks first and deletes nothing.
+- **Theme**: follow the system, light or dark.
+- **Export, import & backup**: the PDF logbook and its holder details, CSV, the JSON backup, import and restore (see below).
+- **Map colours**: six colours for airports and routes on the map, each with a light and dark variant.
+- **Alerts for currency and ratings**: notifications when something gets worse, with the option to leave night currency out (see Alerts below).
+- **Google Drive backup**: connect, back up now, restore, and take or hand over the master role.
+- **Airports database**: download or import the OurAirports file that night time and the map need.
+- **Look up aircraft photos online**, and **Clear photo cache**.
+- **Storage protection**: whether the browser granted persistent storage, with "Ask again" if it did not.
+- A link to the **privacy policy**.
 
 ## Data safety
 - Data lives in IndexedDB on the device (Dexie). Times are integer minutes / UTC timestamps; totals are never stored.
@@ -147,6 +163,7 @@ Airports are circles with the number of flights that started or ended there (a l
     - **Removing a rating asks first**, whether from "Remove rating" or by clearing its date. The dialog says how many flights are logged under it: they stop counting and are listed as flights without a type rating until you pick one again, and adding the rating back does not reconnect them, because it gets a new id.
   - **Language proficiency endorsement** (FCL.055): level 4 is re-evaluated every 4 years, level 5 every 6, and level 6 never &mdash; so a level 6 endorsement reports "no re-evaluation needed" rather than pretending to a date. Without a valid endorsement you may not use the radio, and so may not exercise the licence at all, which is why it is watched as closely as the medical.
 - **Every regulatory number lives in `src/domain/rules.ts`**, each with the point it comes from, so a correction is a one-line change. They were re-checked on 24 November 2026 against the **[EASA Easy Access Rules for Aircrew](https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew)** (Regulation (EU) No 1178/2011): FCL.060, FCL.055, FCL.625 and FCL.740 in the revision from October 2026; FCL.740.A, the FCL.010 definitions, MED.A.045 and AMC1 FCL.050 in the [paginated edition](https://www.easa.europa.eu/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew-regulation-eu-no?page=5) (revision from August 2023), the only one whose text could be read for those. An earlier check had missed that FCL.010 defines "route sector". Cards whose rule is not verified show an "Unverified rule" label; none of the currency rules do.
+  - **Changing a rule.** The ground rule at the top of `rules.ts` is *do not invent regulatory rules; flag uncertainty instead of guessing*. Each rule carries its `reference` (the point it comes from, quoted), a `verified` flag and a `todo` list of what the app cannot know. Change a number or a reference only against the EASA text itself, quote the point, and say which revision you read in the file's header. Set `verified` to true only after a person has checked the numbers against that text: it is what removes the "Unverified rule" label a pilot would otherwise see, so flipping it is a claim, not housekeeping.
   - Check against EASA's own text, not a national library: the **UK CAA**'s retained FCL.740.A(b)(1)(ii) lets the 12 hours be spread over the whole validity period as long as 6 fall in the last 12 months, so the SEP figures here are wrong for a UK licence.
   - What the app still cannot know is listed on each card under "How this is calculated" and in the `todo` of each rule: every logged take-off and landing is counted although the rule wants them as pilot flying (which is how the AMC logbook records landings, so log only the ones you flew), simulator take-offs and landings are never counted although the rule allows them, DUAL time stands in for the refresher flight with an FI or CRI, the app does not know where your IR checks were flown so it cannot track that at least every other one is in an aeroplane (FCL.625.A(a)(4)), and previous-experience carry-ins have no dates so they never count.
 - **Route sectors are what FCL.010 says, and you mark them.** FCL.740.A(a)(2) asks for 10 route sectors per validity period for a multi-engine class or a type rating, and FCL.010 defines one: "a flight comprising take-off, departure, cruise of not less than 15 minutes, arrival, approach and landing phases". So a local flight can be one and a short hop to the next aerodrome may not be, and the logbook, which records block times but not the cruise, cannot tell. Only the flights you mark as route sectors on the form count; the card lists the period's unmarked flights under a fold, each opening the form and coming back to the card. (An earlier version guessed from whether the flight landed elsewhere, which could count a hop that was not a sector.)
