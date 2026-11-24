@@ -430,6 +430,11 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
   const ratings = data.settings.typeRatings ?? [];
   const stranded = unassignedTypeFlights(data.flights, ratings);
   const anyOther = data.flights.some((f) => f.aircraftClass === 'OTHER');
+  // an expired rating cannot be used, so its currency is beside the point: name it, do not count it
+  const expired = ratings.filter((t) => typeRatingStatus(t.expiry, today).state === 'expired');
+  const current = ratings.filter((t) => !expired.includes(t));
+  // said once below the cards rather than repeated on every one of them
+  const exemptUntil = nightExemptByIr(data.settings, today) ? data.settings.irExpiry ?? undefined : undefined;
   return (
     <>
       {stranded.length > 0 && (
@@ -448,16 +453,63 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
           No flights logged in a type-rated aeroplane yet. Log them in the Other class and pick the type rating, and they count here.
         </p>
       )}
-      {ratings.map((t) => (
-        <div key={t.id}>
-          <RollingCard title="Carrying passengers" subtitle={`${t.name} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`}
-            check={passengerCurrency(data.flights, byType(t.id), today)} rule={DEFAULT_RULES.passenger} />
-          <RollingCard title="Passengers at night" subtitle={`${t.name} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`}
-            check={nightCurrency(data.flights, byType(t.id), today)} rule={DEFAULT_RULES.night}
-            exemptUntil={nightExemptByIr(data.settings, today) ? data.settings.irExpiry ?? undefined : undefined} />
+      {current.map((t) => <TypeCurrencyCard key={t.id} rating={t} today={today} nightExempt={exemptUntil !== undefined} />)}
+      {current.length > 0 && exemptUntil && (
+        <p className="hint" style={{ margin: '0 4px 12px' }}>
+          Night currency is not required while your instrument rating is valid, until {formatShortDate(exemptUntil)} (FCL.060(b)(2)(ii)).
+        </p>
+      )}
+      {expired.length > 0 && (
+        <p className="hint" style={{ margin: '0 4px 12px' }}>
+          Not shown, because the rating has expired: {expired.map((t) => `${t.name} (${formatShortDate(t.expiry)})`).join(', ')}.
+          Enter the new date under <strong>Type ratings</strong> once it is renewed.
+        </p>
+      )}
+      {current.length > 0 && (
+        <div className="card cur-card rules-only">
+          <RulesNote rule={DEFAULT_RULES.passenger} title={`Passengers: ${rollingSubtitle(DEFAULT_RULES.passenger)}`} />
+          <RulesNote rule={DEFAULT_RULES.night} title={`At night: ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} />
         </div>
-      ))}
+      )}
     </>
+  );
+}
+
+const rollingPill = (c: RollingCheck): string => (c.status === 'green' ? 'Current' : c.status === 'amber' ? 'Expiring soon' : 'Lapsed');
+
+/** One line of a type card: status, then the counts and the date, in the space a class card gives a heading. */
+function CompactRolling({ label, check }: { label: string; check: RollingCheck }) {
+  const n = (c: RollingCurrency, word: string) => `${Math.min(c.count, 999)}/${c.need} ${word}`;
+  const days = check.daysLeft ?? 0;
+  const when = check.state === 'lapsed'
+    ? (check.validUntil ? ` · lapsed on ${formatShortDate(addDays(check.validUntil, 1))}` : '')
+    : check.state === 'expiring'
+      ? ` · lapses ${days === 0 ? 'after today' : `in ${days} day${days === 1 ? '' : 's'}`}`
+      : check.validUntil ? ` · current until ${formatShortDate(check.validUntil)}` : '';
+  return (
+    <div className="compact-rolling">
+      <div className="line">
+        <span className="what">{label}</span>
+        <StatusPill status={check.status} label={rollingPill(check)} />
+      </div>
+      <div className="hint">{`${n(check.takeoffs, 'take-offs')} · ${n(check.landings, 'landings')}${when}`}</div>
+    </div>
+  );
+}
+
+/**
+ * Recent experience for one type rating, kept to one card: a pilot can hold several ratings, and two
+ * full-size cards for each pushed the licence section far down the screen. The rating's name is the
+ * heading, so it is clear at a glance which rating each card is about.
+ */
+function TypeCurrencyCard({ rating, today, nightExempt }: { rating: TypeRating; today: IsoDate; nightExempt: boolean }) {
+  const { data } = useApp();
+  return (
+    <div className="card cur-card type-cur">
+      <h3 className="type-name">{rating.name}</h3>
+      <CompactRolling label="Passengers" check={passengerCurrency(data.flights, byType(rating.id), today)} />
+      {!nightExempt && <CompactRolling label="At night" check={nightCurrency(data.flights, byType(rating.id), today)} />}
+    </div>
   );
 }
 
