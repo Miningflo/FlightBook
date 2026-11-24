@@ -47,11 +47,30 @@ describe('GisTokenProvider', () => {
     expect(await Promise.all([a, b])).toEqual(['one', 'one']);
     expect(t.calls()).toBe(1);
   });
-  it('a background request that cannot be silent asks for sign-in instead of failing noisily', async () => {
-    const popup = setup((cfg) => cfg.error_callback?.({ type: 'popup_failed_to_open' }));
-    await expect(popup.provider.getToken({ interactive: false })).rejects.toBeInstanceOf(NeedsSignInError);
-    const needs = setup((cfg) => cfg.callback({ error: 'interaction_required' }));
-    await expect(needs.provider.getToken({ interactive: false })).rejects.toBeInstanceOf(NeedsSignInError);
+  it('a background request never opens Google\'s window: without a valid token it asks for sign-in', async () => {
+    // the window flashed up on every scheduled backup and every retry; it may only open from a tap
+    const t = setup((cfg) => cfg.callback({ access_token: 'abc', expires_in: 3600 }));
+    await expect(t.provider.getToken({ interactive: false })).rejects.toBeInstanceOf(NeedsSignInError);
+    await expect(t.provider.getToken()).rejects.toBeInstanceOf(NeedsSignInError);
+    expect(t.calls()).toBe(0);
+  });
+  it('a background request still uses a valid token, and asks again only once it has expired', async () => {
+    const t = setup((cfg, n) => cfg.callback({ access_token: `tok${n}`, expires_in: 3600 }));
+    await t.provider.getToken({ interactive: true });
+    expect(await t.provider.getToken()).toBe('tok1');
+    t.advance(3600 * 1000);
+    await expect(t.provider.getToken()).rejects.toBeInstanceOf(NeedsSignInError);
+    expect(t.calls()).toBe(1);
+  });
+  it('a background request joins a sign-in the user has already started', async () => {
+    let cb: Cfg['callback'] | null = null;
+    const t = setup((cfg) => { cb = cfg.callback; });
+    const tapped = t.provider.getToken({ interactive: true });
+    const background = t.provider.getToken();
+    await vi.waitFor(() => expect(cb).not.toBeNull());
+    cb!({ access_token: 'one', expires_in: 3600 });
+    expect(await Promise.all([tapped, background])).toEqual(['one', 'one']);
+    expect(t.calls()).toBe(1);
   });
   it('the same problems are explained to the user when they tapped the button', async () => {
     const blocked = setup((cfg) => cfg.error_callback?.({ type: 'popup_failed_to_open' }));
@@ -61,13 +80,8 @@ describe('GisTokenProvider', () => {
     const denied = setup((cfg) => cfg.callback({ error: 'access_denied' }));
     await expect(denied.provider.getToken({ interactive: true })).rejects.toThrow(/not granted/);
   });
-  it('gives up after the timeout (silently when in the background)', async () => {
-    const t = setup(() => { /* never answers */ });
-    const p = t.provider.getToken({ interactive: false });
-    const assertion = expect(p).rejects.toBeInstanceOf(NeedsSignInError);
-    await vi.advanceTimersByTimeAsync(5001);
-    await assertion;
-    const u = setup(() => {});
+  it('gives up after the timeout', async () => {
+    const u = setup(() => { /* never answers */ });
     const q = u.provider.getToken({ interactive: true });
     const assertion2 = expect(q).rejects.toBeInstanceOf(DriveError);
     await vi.advanceTimersByTimeAsync(5001);
