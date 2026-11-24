@@ -2,13 +2,17 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # pull requests get the same checks (lint, unit, end-to-end, build) without deploying
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
-  group: pages
+  # one deploy at a time; a pull request's run never cancels or waits for a deploy
+  group: ${{ github.event_name == 'pull_request' && format('checks-{0}', github.ref) || 'pages' }}
   cancel-in-progress: true
 jobs:
   build:
@@ -22,14 +26,25 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # end-to-end tests in a real browser (they build and serve the app themselves)
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
       - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-      - uses: actions/upload-pages-artifact@v3
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
