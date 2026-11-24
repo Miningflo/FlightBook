@@ -1,4 +1,5 @@
 import type { ClassRating, Flight, IsoDate, Minutes } from './types';
+import { CLASS_RATINGS } from './types';
 import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
 import { DEFAULT_RULES, type LanguageLevel, type Rules } from './rules';
 
@@ -107,7 +108,7 @@ export function nightCurrency(flights: Flight[], scope: CurrencyScope, today: Is
 
 // ---------- SEP class rating: revalidation by experience ----------
 
-export type SepState = 'not-set' | 'window-not-open' | 'requirements-met' | 'in-progress' | 'urgent' | 'expired';
+export type SepState = 'not-set' | 'window-not-open' | 'requirements-met' | 'met-sign-off' | 'in-progress' | 'urgent' | 'expired';
 
 export interface Progress {
   key: 'flight' | 'pic' | 'takeoffs' | 'landings' | 'training';
@@ -157,7 +158,13 @@ export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | unde
   const daysToExpiry = daysBetween(today, expiry);
   const base = { id: 'sep' as const, expiry, windowStart, daysToExpiry, progress };
   if (daysToExpiry < 0) return { ...base, status: 'red', state: 'expired' };
-  if (progress.every((p) => p.met)) return { ...base, status: 'green', state: 'requirements-met' };
+  if (progress.every((p) => p.met)) {
+    // Met is not the same as revalidated: until a new expiry date is entered the old one still stands, so
+    // close to it the card asks for the revalidation to be entered rather than staying green to the end.
+    return daysToExpiry <= rules.app.revalidationSignOffAmberDaysLeft
+      ? { ...base, status: 'amber', state: 'met-sign-off' }
+      : { ...base, status: 'green', state: 'requirements-met' };
+  }
   if (today < windowStart) return { ...base, status: 'green', state: 'window-not-open' };
   if (daysToExpiry <= rules.app.revalidationRedDaysLeft) return { ...base, status: 'red', state: 'urgent' };
   return { ...base, status: 'amber', state: 'in-progress' };
@@ -200,11 +207,26 @@ export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today
 // ---------- instrument rating ----------
 
 /**
- * Flights logged under OTHER that say nothing about which type rating they belong to. Those flights
- * count towards no currency at all, so the number has to be shown rather than quietly dropped.
+ * Flights logged under OTHER that count towards none of the type ratings held: either they name no
+ * rating, or they name one that is no longer in the list (removed, or brought in by an import from a
+ * logbook whose ratings had other ids). Either way they count towards no currency at all, so the
+ * number has to be shown rather than quietly dropped. `ratings` is required for that reason: without
+ * it a flight pointing at a removed rating would look assigned and vanish from every count.
  */
-export function unassignedTypeFlights(flights: Flight[]): Flight[] {
-  return flights.filter((f) => f.aircraftClass === 'OTHER' && !f.typeRatingId);
+export function unassignedTypeFlights(flights: Flight[], ratings: readonly { id: string }[]): Flight[] {
+  const held = new Set(ratings.map((r) => r.id));
+  return flights.filter((f) => f.aircraftClass === 'OTHER' && !(f.typeRatingId && held.has(f.typeRatingId)));
+}
+
+/**
+ * The class chips on the Currency screen. Every real class is always offered, so an expiry date can be
+ * entered before any flight is logged. Other is offered once there is something behind it: a flight
+ * logged under it, or a type rating held. A rating with no flights yet then shows as not current, the
+ * same way an empty class does, instead of not showing at all.
+ */
+export function currencyClasses(flights: Flight[], ratings: readonly { id: string }[]): ClassRating[] {
+  const other = ratings.length > 0 || flights.some((f) => f.aircraftClass === 'OTHER');
+  return CLASS_RATINGS.filter((c) => c !== 'OTHER' || other);
 }
 
 /** Route sectors for a type rating. Countable now that each flight names its rating (FCL.740.A(a)(2)). */

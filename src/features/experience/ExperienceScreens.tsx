@@ -82,7 +82,7 @@ export function ExperienceForm({ record }: { record?: PreviousExperience }) {
       <div className="card">
         <Field label="Source" error={err('source')} htmlFor="x-source"><input id="x-source" className="input" placeholder="e.g. Paper logbook vol. 1" value={d.source} onChange={(e) => setD({ ...d, source: e.target.value })} /></Field>
         <div className="grid2">
-          <Field label="From (optional)" error={err('periodFrom')} htmlFor="x-from"><input id="x-from" className="input" type="date" value={d.periodFrom ?? ''} onChange={(e) => setD({ ...d, periodFrom: e.target.value || null })} /></Field>
+          <Field label="From (optional)" error={err('periodFrom')} hint={d.periodFrom ? undefined : 'Without it, these hours count only in totals with no start date, such as All time.'} htmlFor="x-from"><input id="x-from" className="input" type="date" value={d.periodFrom ?? ''} onChange={(e) => setD({ ...d, periodFrom: e.target.value || null })} /></Field>
           <Field label="Up to and including" error={err('periodTo')} warning={warning('periodTo')} htmlFor="x-to"><input id="x-to" className="input" type="date" value={d.periodTo} onChange={(e) => setD({ ...d, periodTo: e.target.value })} /></Field>
         </div>
         <Field label="Note" htmlFor="x-note"><textarea id="x-note" className="input" value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} /></Field>

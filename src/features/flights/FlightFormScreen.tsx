@@ -135,7 +135,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const input = formToFlightInput(form, { attachmentIds: flight?.attachmentIds, previousOverrides: flight?.overrides });
+      const input = formToFlightInput(form, { attachmentIds: flight?.attachmentIds, previousOverrides: flight?.overrides, typeRatingIds: typeRatings.map((t) => t.id) });
       const saved = await writer.saveFlight(input, flight?.id);
       await reload();
       go({ name: 'flight', id: saved.id }, { replace: true });
@@ -238,7 +238,8 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
                       onClick={() => patch({ typeRatingId: form.typeRatingId === t.id ? null : t.id })}>{t.name}</button>
                   ))}
                 </div>
-                {form.typeRatingId === null && <p className="hint">Without a rating this flight counts towards no currency.</p>}
+                {/* a removed rating (remembered by the aircraft or the flight) leaves no chip selected: same case */}
+                {!typeRatings.some((t) => t.id === form.typeRatingId) && <p className="hint">Without a rating this flight counts towards no currency.</p>}
               </>
             )}
           </div>

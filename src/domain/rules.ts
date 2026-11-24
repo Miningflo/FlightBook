@@ -182,7 +182,9 @@ export const TYPE_RATING: ProficiencyRule = {
   verified: true,
   todo: [
     'Validity is 1 year "unless otherwise determined in the OSD" (FCL.740(a)(1)), and for many types the OSD does determine otherwise. Enter the expiry date from your licence; the app never works it out.',
-    'Limit: FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. The app does not count them: the logbook records a make and model per flight, not which type rating they fall under, and one rating can cover several models. The counter shown for MEP is not shown here for that reason.',
+    'FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. Each flight names the type rating it was flown under, so the sectors are counted per rating, on the same two readings as for MEP: every flight, and the subset that landed away.',
+    'Limit: the sectors are counted over the 12 months before the expiry date, which is the default 1-year validity. Where the OSD sets a different validity for your type, the window does not follow it.',
+    'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
     'A pilot flying for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt from the route sectors (FCL.740.A(a)(3)).',
     'If you fail a section of the check before expiry you may not use the rating until you have passed it (FCL.740.A(c)). An expired type rating is renewed under FCL.740(b), the same steps as a class rating.',
   ],
@@ -229,6 +231,12 @@ export const APP_THRESHOLDS: AppThresholds = {
   amberDaysBeforeLapse: 14,
   /** Revalidation requirements still unmet with this many days (or fewer) to expiry: red. */
   revalidationRedDaysLeft: 60,
+  /**
+   * Revalidation requirements met, but this many days (or fewer) to the expiry date: amber, as a reminder
+   * to have the revalidation entered in the licence. The logbook cannot see that it has been, so without
+   * this the card stayed green right up to the day the rating expired.
+   */
+  revalidationSignOffAmberDaysLeft: 30,
   proficiencyCheckRedDaysLeft: 30,
   licenceAmberDaysLeft: 90,
   licenceRedDaysLeft: 30,
@@ -250,6 +258,8 @@ export interface SepRule extends RuleSource {
 export interface AppThresholds {
   amberDaysBeforeLapse: number;
   revalidationRedDaysLeft: number;
+  /** Revalidation requirements met with this many days (or fewer) to expiry: amber, until the new expiry date is entered. */
+  revalidationSignOffAmberDaysLeft: number;
   /** Proficiency check still not done with this many days (or fewer) to expiry: red. */
   proficiencyCheckRedDaysLeft: number;
   /** A licence document (medical, language endorsement) expiring within this many days: amber. */
