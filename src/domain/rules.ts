@@ -231,6 +231,12 @@ export const APP_THRESHOLDS: AppThresholds = {
   amberDaysBeforeLapse: 14,
   /** Revalidation requirements still unmet with this many days (or fewer) to expiry: red. */
   revalidationRedDaysLeft: 60,
+  /**
+   * Revalidation requirements met, but this many days (or fewer) to the expiry date: amber, as a reminder
+   * to have the revalidation entered in the licence. The logbook cannot see that it has been, so without
+   * this the card stayed green right up to the day the rating expired.
+   */
+  revalidationSignOffAmberDaysLeft: 30,
   proficiencyCheckRedDaysLeft: 30,
   licenceAmberDaysLeft: 90,
   licenceRedDaysLeft: 30,
@@ -252,6 +258,8 @@ export interface SepRule extends RuleSource {
 export interface AppThresholds {
   amberDaysBeforeLapse: number;
   revalidationRedDaysLeft: number;
+  /** Revalidation requirements met with this many days (or fewer) to expiry: amber, until the new expiry date is entered. */
+  revalidationSignOffAmberDaysLeft: number;
   /** Proficiency check still not done with this many days (or fewer) to expiry: red. */
   proficiencyCheckRedDaysLeft: number;
   /** A licence document (medical, language endorsement) expiring within this many days: amber. */

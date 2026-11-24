@@ -108,7 +108,7 @@ export function nightCurrency(flights: Flight[], scope: CurrencyScope, today: Is
 
 // ---------- SEP class rating: revalidation by experience ----------
 
-export type SepState = 'not-set' | 'window-not-open' | 'requirements-met' | 'in-progress' | 'urgent' | 'expired';
+export type SepState = 'not-set' | 'window-not-open' | 'requirements-met' | 'met-sign-off' | 'in-progress' | 'urgent' | 'expired';
 
 export interface Progress {
   key: 'flight' | 'pic' | 'takeoffs' | 'landings' | 'training';
@@ -158,7 +158,13 @@ export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | unde
   const daysToExpiry = daysBetween(today, expiry);
   const base = { id: 'sep' as const, expiry, windowStart, daysToExpiry, progress };
   if (daysToExpiry < 0) return { ...base, status: 'red', state: 'expired' };
-  if (progress.every((p) => p.met)) return { ...base, status: 'green', state: 'requirements-met' };
+  if (progress.every((p) => p.met)) {
+    // Met is not the same as revalidated: until a new expiry date is entered the old one still stands, so
+    // close to it the card asks for the revalidation to be entered rather than staying green to the end.
+    return daysToExpiry <= rules.app.revalidationSignOffAmberDaysLeft
+      ? { ...base, status: 'amber', state: 'met-sign-off' }
+      : { ...base, status: 'green', state: 'requirements-met' };
+  }
   if (today < windowStart) return { ...base, status: 'green', state: 'window-not-open' };
   if (daysToExpiry <= rules.app.revalidationRedDaysLeft) return { ...base, status: 'red', state: 'urgent' };
   return { ...base, status: 'amber', state: 'in-progress' };

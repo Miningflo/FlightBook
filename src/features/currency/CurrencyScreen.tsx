@@ -165,11 +165,12 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
   const rule = DEFAULT_RULES.sep;
   const name = CLASS_RATING_LABELS[cls];
   const days = check.daysToExpiry ?? 0;
-  const pill = { green: 'OK', amber: 'In progress', red: check.state === 'expired' ? 'Expired' : 'Urgent', unknown: 'Not set' }[check.status];
+  const pill = { green: 'OK', amber: check.state === 'met-sign-off' ? 'Sign-off due' : 'In progress', red: check.state === 'expired' ? 'Expired' : 'Urgent', unknown: 'Not set' }[check.status];
   const headline: Record<string, string> = {
     'not-set': 'Set your expiry date',
     'window-not-open': `Valid until ${check.expiry ? formatShortDate(check.expiry) : ''}`,
     'requirements-met': 'Experience requirements met',
+    'met-sign-off': days === 0 ? 'Requirements met · expires today' : `Requirements met · ${days} day${days === 1 ? '' : 's'} to expiry`,
     'in-progress': `${days} days to expiry`,
     urgent: days === 0 ? 'Expires today' : `Only ${days} day${days === 1 ? '' : 's'} left`,
     expired: `Expired on ${check.expiry ? formatShortDate(check.expiry) : ''}`,
@@ -178,6 +179,7 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
     'not-set': `Enter the expiry date of your ${name} class rating to track revalidation.`,
     'window-not-open': `Experience counts from ${check.windowStart ? formatShortDate(check.windowStart) : ''}.`,
     'requirements-met': `Valid until ${check.expiry ? formatShortDate(check.expiry) : ''}. Revalidate before then.`,
+    'met-sign-off': `Have the revalidation entered in your licence before ${check.expiry ? formatShortDate(check.expiry) : ''}, then enter the new expiry date below.`,
     'in-progress': 'Requirements not yet met.',
     urgent: 'Requirements not yet met.',
     expired: 'Revalidation is no longer possible; the rating must be renewed.',
