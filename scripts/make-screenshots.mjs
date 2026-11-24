@@ -1,8 +1,9 @@
 /**
  * Regenerates the README screenshots from a built app and the demo logbook.
  *
- *   npm install --no-save playwright-core       # once: this script needs it, the app does not
- *   npx playwright-core install chromium         # once: the browser for that version
+ *   npm install --no-save playwright-core pdfjs-dist  # once: this script needs them, the app does not.
+ *                                                      # One command: a later --no-save install drops the earlier one.
+ *   npx playwright-core install chromium              # once: the browser for that version
  *   npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
  *   VITE_BASE=/FlightBook/ npm run build
  *   VITE_BASE=/FlightBook/ npx vite preview --port 4330 --strictPort &
@@ -20,19 +21,35 @@
  * Planespotters is blocked for the whole run, so the aircraft photos can only come from Wikimedia Commons.
  * That is a licensing requirement, not a preference: Commons photos are freely licensed and can be credited
  * (see the photo credits in README.md), Planespotters photos are not and must never end up committed under
- * docs/. The run prints the credit for every photo it actually used, taken from the app's own photo cache,
- * so the README is written from what was really shown rather than from what was expected.
+ * docs/.
+ *
+ * Attribution is part of the run, not a follow-up chore. Each screenshot records which photos are visible in
+ * it; at the end the credits (title, author, licence, source, and which screenshot shows them) are built from
+ * the app's own photo cache, written to docs/screenshots/photo-credits.json, and written into the README's
+ * "Photo credits" section (see photo-credits.mjs). The screenshots are taken into a temporary folder and only
+ * copied into docs/screenshots once every photo in them can be credited: if one cannot (no author, no
+ * licence, not from Commons, or a licence that cannot be combined under CC BY-SA 4.0), the run stops and
+ * changes nothing, so an uncredited photo can never be committed. A unit test keeps the README section and
+ * the JSON in step.
  *
  * An optional third argument is an OurAirports airports.csv; with it, the airport names and the map work.
  */
 import { chromium } from 'playwright-core';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CreditError, publish } from './photo-credits.mjs';
 
 const [url, demoPath, airportsPath] = process.argv.slice(2);
 if (!url || !demoPath) { console.error('usage: make-screenshots.mjs <app-url> <demo.json> [airports.csv]'); process.exit(1); }
 
 const OUT = 'docs/screenshots';
+/** Shots land here first, and are copied to OUT only once every photo in them is credited. */
+const STAGE = mkdtempSync(join(tmpdir(), 'flightbook-shots-'));
+// removed however the run ends: success, refusal, an error, or process.exit
+process.on('exit', () => rmSync(STAGE, { recursive: true, force: true }));
+/** What each screenshot shows: { file, imageUrls } in the order they were taken. */
+const shots = [];
 const DEMO_TODAY = '2026-11-23T09:30:00Z';
 /** 412x915 at 2x: the same frame as the screenshots that were already in the README. */
 const PHONE = { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2 };
@@ -130,8 +147,63 @@ async function shot(page, name, { anchor, offset = 76 } = {}) {
     }, offset);
     if (!ok) throw new Error(`${name}: the anchor ${anchor} is not in frame after scrolling`);
   }
-  await page.screenshot({ path: `${OUT}/${name}.png` });
-  console.log(`${OUT}/${name}.png`);
+  // which photos are on screen in this shot: they all have to be credited
+  const imageUrls = await page.$$eval('.photo img', (els) => els.filter((e) => {
+    const r = e.getBoundingClientRect();
+    return e.complete && e.naturalWidth > 0 && r.width > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+  }).map((e) => e.getAttribute('src')));
+  shots.push({ file: `${name}.png`, imageUrls: [...new Set(imageUrls)] });
+  await page.screenshot({ path: join(STAGE, `${name}.png`) });
+  console.log(`${name}.png${imageUrls.length ? ` (${imageUrls.length} photo${imageUrls.length === 1 ? '' : 's'})` : ''}`);
+}
+
+/**
+ * pdf-logbook.png: a page of the PDF the app itself generated, rendered with pdf.js in the same browser (no
+ * PDF tool needed on the machine). The page shown is the first one with two simulator sessions on it, which
+ * is what the README's caption describes; the PDF carries no photos, so it needs no credit.
+ */
+async function renderPdfPage(pdfPath, width = 1287) {
+  const ctx = await browser.newContext({ viewport: { width: width + 40, height: 1000 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  const base = 'https://pdf-render.invalid/';
+  // the legacy build: it runs in older engines too, such as the Chromium a pinned playwright-core brings
+  const build = join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build');
+  if (!existsSync(join(build, 'pdf.min.mjs'))) throw new Error('pdf.js is missing: npm install --no-save playwright-core pdfjs-dist');
+  await page.route(`${base}**`, (route) => {
+    const name = new URL(route.request().url()).pathname.slice(1);
+    if (name === 'index.html') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><body style="margin:0;background:#fff"><canvas id="c"></canvas></body>' });
+    if (name === 'logbook.pdf') return route.fulfill({ contentType: 'application/pdf', path: pdfPath });
+    if (name === 'pdf.mjs') return route.fulfill({ contentType: 'text/javascript', path: join(build, 'pdf.min.mjs') });
+    if (name === 'pdf.worker.mjs') return route.fulfill({ contentType: 'text/javascript', path: join(build, 'pdf.worker.min.mjs') });
+    // the PDF uses the standard Helvetica without embedding it; without pdf.js's own font data it falls back to
+    // a font with other metrics, and the totals rows came out as "TOTAL FROMPREVIOUS PAGES"
+    if (name.startsWith('standard_fonts/')) return route.fulfill({ path: join(process.cwd(), 'node_modules/pdfjs-dist', name) });
+    return route.fulfill({ status: 404, body: '' });
+  });
+  await page.goto(`${base}index.html`);
+  const r = await page.evaluate(async ({ base, width }) => {
+    const pdfjs = await import(`${base}pdf.mjs`);
+    pdfjs.GlobalWorkerOptions.workerSrc = `${base}pdf.worker.mjs`;
+    // useSystemFonts: false, or the browser's own (missing) fonts are preferred over pdf.js's Helvetica-metric ones
+    const doc = await pdfjs.getDocument({ url: `${base}logbook.pdf`, standardFontDataUrl: `${base}standard_fonts/`, useSystemFonts: false }).promise;
+    let chosen = 0;
+    for (let n = 1; n <= doc.numPages && !chosen; n++) {
+      const text = (await (await doc.getPage(n)).getTextContent()).items.map((i) => i.str).join(' ');
+      if ((text.match(/FNPT|BITD/g) ?? []).length >= 2) chosen = n;
+    }
+    if (!chosen) return { chosen, of: doc.numPages };
+    const pg = await doc.getPage(chosen);
+    const viewport = pg.getViewport({ scale: width / pg.getViewport({ scale: 1 }).width });
+    const canvas = document.getElementById('c');
+    canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+    await pg.render({ canvas, canvasContext: canvas.getContext('2d'), viewport }).promise;
+    return { chosen, of: doc.numPages };
+  }, { base, width });
+  if (!r.chosen) throw new Error(`pdf-logbook: none of the ${r.of} PDF pages has two simulator sessions; the README caption would be wrong`);
+  await page.locator('#c').screenshot({ path: join(STAGE, 'pdf-logbook.png') });
+  shots.push({ file: 'pdf-logbook.png', imageUrls: [] });
+  console.log(`pdf-logbook.png (page ${r.chosen} of ${r.of})`);
+  await ctx.close();
 }
 
 /** Credits for the photos this context loaded, printed and checked. */
@@ -185,7 +257,7 @@ await (await dl).saveAs('/tmp/demo-logbook.pdf');
 console.log('/tmp/demo-logbook.pdf');
 await shot(light.page, 'export', { anchor: '#pilot-name', offset: 110 }); // 110: keep the field's label in frame
 
-console.log('\n--- aircraft photos used (for the README credits) ---');
+console.log('\n--- aircraft photos the app looked up (credited below, per screenshot) ---');
 const lightCredits = await reportCredits(light.page, 'light');
 await light.ctx.close();
 
@@ -222,7 +294,18 @@ if (airportsPath) {
 const darkCredits = await reportCredits(dark.page, 'dark');
 await dark.ctx.close();
 
+await renderPdfPage('/tmp/demo-logbook.pdf');
+
 await browser.close();
 
-const all = new Map([...lightCredits, ...darkCredits].map((c) => [c.registration, c]));
-console.log(`\n${all.size} aircraft photo(s) in the screenshots, all from Wikimedia Commons.`);
+// ---------- credits: nothing reaches docs/ unless every photo in it is credited ----------
+let credits;
+try {
+  credits = publish({ shots, cache: [...lightCredits, ...darkCredits], stage: STAGE, out: OUT, readmePath: 'README.md' });
+} catch (e) {
+  if (!(e instanceof CreditError)) throw e;
+  console.error(`\nNOT WRITTEN: ${e.message}\nThe screenshots in ${OUT} and the README are unchanged.`);
+  process.exit(1);
+}
+console.log(`\n${shots.length} screenshots written to ${OUT}; ${credits.length} third-party photo(s), credited in README.md and ${OUT}/photo-credits.json:`);
+for (const c of credits) console.log(`  ${c.registration} | "${c.title}" | ${c.artist} | ${c.license} | ${c.files.join(', ')}`);

@@ -1,0 +1,30 @@
+{
+  "generatedBy": "scripts/make-screenshots.mjs",
+  "photos": [
+    {
+      "registration": "OO-CEU",
+      "title": "Keiheuvel Cessna 172S Skyhawk OO-CEU 02",
+      "artist": "Ad Meskens",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG",
+      "imageUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b3/Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG/960px-Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "files": [
+        "logbook.png",
+        "flight.png"
+      ]
+    },
+    {
+      "registration": "OO-ILS",
+      "title": "Piper PA28-181 OO-ILS (8439360388)",
+      "artist": "Alan Wilson",
+      "license": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:Piper_PA28-181_OO-ILS_(8439360388).jpg",
+      "imageUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a6/Piper_PA28-181_OO-ILS_%288439360388%29.jpg/960px-Piper_PA28-181_OO-ILS_%288439360388%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "files": [
+        "logbook.png"
+      ]
+    }
+  ]
+}

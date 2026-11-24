@@ -1,13 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
 import { CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type Flight, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
-import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, currencyClasses, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
+import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SectorProgress, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, currencyClasses, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, checkDate, formatHHMM, isValidIsoDate } from '../../domain/time';
 import { uuid } from '../../domain/id';
 import { Bar, Dialog, Field, StatusPill } from '../../ui/components';
 import { aircraftLabel, formatDate, formatShortDate } from '../flights/format';
 import { ChevronIcon } from '../../ui/Icons';
+import { currencyRoute } from '../../hooks';
 
 function RulesNote({ rule, extra, title = 'How this is calculated' }: { rule: RuleSource; extra?: ReactNode; title?: string }) {
   return (
@@ -248,13 +249,12 @@ function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }
       <div className="hint">{sub[check.state]}</div>
       {sectors && check.state !== 'expired' && (
         <>
-          <Row label="Route sectors: flights between different aerodromes" have={sectors.routeFlights} need={sectors.need} display={`${sectors.routeFlights} / ${sectors.need}`} ok={sectors.met} />
-          <Row label="…counting local flights too" have={sectors.flights} need={sectors.need} display={`${sectors.flights} / ${sectors.need}`} ok={sectors.metIfLocalCount} />
+          <SectorRows sectors={sectors} back={cls} />
           <div className="hint">
-            Part-FCL does not say what a route sector is. The only EASA definition (ORO.FTL.105) is one flight,
-            block to block, which would count local flights; "route" is usually read as a flight that lands
-            somewhere else. Both are shown, and the status follows the stricter one. Either way, 1 route sector
-            flown with an examiner also satisfies the requirement, and that may be the proficiency check itself.
+            A route sector is a flight with take-off, departure, at least 15 minutes of cruise, arrival, approach
+            and landing (FCL.010), so a local flight can count and a short hop may not. The logbook does not
+            record the cruise, so only flights you mark as route sectors are counted. 1 route sector flown with
+            an examiner also satisfies the requirement, and that may be the proficiency check itself.
           </div>
           <RulesNote rule={DEFAULT_RULES.mepSectors} title="How route sectors are counted" />
         </>
@@ -412,24 +412,29 @@ function LanguageCard({ today }: { today: IsoDate }) {
 const STRANDED_SHOWN = 5;
 
 /**
- * The flights the card above counts, so they can be found and fixed: a count alone said "open them" with
- * no way of knowing which. Each one opens straight into the edit form, where the rating is picked; a
- * read-only viewer cannot edit, so it opens the flight instead. Newest first, like the logbook.
+ * Flights a card needs you to look at, so they can be found and fixed: a count alone said "open them" with
+ * no way of knowing which. Each one opens straight into the edit form, which returns here (`back` is the
+ * class chip to come back to); a read-only viewer cannot edit, so it opens the flight instead. Newest first.
  */
-function StrandedFlightList({ flights }: { flights: Flight[] }) {
+function FlightLinkList({ flights, back, action, detail }: {
+  flights: Flight[]; back: ClassRating;
+  /** What to do in the form, e.g. "pick the rating". */
+  action: string;
+  detail?: (f: Flight) => string;
+}) {
   const { canEdit, go } = useApp();
   const [all, setAll] = useState(false);
   const shown = all ? flights : flights.slice(0, STRANDED_SHOWN);
   return (
     <>
-      <div className="hint" style={{ marginTop: 8 }}>{canEdit ? `Tap ${flights.length === 1 ? 'it' : 'one'} to pick the rating.` : 'Pick the rating on the master device.'}</div>
+      <div className="hint" style={{ marginTop: 8 }}>{canEdit ? `Tap ${flights.length === 1 ? 'it' : 'one'} to ${action}.` : `Do this on the master device: ${action}.`}</div>
       <ul className="link-list">
         {shown.map((f) => (
           <li key={f.id}>
-            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id, from: 'unassigned' } : { name: 'flight', id: f.id })}>
+            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id, from: back } : { name: 'flight', id: f.id })}>
               <span>
                 <span className="main">{formatDate(f.date)} · {f.depPlace} → {f.arrPlace}</span>
-                <span className="hint">{f.registration} · {aircraftLabel(f)}{f.typeRatingId ? ' · rating removed' : ''}</span>
+                <span className="hint">{f.registration} · {aircraftLabel(f)} · {formatHHMM(f.totalMin)}{detail?.(f) ?? ''}</span>
               </span>
               <ChevronIcon />
             </button>
@@ -438,6 +443,26 @@ function StrandedFlightList({ flights }: { flights: Flight[] }) {
       </ul>
       {!all && flights.length > STRANDED_SHOWN && (
         <button type="button" className="btn text" onClick={() => setAll(true)}>Show all {flights.length}</button>
+      )}
+    </>
+  );
+}
+
+/**
+ * Route sectors for a multi-engine class or a type rating. Only flights marked as route sectors on the form
+ * count (FCL.010 needs 15 minutes of cruise, which the logbook does not record); the rest of the period's
+ * flights are listed under a fold so they can be checked and marked.
+ */
+function SectorRows({ sectors, back }: { sectors: SectorProgress; back: ClassRating }) {
+  const n = sectors.unmarked.length;
+  return (
+    <>
+      <Row label="Route sectors (marked on the flight)" have={sectors.sectors} need={sectors.need} display={`${sectors.sectors} / ${sectors.need}`} ok={sectors.met} />
+      {n > 0 && !sectors.met && (
+        <details className="rules">
+          <summary><span>{n} flight{n === 1 ? '' : 's'} in this period not marked as a route sector</span></summary>
+          <FlightLinkList flights={sectors.unmarked} back={back} action="mark it as a route sector if it had at least 15 minutes of cruise" />
+        </details>
       )}
     </>
   );
@@ -463,7 +488,7 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
             rating you hold (none was picked, or it has been removed), so {stranded.length === 1 ? 'it counts' : 'they count'} towards no
             currency at all.
           </div>
-          <StrandedFlightList flights={stranded} />
+          <FlightLinkList flights={stranded} back="OTHER" action="pick the rating" detail={(f) => (f.typeRatingId ? ' · rating removed' : '')} />
         </div>
       )}
       {!anyOther && (
@@ -544,7 +569,8 @@ function removalWarning(flights: number): string {
  * date. Flights in a type-rated aeroplane are logged under the OTHER class, which is why nothing here
  * is driven by the class chips.
  */
-function TypeRatingsCard({ today }: { today: IsoDate }) {
+/** `cls`: the class chip on screen, so a flight opened from here comes back to the same view. */
+function TypeRatingsCard({ today, cls }: { today: IsoDate; cls: ClassRating }) {
   const { data, canEdit, updateSettings } = useApp();
   const ratings = data.settings.typeRatings ?? [];
   const [adding, setAdding] = useState(false);
@@ -579,9 +605,7 @@ function TypeRatingsCard({ today }: { today: IsoDate }) {
                 : c.state === 'window-not-open' ? `Valid until ${formatShortDate(t.expiry)}. The check may be taken from ${c.windowStart ? formatShortDate(c.windowStart) : ''}.`
                 : `Proficiency check due · ${days} day${days === 1 ? '' : 's'} to expiry (${formatShortDate(t.expiry)}).`}
             </div>
-            {sec && c.state !== 'expired' && (
-              <div className="hint">Route sectors: {sec.routeFlights} of {sec.need} between different aerodromes ({sec.flights} counting local flights).</div>
-            )}
+            {sec && c.state !== 'expired' && <SectorRows sectors={sec} back={cls} />}
             {canEdit && (
               <div className="row">
                 {/* clearing a type rating's date removes the rating itself, so the button has to say so, and it
@@ -626,11 +650,14 @@ export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
   const classes = useMemo(() => currencyClasses(data.flights, data.settings.typeRatings ?? []), [data.flights, data.settings.typeRatings]);
   const picked: ClassRating = routeCls ?? 'SEP_LAND';
   // the default chip keeps the plain address; replace, so chips do not pile up in the history
-  const setCls = (c: ClassRating) => go({ name: 'currency', ...(c === 'SEP_LAND' ? {} : { cls: c }) }, { replace: true });
+  const setCls = (c: ClassRating) => go(currencyRoute(c), { replace: true });
   // the picked chip can disappear (the last type rating and Other flight removed): fall back rather than show a chip-less panel
   const cls: ClassRating = classes.includes(picked) ? picked : 'SEP_LAND';
-  const passengers = useMemo(() => passengerCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
-  const night = useMemo(() => nightCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
+  // one scope object per class: byClass(cls) inline in the dependency list made a new object every render,
+  // so both counts were recomputed on every render (found by the react-hooks lint rule)
+  const scope = useMemo(() => byClass(cls), [cls]);
+  const passengers = useMemo(() => passengerCurrency(data.flights, scope, today), [data.flights, scope, today]);
+  const night = useMemo(() => nightCurrency(data.flights, scope, today), [data.flights, scope, today]);
   const expiry = classExpiryOf(data.settings, cls);
   const experience = useMemo(() => sepRevalidation(data.flights, expiry, today, DEFAULT_RULES, cls), [data.flights, expiry, today, cls]);
   const check = useMemo(() => proficiencyCheckStatus(expiry, today), [expiry, today]);
@@ -641,6 +668,9 @@ export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
     <div>
       <p className="hint" style={{ margin: '0 4px 12px' }}>
         Status as of {formatShortDate(today)}. Currency uses logged take-offs and landings; carry-in records have no dates and are not counted.
+      </p>
+      <p className="hint" style={{ margin: '0 4px 12px' }}>
+        A guide, not an approval: you remain responsible for your currency and ratings. Check your licence and the authority that issued it.
       </p>
       <div className="range-chips" role="group" aria-label="Aircraft class">
         {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}
@@ -660,7 +690,7 @@ export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
       {/* Not class ratings: held once, and they apply whatever you are flying. */}
       <h2 className="section-label">Your licence</h2>
       <IrCard today={today} />
-      <TypeRatingsCard today={today} />
+      <TypeRatingsCard today={today} cls={cls} />
       <MedicalCard today={today} />
       <LanguageCard today={today} />
     </div>

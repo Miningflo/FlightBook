@@ -134,7 +134,8 @@ describe('type ratings in the alerts', () => {
 
 describe('MEP route sectors in the rating alert', () => {
   const expiry = '2026-06-01';              // validity window runs 2025-06-02 .. 2026-06-01
-  const mep = (d: string, away = true) => ({ ...flight(d), aircraftClass: 'MEP_LAND' as const, depPlace: 'EBKT', arrPlace: away ? 'EBOS' : 'EBKT' });
+  // only flights marked as route sectors count (FCL.010: at least 15 min of cruise, which the logbook cannot see)
+  const mep = (d: string, marked = true) => ({ ...flight(d), aircraftClass: 'MEP_LAND' as const, routeSector: marked });
   const level = (flights: ReturnType<typeof mep>[], on: string) =>
     watchedItems(flights, { classExpiry: { MEP_LAND: expiry } as never }, on).find((i) => i.key === 'MEP_LAND:rating')!;
 
@@ -161,11 +162,12 @@ describe('MEP route sectors in the rating alert', () => {
     expect(a.level).toBe('amber');
     expect(a.title).toMatch(/proficiency check due/i); // the check, not the sectors
   });
-  it('mentions the wider reading when local flights would have met it', () => {
-    const local = Array.from({ length: 12 }, (_, i) => mep(`2025-08-${String(i + 1).padStart(2, '0')}`, false));
-    const a = level(local, '2026-01-01');
+  it('does not count unmarked flights, however many, but says they are there to be checked', () => {
+    const unmarked = Array.from({ length: 12 }, (_, i) => mep(`2025-08-${String(i + 1).padStart(2, '0')}`, false));
+    const a = level(unmarked, '2026-01-01');
     expect(a.level).toBe('amber');
-    expect(a.body).toMatch(/12 if local flights count/);
+    expect(a.body).toMatch(/0 of 10 route sectors/);
+    expect(a.body).toMatch(/12 more flights in the period are not marked as a route sector/);
   });
   it('does not override a check-window warning that is already more urgent', () => {
     expect(level([], '2026-05-25').level).toBe('red'); // inside the 30-day red threshold

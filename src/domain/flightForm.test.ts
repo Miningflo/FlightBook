@@ -325,3 +325,38 @@ describe('type rating on save', () => {
     expect(formToFlightInput(updateForm(typed('t'), { aircraftClass: 'SEP_LAND', engineClass: 'SP-SE' }), { typeRatingIds: ['t'] }).typeRatingId).toBeNull();
   });
 });
+
+describe('route sectors and supervised PIC time', () => {
+  const pic = (over: Partial<ReturnType<typeof base>> = {}) => {
+    const s = updateForm(base(), over);
+    return updateForm(s, { roles: toggleRole(s.roles, 'PIC', s.totalMin) });
+  };
+  const warnings = (s: ReturnType<typeof base>) => validateForm(s).filter((i) => i.severity === 'warning').map((i) => i.field);
+  it('keeps a route sector on a multi-engine or type-rated flight', () => {
+    expect(formToFlightInput(pic({ aircraftClass: 'MEP_LAND', engineClass: 'SP-ME', routeSector: true })).routeSector).toBe(true);
+    expect(formToFlightInput(pic({ aircraftClass: 'OTHER', engineClass: 'MP', routeSector: true })).routeSector).toBe(true);
+  });
+  it('drops it for a class that does not count route sectors, so a class change never leaves one behind', () => {
+    expect(formToFlightInput(pic({ aircraftClass: 'SEP_LAND', routeSector: true })).routeSector).toBe(false);
+  });
+  it('reopens a flight with its route sector, and an older flight without the field as not marked', () => {
+    const input = formToFlightInput(pic({ aircraftClass: 'MEP_LAND', engineClass: 'SP-ME', routeSector: true }));
+    const { picName: _p, engineClass: _e, ...rest } = input;
+    const stored: Flight = { ...rest, id: 'x', aircraftId: 'a', picNameId: 'p', createdAt: 1, updatedAt: 1 };
+    expect(formFromFlight(stored, 'SELF').routeSector).toBe(true);
+    const { routeSector: _r, ...older } = stored;
+    expect(formFromFlight(older as Flight, 'SELF').routeSector).toBe(false);
+  });
+  it('warns when a flight marked as a route sector is too short to contain 15 minutes of cruise', () => {
+    const short = setTotal(pic({ aircraftClass: 'MEP_LAND', engineClass: 'SP-ME', routeSector: true }), 12);
+    expect(warnings(short)).toContain('routeSector');
+    expect(warnings(pic({ aircraftClass: 'MEP_LAND', engineClass: 'SP-ME', routeSector: true }))).not.toContain('routeSector');
+  });
+  it('asks for PICUS and SPIC time to be entered as PIC (AMC1 FCL.050)', () => {
+    const spicAsDual = (() => { const s = updateForm(base(), { isSpic: true }); return updateForm(s, { roles: toggleRole(s.roles, 'DUAL', s.totalMin) }); })();
+    expect(warnings(spicAsDual)).toContain('supervisedPic');
+    expect(validateForm(spicAsDual).find((i) => i.field === 'supervisedPic')!.message).toMatch(/SPIC time is entered as PIC/);
+    expect(warnings(pic({ isSpic: true }))).not.toContain('supervisedPic');
+    expect(warnings(pic())).not.toContain('supervisedPic');
+  });
+});

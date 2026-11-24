@@ -104,3 +104,13 @@ describe('snapshotRecords', () => {
     expect(snapshotRecords(snap()).hidden).toBe(0);
   });
 });
+
+describe('schema 3: route sectors', () => {
+  it('reads a schema 2 backup unchanged: its flights are simply not marked as route sectors', () => {
+    const v2 = { ...snap(), schemaVersion: 2 };
+    const parsed = parseSnapshot(JSON.stringify(v2));
+    expect(parsed.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+    expect(parsed.flights.every((f) => f.routeSector === undefined)).toBe(true);
+    expect(snapshotToBundle(parsed).bundle.flights.every((f) => f.routeSector === false)).toBe(true);
+  });
+});

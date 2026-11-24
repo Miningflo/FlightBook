@@ -97,7 +97,7 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
         if (extras.settings.languageLevel && !cur.languageLevel) { patch.languageLevel = extras.settings.languageLevel; result.settingsApplied.push('languageLevel'); }
         if (extras.settings.typeRatings?.length && !cur.typeRatings?.length) { patch.typeRatings = extras.settings.typeRatings; result.settingsApplied.push('typeRatings'); }
         const missing = Object.entries(extras.settings.classExpiry ?? {}).filter(([k, v]) => v && !cur.classExpiry?.[k as ClassRating]);
-        if (missing.length > 0) { patch.classExpiry = { ...(cur.classExpiry ?? {}), ...Object.fromEntries(missing) }; result.settingsApplied.push('classExpiry'); }
+        if (missing.length > 0) { patch.classExpiry = { ...cur.classExpiry, ...Object.fromEntries(missing) }; result.settingsApplied.push('classExpiry'); }
         if (Object.keys(patch).length > 0) await db.settings.put({ ...cur, ...patch });
       }
     }

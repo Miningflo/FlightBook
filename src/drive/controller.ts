@@ -166,7 +166,7 @@ export class DriveController {
   async refreshViewer(interactive: boolean): Promise<void> {
     if (!this.d.configured) return;
     const keep = this.state.viewer.info ? this.state.viewer : null;
-    this.set({ viewer: { ...(keep ?? {}), status: 'loading' } });
+    this.set({ viewer: { ...keep, status: 'loading' } });
     try {
       if (this.d.isOnline && !this.d.isOnline()) throw new DriveUnreachableError();
       const svc = this.readerService();

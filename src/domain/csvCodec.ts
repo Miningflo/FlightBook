@@ -64,10 +64,20 @@ function date<T>(key: keyof T & string, header: string, required = false): Col<T
   };
 }
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
+/**
+ * A UTC time, strictly. Date.parse quietly rolls an impossible date or time over ("2025-02-30T10:00Z" becomes
+ * 2 March), so the parsed value must print back as the same date, hour and minute that were written.
+ */
+function parseInstant(text: string): number | null {
+  const c = text.trim();
+  if (!INSTANT.test(c)) return null;
+  const ms = Date.parse(c);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 16) === c.slice(0, 16) ? ms : null;
+}
 function instant<T>(key: keyof T & string, header: string, required = false): Col<T> {
   return {
     header, required, format: (r) => new Date(Number(r[key])).toISOString(),
-    parse: (c) => (INSTANT.test(c.trim()) && !Number.isNaN(Date.parse(c.trim())) ? Date.parse(c.trim()) : fail(`"${c}" is not a UTC time like 2025-06-01T09:30:00Z`)), apply: (d, v) => { d[key] = v; },
+    parse: (c) => parseInstant(c) ?? fail(`"${c}" is not a UTC time like 2025-06-01T09:30:00Z`), apply: (d, v) => { d[key] = v; },
   };
 }
 function bool<T>(key: keyof T & string, header: string): Col<T> {
@@ -110,6 +120,7 @@ export const FLIGHT_COLUMNS: Col<FlightImport>[] = [
   // the id, not a name: type ratings live in settings, which travel with a JSON backup, so the link
   // survives a restore. A CSV on its own carries flights only, so the column is informational there.
   nullableText('typeRatingId', 'type_rating_id'),
+  bool('routeSector', 'route_sector'),
   duration('spSeMin', 'sp_se'), duration('spMeMin', 'sp_me'), duration('mpMin', 'mp'), duration('totalMin', 'total', true),
   text('picName', 'pic_name', true),
   int('takeoffsDay', 'takeoffs_day'), int('takeoffsNight', 'takeoffs_night'), int('landingsDay', 'landings_day'), int('landingsNight', 'landings_night'),
@@ -235,6 +246,8 @@ export function decodeFlights(text: string, ids: () => string, now: number): Dec
       aircraftVariant: String(d.aircraftVariant ?? '').trim(), aircraftClass: d.aircraftClass as ClassRating,
       // an empty optional cell never reaches apply(), so the absent case is defaulted here
       typeRatingId: (d.typeRatingId as string | null | undefined) ?? null,
+      // a route sector is never assumed (FCL.010 needs 15 min of cruise, which a CSV does not say)
+      routeSector: (d.routeSector as boolean | undefined) ?? false,
       spSeMin: noSplit ? total : se ?? 0, spMeMin: me ?? 0, mpMin: mp ?? 0, totalMin: total,
       picName: String(d.picName).trim().replace(/\s+/g, ' '),
       takeoffsDay: (d.takeoffsDay as number | undefined) ?? 0, takeoffsNight: (d.takeoffsNight as number | undefined) ?? 0,

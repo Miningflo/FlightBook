@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../AppContext';
-import type { Airport, Flight, Role } from '../../domain/types';
+import type { Airport, ClassRating, Flight, Role } from '../../domain/types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS, ENGINE_CLASSES, ROLES } from '../../domain/types';
 import {
   type FlightFormState,
@@ -29,13 +29,14 @@ import {
 } from '../../domain/suggestions';
 import { Dialog, DurationField, Field, Stepper, keepFocus } from '../../ui/components';
 import { MoonIcon } from '../../ui/Icons';
-import type { Route } from '../../hooks';
+import { routeSectorApplies } from '../../domain/currency';
+import { type Route, currencyRoute } from '../../hooks';
 
 /**
- * `from: 'unassigned'`: opened from the Currency list of flights without a type rating. Saving, cancelling
- * and deleting then go back to that list, ready for the next flight, instead of to the flight or the logbook.
+ * `from`: opened from a list on the Currency screen. Saving, cancelling and deleting then go back to that
+ * list, ready for the next flight, instead of to the flight or the logbook.
  */
-export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: 'unassigned' }) {
+export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: ClassRating }) {
   const { data, writer, go, reload, airports } = useApp();
   const typeRatings = data.settings.typeRatings ?? [];
   const editing = flight !== undefined;
@@ -129,7 +130,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: 'un
   const onRole = (r: Role) => setForm((s) => updateForm(s, { roles: toggleRole(s.roles, r, s.totalMin) }));
 
   const cancel = () => (dirty ? setConfirmDiscard(true) : leave());
-  const backTo: Route | null = from === 'unassigned' ? { name: 'currency', cls: 'OTHER' } : null;
+  const backTo: Route | null = from ? currencyRoute(from) : null;
   const leave = () => go(backTo ?? (editing ? { name: 'flight', id: flight.id } : { name: 'list' }), { replace: true });
 
   const save = async () => {
@@ -250,6 +251,17 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: 'un
             )}
           </div>
         )}
+        {/* Multi-engine classes and type ratings need 10 route sectors per validity period (FCL.740.A(a)(2)).
+            The cruise is not recorded, so the pilot says whether the flight was one; it is never guessed. */}
+        {routeSectorApplies(form.aircraftClass) && (
+          <div className="field">
+            <div className="chips">
+              <button type="button" className="chip" aria-pressed={form.routeSector} onMouseDown={keepFocus} onClick={() => patch({ routeSector: !form.routeSector })}>Route sector</button>
+            </div>
+            <p className="hint">Take-off to landing with at least 15 minutes of cruise (FCL.010). Counts towards the 10 route sectors for revalidating this rating.</p>
+            {warn('routeSector') && form.routeSector && <div className="msg warning">{warn('routeSector')}</div>}
+          </div>
+        )}
         <div className="field">
           <span className="label">Pilot time category</span>
           <div className="chips" role="group" aria-label="Pilot time category">
@@ -286,6 +298,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: 'un
           <button type="button" className="chip" aria-pressed={form.isSpic} onMouseDown={keepFocus} onClick={() => patch({ isSpic: !form.isSpic })}>SPIC</button>
         </div>
         {warn('isPicus') && form.isPicus && <div className="msg warning">{warn('isPicus')}</div>}
+        {warn('supervisedPic') && <div className="msg warning">{warn('supervisedPic')}</div>}
       </div>
 
       <div className="card">

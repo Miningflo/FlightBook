@@ -25,6 +25,7 @@ function randomFlight(rnd: () => number, i: number): FlightImport {
     aircraftClass: pick(CLASS_RATINGS), engineClass: split === 'se' ? 'SP-SE' : split === 'me' ? 'SP-ME' : 'MP',
     // sometimes type-rated, so the column is exercised both ways round
     typeRatingId: rnd() < 0.3 ? `tr-${Math.floor(rnd() * 1000)}` : null,
+    routeSector: rnd() < 0.4,
     spSeMin: split === 'se' ? total : 0, spMeMin: split === 'me' ? total : 0, mpMin: split === 'mp' ? total : 0, totalMin: total,
     picName: pick(['SELF', 'Jean Dupont', "O'Brien", '-x']).trim(),
     takeoffsDay: Math.floor(rnd() * 5), takeoffsNight: Math.floor(rnd() * 3), landingsDay: Math.floor(rnd() * 5), landingsNight: Math.floor(rnd() * 3),
@@ -221,5 +222,28 @@ describe('SET (single-engine turbine) classes', () => {
     expect(back2.errors).toEqual([]);
     expect(back2.records[0]!.value.byClass.SEP_LAND?.totalMin).toBe(600);
     expect(back2.records[0]!.value.byClass.SET_LAND).toBeUndefined();
+  });
+});
+
+describe('flights CSV: strict times and route sectors', () => {
+  const head = 'date,dep_place,dep_time_utc,arr_place,arr_time_utc,registration,make,model,class,total,pic_name';
+  const row = (dep: string, arr: string, date = '2025-02-28') => `${date},EBOS,${dep},EBAW,${arr},OO-ABC,Cessna,172,SEP_LAND,1:35,SELF`;
+  it('rejects a UTC time on a day that does not exist instead of rolling it over', () => {
+    // Date.parse would turn 30 February into 2 March without a word
+    const r = decodeFlights(`${head}\n${row('2025-02-28T09:30:00Z', '2025-02-30T11:05:00Z')}\n`, ids, NOW);
+    expect(r.records).toHaveLength(0);
+    expect(r.errors[0]!.message).toMatch(/arr_time_utc.*not a UTC time/);
+    expect(decodeFlights(`${head}\n${row('2025-02-28T24:30Z', '2025-02-28T25:05Z')}\n`, ids, NOW).records).toHaveLength(0);
+  });
+  it('still reads every real time, with or without seconds and milliseconds', () => {
+    const r = decodeFlights(`${head}\n${row('2025-02-28T09:30Z', '2025-02-28T11:05:00.000Z')}\n`, ids, NOW);
+    expect(r.errors).toEqual([]);
+    expect(r.records[0]!.value.arrTimeUtc).toBe(Date.UTC(2025, 1, 28, 11, 5));
+  });
+  it('never assumes a route sector: a file without the column marks none', () => {
+    const r = decodeFlights(`${head}\n${row('2025-02-28T09:30Z', '2025-02-28T11:05Z')}\n`, ids, NOW);
+    expect(r.records[0]!.value.routeSector).toBe(false);
+    const marked = decodeFlights(`${head},route_sector\n${row('2025-02-28T09:30Z', '2025-02-28T11:05Z')},yes\n`, ids, NOW);
+    expect(marked.records[0]!.value.routeSector).toBe(true);
   });
 });
