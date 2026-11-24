@@ -219,6 +219,19 @@ export function unassignedTypeFlights(flights: Flight[], ratings: readonly { id:
 }
 
 /**
+ * Which held type rating a flight counts towards. `none` is a flight in the Other class that names no
+ * rating; `removed` names one that is no longer held. Both count towards nothing (see above). Flights in
+ * a class rating are `class`: the question does not apply to them.
+ */
+export type TypeRatingLink<R> = { kind: 'class' } | { kind: 'held'; rating: R } | { kind: 'none' } | { kind: 'removed' };
+export function typeRatingOf<R extends { id: string }>(f: Flight, ratings: readonly R[]): TypeRatingLink<R> {
+  if (f.aircraftClass !== 'OTHER') return { kind: 'class' };
+  if (!f.typeRatingId) return { kind: 'none' };
+  const rating = ratings.find((r) => r.id === f.typeRatingId);
+  return rating ? { kind: 'held', rating } : { kind: 'removed' };
+}
+
+/**
  * The class chips on the Currency screen. Every real class is always offered, so an expiry date can be
  * entered before any flight is logged. Other is offered once there is something behind it: a flight
  * logged under it, or a type rating held. A rating with no flights yet then shows as not current, the
