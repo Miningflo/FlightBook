@@ -366,7 +366,7 @@ function LanguageCard({ today }: { today: IsoDate }) {
 function OtherClassPanel({ today }: { today: IsoDate }) {
   const { data } = useApp();
   const ratings = data.settings.typeRatings ?? [];
-  const stranded = unassignedTypeFlights(data.flights);
+  const stranded = unassignedTypeFlights(data.flights, ratings);
   const flown = ratings.filter((t) => data.flights.some((f) => f.typeRatingId === t.id));
   return (
     <>
@@ -374,8 +374,8 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
         <div className="card cur-card">
           <div className="head"><div><h3>Flights without a type rating</h3></div><StatusPill status="amber" label={`${stranded.length}`} /></div>
           <div className="hint">
-            {stranded.length} flight{stranded.length === 1 ? '' : 's'} in the Other class do{stranded.length === 1 ? 'es' : ''} not say which type
-            rating {stranded.length === 1 ? 'it was' : 'they were'} flown under, so {stranded.length === 1 ? 'it counts' : 'they count'} towards no
+            {stranded.length} flight{stranded.length === 1 ? '' : 's'} in the Other class do{stranded.length === 1 ? 'es' : ''} not name a type
+            rating you hold (none was picked, or it has been removed), so {stranded.length === 1 ? 'it counts' : 'they count'} towards no
             currency at all. Open {stranded.length === 1 ? 'it' : 'them'} and pick the rating.
           </div>
         </div>

@@ -380,10 +380,13 @@ export interface FlightInput {
  * Convert validated form state to a flight input.
  * Throws if the form has errors, so invalid data can never be persisted by accident.
  * `previousOverrides` carries any override keys the form does not manage.
+ * `typeRatingIds` are the ratings the pilot holds. A rating id outside that list is saved as none, so a
+ * rating that has since been removed (still remembered by the aircraft record, or by the flight being
+ * edited) is never written onto a flight.
  */
 export function formToFlightInput(
   s: FlightFormState,
-  extra: { attachmentIds?: string[]; previousOverrides?: Overrides } = {},
+  extra: { attachmentIds?: string[]; previousOverrides?: Overrides; typeRatingIds?: readonly string[] } = {},
 ): FlightInput {
   if (hasErrors(validateForm(s))) throw new Error('Flight form has validation errors');
   const times = resolveBlockTimes(s.date, s.depClock, s.arrClock, s.arrDate)!;
@@ -406,8 +409,8 @@ export function formToFlightInput(
     aircraftModel: s.model.trim(),
     aircraftVariant: s.variant.trim(),
     aircraftClass: s.aircraftClass,
-    // only the Other class is type-rated; anything else must not carry a stale rating
-    typeRatingId: s.aircraftClass === 'OTHER' ? s.typeRatingId : null,
+    // only the Other class is type-rated; anything else must not carry a stale rating, and neither may a removed one
+    typeRatingId: s.aircraftClass === 'OTHER' && s.typeRatingId !== null && (extra.typeRatingIds?.includes(s.typeRatingId) ?? true) ? s.typeRatingId : null,
     engineClass: s.engineClass,
     picName: s.picName.trim(),
     spSeMin: s.engineClass === 'SP-SE' ? s.totalMin : 0,

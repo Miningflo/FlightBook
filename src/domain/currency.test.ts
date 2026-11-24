@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus } from './currency';
+import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, unassignedTypeFlights } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -313,5 +313,20 @@ describe('type ratings (FCL.740.A(a))', () => {
     expect(DEFAULT_RULES.typeRating.todo.join(' ')).toMatch(/does not count them/i);
     // ...whereas they are counted for MEP, and that difference must stay visible
     expect(routeSectors([], 'MEP_LAND', expiry, '2026-01-01')).not.toBeNull();
+  });
+});
+
+describe('unassignedTypeFlights', () => {
+  const held = [{ id: 't' }];
+  const other = (typeRatingId: string | null) => flight(today, { aircraftClass: 'OTHER', typeRatingId });
+  it('names flights with no rating, and flights whose rating is no longer held', () => {
+    const none = other(null), removed = other('gone'), ok = other('t');
+    expect(unassignedTypeFlights([none, removed, ok], held)).toEqual([none, removed]);
+  });
+  it('treats every rated flight as unassigned once the last rating is removed', () => {
+    expect(unassignedTypeFlights([other('t')], [])).toHaveLength(1);
+  });
+  it('ignores flights in a class rating, whatever they carry', () => {
+    expect(unassignedTypeFlights([flight(today, { typeRatingId: 'gone' })], held)).toEqual([]);
   });
 });

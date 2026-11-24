@@ -177,12 +177,12 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
       if (includeNight) items.push(currencyItem(t.name, `TYPE:${t.id}`, 'night', nightCurrency(flights, byType(t.id), today, rules)));
     }
   }
-  const stranded = unassignedTypeFlights(flights).length;
+  const stranded = unassignedTypeFlights(flights, settings.typeRatings ?? []).length;
   if (stranded > 0) {
     items.push({
       key: 'TYPE:unassigned', level: 'amber',
       title: `${plural(stranded, 'flight')} not counted towards any rating`,
-      body: 'They are logged in the Other class without a type rating, so they count towards no currency. Open them and pick the rating they were flown under.',
+      body: 'They are logged in the Other class without a type rating you hold (none was picked, or it has been removed), so they count towards no currency. Open them and pick the rating they were flown under.',
     });
   }
   items.push(...licenceItems(settings, today, rules));

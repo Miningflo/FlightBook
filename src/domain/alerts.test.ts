@@ -178,6 +178,14 @@ describe('per-type currency (FCL.060 counts per "type or class")', () => {
     expect(i.level).toBe('amber');
     expect(i.title).toMatch(/not counted towards any rating/);
   });
+  it('counts a flight whose rating has been removed as unassigned, not as nothing', () => {
+    const items = watchedItems([{ ...other(today, 'removed'), takeoffsDay: 3, landingsDay: 3 }], { typeRatings: [t] }, today);
+    expect(items.find((x) => x.key === 'TYPE:unassigned')!.title).toMatch(/^1 flight not counted/);
+    expect(items.some((x) => x.key.startsWith('TYPE:removed'))).toBe(false);
+  });
+  it('flags orphaned flights even when no type ratings are left at all', () => {
+    expect(watchedItems([other(today, 'removed')], { typeRatings: [] }, today).map((i) => i.key)).toContain('TYPE:unassigned');
+  });
   it('says nothing about unassigned flights when there are none', () => {
     expect(watchedItems([other(today, 't')], { typeRatings: [t] }, today).map((i) => i.key)).not.toContain('TYPE:unassigned');
   });
