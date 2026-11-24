@@ -8,8 +8,11 @@ export const BACKUP_FOLDER_NAME = 'Logbook backups';
 export const MASTER_FILE_NAME = 'master.json';
 export const SNAPSHOT_PREFIX = 'flightbook-snapshot-';
 export const PRE_RESTORE_PREFIX = 'flightbook-prerestore-';
-/** Snapshots kept in the backup folder. */
-export const KEEP_SNAPSHOTS = 30;
+/**
+ * Snapshots kept in the backup folder: one per day (the last of that day), for this many days. Counted in
+ * days that have a snapshot, not calendar days, so a few weeks without flying never empties the history.
+ */
+export const KEEP_SNAPSHOT_DAYS = 30;
 /** Safety copies made just before a "replace everything" restore. */
 export const KEEP_PRE_RESTORE = 5;
 /** A backup is due on app open when the last successful one is older than this. */
@@ -102,10 +105,28 @@ export function newestSnapshot(files: SnapshotFileInfo[]): SnapshotFileInfo | nu
   return sortNewestFirst(files)[0] ?? null;
 }
 
-/** Which snapshots to keep and which may be deleted. Files that are not ours are in neither list: they are never touched. */
-export function retentionPlan<T extends { name: string }>(files: T[], keep: number, prefix = SNAPSHOT_PREFIX): { keep: T[]; prune: T[] } {
+export interface RetentionPlan<T> { keep: T[]; prune: T[] }
+
+/** The newest `keep` files and the rest. Files that are not ours are in neither list: they are never touched. */
+export function retentionPlan<T extends { name: string }>(files: T[], keep: number, prefix = SNAPSHOT_PREFIX): RetentionPlan<T> {
   const sorted = sortNewestFirst(files, prefix);
   return { keep: sorted.slice(0, keep), prune: sorted.slice(keep) };
+}
+
+/**
+ * One snapshot per day: the newest of each of the `days` most recent days (UTC, from the file name) that
+ * have one; everything else may be deleted. A burst of edits therefore costs one file, not thirty, and
+ * cannot push older days out. The newest snapshot of all is always kept. Files that are not ours are in
+ * neither list.
+ */
+export function dailyRetentionPlan<T extends { name: string }>(files: T[], days: number, prefix = SNAPSHOT_PREFIX): RetentionPlan<T> {
+  const plan: RetentionPlan<T> = { keep: [], prune: [] };
+  const seen = new Set<string>();
+  for (const f of sortNewestFirst(files, prefix)) {
+    const day = NAME_RE(prefix).exec(f.name)![1]!.slice(0, 8);
+    if (!seen.has(day) && seen.size < days) { seen.add(day); plan.keep.push(f); } else plan.prune.push(f);
+  }
+  return plan;
 }
 
 export type Staleness = 'no-snapshots' | 'mine' | 'other-device';

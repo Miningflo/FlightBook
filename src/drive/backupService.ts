@@ -1,7 +1,7 @@
 import {
-  BACKUP_FOLDER_NAME, KEEP_PRE_RESTORE, KEEP_SNAPSHOTS, MASTER_FILE_NAME, PRE_RESTORE_PREFIX, SNAPSHOT_PREFIX,
+  BACKUP_FOLDER_NAME, KEEP_PRE_RESTORE, KEEP_SNAPSHOT_DAYS, MASTER_FILE_NAME, PRE_RESTORE_PREFIX, SNAPSHOT_PREFIX,
   type ClaimDecision, type MasterFile, type MasterRead, type SnapshotFileInfo, type Staleness,
-  assessStaleness, buildMasterFile, decideClaim, newestSnapshot, parseMasterFile, retentionPlan, snapshotFileName, sortNewestFirst,
+  assessStaleness, buildMasterFile, dailyRetentionPlan, decideClaim, newestSnapshot, parseMasterFile, retentionPlan, snapshotFileName, sortNewestFirst,
 } from '../domain/driveRules';
 import { type Snapshot, SNAPSHOT_SCHEMA_VERSION, parseSnapshot, serializeSnapshot } from '../domain/snapshot';
 import { type DriveOptions, DriveReader, DriveWriter } from './driveApi';
@@ -95,16 +95,17 @@ export class BackupService {
 
     const snapshot = await this.deps.buildSnapshot();
     const created = await this.upload(folder, SNAPSHOT_PREFIX, snapshot, new Set(files.map((f) => f.name)), 'snapshot', opts);
-    const { pruned, warnings } = await this.prune([...files, created], SNAPSHOT_PREFIX, KEEP_SNAPSHOTS, opts);
+    // one snapshot per day: this one replaces any earlier one from today
+    const { pruned, warnings } = await this.prune(dailyRetentionPlan([...files, created], KEEP_SNAPSHOT_DAYS).prune, opts);
     return { file: toInfo(created), pruned, warnings };
   }
 
-  /** A copy of the current logbook taken just before a "replace everything" restore. Kept apart from the 30 snapshots. */
+  /** A copy of the current logbook taken just before a "replace everything" restore. Kept apart from the daily snapshots. */
   async saveSafetyCopy(opts: DriveOptions = {}): Promise<SnapshotFileInfo> {
     const folder = (await this.folder(opts, true))!;
     const files = await this.writer.listFolder(folder, opts);
     const created = await this.upload(folder, PRE_RESTORE_PREFIX, await this.deps.buildSnapshot(), new Set(files.map((f) => f.name)), 'prerestore', opts);
-    await this.prune([...files, created], PRE_RESTORE_PREFIX, KEEP_PRE_RESTORE, opts);
+    await this.prune(retentionPlan([...files, created], KEEP_PRE_RESTORE, PRE_RESTORE_PREFIX).prune, opts);
     return toInfo(created);
   }
 
@@ -116,9 +117,8 @@ export class BackupService {
     }, opts);
   }
 
-  /** Delete the oldest of OUR files beyond the limit. A failed delete is reported, never fatal, and never touches other files. */
-  private async prune(files: DriveFile[], prefix: string, keep: number, opts: DriveOptions): Promise<{ pruned: number; warnings: string[] }> {
-    const { prune } = retentionPlan(files, keep, prefix);
+  /** Delete the files a retention plan gave up (only ever OUR snapshots). A failed delete is reported, never fatal. */
+  private async prune(prune: DriveFile[], opts: DriveOptions): Promise<{ pruned: number; warnings: string[] }> {
     const warnings: string[] = [];
     let pruned = 0;
     for (const f of prune) {

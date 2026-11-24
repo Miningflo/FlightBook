@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  KEEP_SNAPSHOTS, assessStaleness, buildMasterFile, compactUtc, decideClaim, isSnapshotName, newestSnapshot, parseMasterFile,
-  retentionPlan, snapshotFileName, sortNewestFirst, type SnapshotFileInfo,
+  KEEP_SNAPSHOT_DAYS, assessStaleness, buildMasterFile, compactUtc, decideClaim, isSnapshotName, newestSnapshot, parseMasterFile,
+  dailyRetentionPlan, retentionPlan, snapshotFileName, sortNewestFirst, type SnapshotFileInfo,
 } from './driveRules';
 
 const me = { deviceId: 'phone-1', deviceName: 'Galaxy' };
@@ -68,7 +68,7 @@ describe('ordering and retention', () => {
   });
   it('keeps the newest 30 and offers only older snapshots for deletion', () => {
     const files = Array.from({ length: 35 }, (_, i) => at(i));
-    const { keep, prune } = retentionPlan(files, KEEP_SNAPSHOTS);
+    const { keep, prune } = retentionPlan(files, 30);
     expect(keep).toHaveLength(30);
     expect(prune).toHaveLength(5);
     expect(prune.map((f) => f.name)).toEqual(files.slice(0, 5).reverse().map((f) => f.name)); // the five oldest
@@ -83,6 +83,46 @@ describe('ordering and retention', () => {
   it('with fewer snapshots than the limit nothing is pruned', () => {
     expect(retentionPlan(Array.from({ length: 29 }, (_, i) => at(i)), 30).prune).toEqual([]);
     expect(retentionPlan([], 30)).toEqual({ keep: [], prune: [] });
+  });
+});
+
+describe('daily retention of snapshots', () => {
+  const on = (day: number, h = 12, m = 0) => file(snapshotFileName(new Date(Date.UTC(2025, 0, day, h, m))));
+  it('keeps 30 days', () => {
+    expect(KEEP_SNAPSHOT_DAYS).toBe(30);
+  });
+  it('keeps only the last snapshot of each day', () => {
+    const files = [on(1, 9), on(1, 18), on(1, 23, 59), on(2, 8), on(2, 10)];
+    const { keep, prune } = dailyRetentionPlan(files, 30);
+    expect(keep.map((f) => f.name)).toEqual([files[4]!.name, files[2]!.name]);
+    expect(prune.map((f) => f.name).sort()).toEqual([files[0]!.name, files[1]!.name, files[3]!.name].sort());
+  });
+  it('groups by the UTC day in the file name, including same-second suffixes', () => {
+    const a = file('flightbook-snapshot-20250105T235959Z.json'), b = file('flightbook-snapshot-20250105T235959Z-2.json'), c = file('flightbook-snapshot-20250106T000000Z.json');
+    const { keep } = dailyRetentionPlan([a, b, c], 30);
+    expect(keep.map((f) => f.name)).toEqual([c.name, b.name]);
+  });
+  it('keeps the newest of each of the 30 most recent days and drops older days', () => {
+    const files = Array.from({ length: 35 }, (_, i) => on(i + 1));
+    const { keep, prune } = dailyRetentionPlan(files, 30);
+    expect(keep).toHaveLength(30);
+    expect(keep[0]).toBe(files[34]);
+    expect(prune.map((f) => f.name)).toEqual(files.slice(0, 5).reverse().map((f) => f.name));
+  });
+  it('counts days that have a snapshot, so a long gap never empties the history', () => {
+    const files = [on(1), on(2), on(3), file(snapshotFileName(new Date(Date.UTC(2025, 6, 1))))]; // then nothing for six months
+    expect(dailyRetentionPlan(files, 30).prune).toEqual([]);
+  });
+  it('a burst of backups in one day cannot push older days out', () => {
+    const files = [...Array.from({ length: 29 }, (_, i) => on(i + 1)), ...Array.from({ length: 50 }, (_, i) => on(30, 8, i))];
+    const { keep } = dailyRetentionPlan(files, 30);
+    expect(keep).toHaveLength(30);
+    expect(keep.at(-1)).toBe(files[0]); // day 1 survives
+  });
+  it('never offers a file that is not ours', () => {
+    const files = [on(1, 9), on(1, 10), file('master.json'), file('notes.txt'), file('flightbook-prerestore-20250101T120000Z.json')];
+    const { keep, prune } = dailyRetentionPlan(files, 30);
+    expect([...keep, ...prune].map((f) => f.name).sort()).toEqual([files[0]!.name, files[1]!.name].sort());
   });
 });
 
