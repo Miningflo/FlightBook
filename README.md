@@ -32,15 +32,15 @@ The PDF logbook: A4 landscape, the holder block and all twelve AMC1 FCL.050 colu
 
 ### Regenerating the screenshots
 ```
-npm install --no-save playwright-core           # once: the script needs it, the app does not
-npx playwright-core install chromium            # once: the browser for that version
+npm install --no-save playwright-core pdfjs-dist   # once, in one command (a later --no-save install drops the earlier one)
+npx playwright-core install chromium               # once: the browser for that version
 npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
 VITE_BASE=/FlightBook/ npm run build
 VITE_BASE=/FlightBook/ npx vite preview --port 4330 --strictPort &   # VITE_BASE here too, or the page is blank
 curl -sLo /tmp/airports.csv https://davidmegginson.github.io/ourairports-data/airports.csv
 node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.json /tmp/airports.csv
 ```
-The script loads the demo logbook through the app's own import and imports the airport database the same way, so the screenshots can only show states the app can really reach: the airport names on the flight form and the routes on the map are looked up, not drawn in. It also saves the PDF the app generates; `pdf-logbook.png` is a page of that file rendered to an image. The `airports.csv` argument is optional; without it the map and the airport names are skipped.
+The script loads the demo logbook through the app's own import and imports the airport database the same way, so the screenshots can only show states the app can really reach: the airport names on the flight form and the routes on the map are looked up, not drawn in. It also saves the PDF the app generates and renders the first page with two simulator sessions on it to `pdf-logbook.png`, with pdf.js in the same browser. The `airports.csv` argument is optional; without it the map and the airport names are skipped.
 
 **Planespotters is blocked for the whole run**, so aircraft photos can only come from Wikimedia Commons, and the run aborts if a photo from anywhere else was used. This is a licensing rule, not a preference: Commons photos are freely licensed and can be credited, Planespotters photos are not and must never be committed under `docs/`. **The run writes the photo credits below itself**, from what was actually on screen: each screenshot records which photos are visible in it, and the title, author, licence and source come from the app's own cache. It writes them to `docs/screenshots/photo-credits.json` and into this README between the `photo-credits` markers, and it takes the screenshots into a temporary folder, copying them to `docs/screenshots/` only once every photo can be credited. A photo without an author or licence, not from Commons, or under a licence that cannot be combined under CC BY-SA 4.0 stops the run and changes nothing. A unit test fails if the README's credits and the JSON ever disagree, so the credits cannot be edited away by hand either.
 

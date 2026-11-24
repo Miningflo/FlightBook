@@ -1,8 +1,9 @@
 /**
  * Regenerates the README screenshots from a built app and the demo logbook.
  *
- *   npm install --no-save playwright-core       # once: this script needs it, the app does not
- *   npx playwright-core install chromium         # once: the browser for that version
+ *   npm install --no-save playwright-core pdfjs-dist  # once: this script needs them, the app does not.
+ *                                                      # One command: a later --no-save install drops the earlier one.
+ *   npx playwright-core install chromium              # once: the browser for that version
  *   npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
  *   VITE_BASE=/FlightBook/ npm run build
  *   VITE_BASE=/FlightBook/ npx vite preview --port 4330 --strictPort &
@@ -34,10 +35,10 @@
  * An optional third argument is an OurAirports airports.csv; with it, the airport names and the map work.
  */
 import { chromium } from 'playwright-core';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CreditError, buildCredits, renderCredits, replaceCredits } from './photo-credits.mjs';
+import { CreditError, publish } from './photo-credits.mjs';
 
 const [url, demoPath, airportsPath] = process.argv.slice(2);
 if (!url || !demoPath) { console.error('usage: make-screenshots.mjs <app-url> <demo.json> [airports.csv]'); process.exit(1); }
@@ -45,6 +46,8 @@ if (!url || !demoPath) { console.error('usage: make-screenshots.mjs <app-url> <d
 const OUT = 'docs/screenshots';
 /** Shots land here first, and are copied to OUT only once every photo in them is credited. */
 const STAGE = mkdtempSync(join(tmpdir(), 'flightbook-shots-'));
+// removed however the run ends: success, refusal, an error, or process.exit
+process.on('exit', () => rmSync(STAGE, { recursive: true, force: true }));
 /** What each screenshot shows: { file, imageUrls } in the order they were taken. */
 const shots = [];
 const DEMO_TODAY = '2026-11-23T09:30:00Z';
@@ -154,6 +157,55 @@ async function shot(page, name, { anchor, offset = 76 } = {}) {
   console.log(`${name}.png${imageUrls.length ? ` (${imageUrls.length} photo${imageUrls.length === 1 ? '' : 's'})` : ''}`);
 }
 
+/**
+ * pdf-logbook.png: a page of the PDF the app itself generated, rendered with pdf.js in the same browser (no
+ * PDF tool needed on the machine). The page shown is the first one with two simulator sessions on it, which
+ * is what the README's caption describes; the PDF carries no photos, so it needs no credit.
+ */
+async function renderPdfPage(pdfPath, width = 1287) {
+  const ctx = await browser.newContext({ viewport: { width: width + 40, height: 1000 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  const base = 'https://pdf-render.invalid/';
+  // the legacy build: it runs in older engines too, such as the Chromium a pinned playwright-core brings
+  const build = join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build');
+  if (!existsSync(join(build, 'pdf.min.mjs'))) throw new Error('pdf.js is missing: npm install --no-save playwright-core pdfjs-dist');
+  await page.route(`${base}**`, (route) => {
+    const name = new URL(route.request().url()).pathname.slice(1);
+    if (name === 'index.html') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><body style="margin:0;background:#fff"><canvas id="c"></canvas></body>' });
+    if (name === 'logbook.pdf') return route.fulfill({ contentType: 'application/pdf', path: pdfPath });
+    if (name === 'pdf.mjs') return route.fulfill({ contentType: 'text/javascript', path: join(build, 'pdf.min.mjs') });
+    if (name === 'pdf.worker.mjs') return route.fulfill({ contentType: 'text/javascript', path: join(build, 'pdf.worker.min.mjs') });
+    // the PDF uses the standard Helvetica without embedding it; without pdf.js's own font data it falls back to
+    // a font with other metrics, and the totals rows came out as "TOTAL FROMPREVIOUS PAGES"
+    if (name.startsWith('standard_fonts/')) return route.fulfill({ path: join(process.cwd(), 'node_modules/pdfjs-dist', name) });
+    return route.fulfill({ status: 404, body: '' });
+  });
+  await page.goto(`${base}index.html`);
+  const r = await page.evaluate(async ({ base, width }) => {
+    const pdfjs = await import(`${base}pdf.mjs`);
+    pdfjs.GlobalWorkerOptions.workerSrc = `${base}pdf.worker.mjs`;
+    // useSystemFonts: false, or the browser's own (missing) fonts are preferred over pdf.js's Helvetica-metric ones
+    const doc = await pdfjs.getDocument({ url: `${base}logbook.pdf`, standardFontDataUrl: `${base}standard_fonts/`, useSystemFonts: false }).promise;
+    let chosen = 0;
+    for (let n = 1; n <= doc.numPages && !chosen; n++) {
+      const text = (await (await doc.getPage(n)).getTextContent()).items.map((i) => i.str).join(' ');
+      if ((text.match(/FNPT|BITD/g) ?? []).length >= 2) chosen = n;
+    }
+    if (!chosen) return { chosen, of: doc.numPages };
+    const pg = await doc.getPage(chosen);
+    const viewport = pg.getViewport({ scale: width / pg.getViewport({ scale: 1 }).width });
+    const canvas = document.getElementById('c');
+    canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+    await pg.render({ canvas, canvasContext: canvas.getContext('2d'), viewport }).promise;
+    return { chosen, of: doc.numPages };
+  }, { base, width });
+  if (!r.chosen) throw new Error(`pdf-logbook: none of the ${r.of} PDF pages has two simulator sessions; the README caption would be wrong`);
+  await page.locator('#c').screenshot({ path: join(STAGE, 'pdf-logbook.png') });
+  shots.push({ file: 'pdf-logbook.png', imageUrls: [] });
+  console.log(`pdf-logbook.png (page ${r.chosen} of ${r.of})`);
+  await ctx.close();
+}
+
 /** Credits for the photos this context loaded, printed and checked. */
 async function reportCredits(page, label) {
   const credits = await photoCredits(page);
@@ -242,21 +294,18 @@ if (airportsPath) {
 const darkCredits = await reportCredits(dark.page, 'dark');
 await dark.ctx.close();
 
+await renderPdfPage('/tmp/demo-logbook.pdf');
+
 await browser.close();
 
 // ---------- credits: nothing reaches docs/ unless every photo in it is credited ----------
 let credits;
 try {
-  credits = buildCredits(shots, [...lightCredits, ...darkCredits]);
+  credits = publish({ shots, cache: [...lightCredits, ...darkCredits], stage: STAGE, out: OUT, readmePath: 'README.md' });
 } catch (e) {
   if (!(e instanceof CreditError)) throw e;
-  rmSync(STAGE, { recursive: true, force: true });
   console.error(`\nNOT WRITTEN: ${e.message}\nThe screenshots in ${OUT} and the README are unchanged.`);
   process.exit(1);
 }
-for (const { file } of shots) copyFileSync(join(STAGE, file), join(OUT, file));
-rmSync(STAGE, { recursive: true, force: true });
-writeFileSync(join(OUT, 'photo-credits.json'), `${JSON.stringify({ generatedBy: 'scripts/make-screenshots.mjs', photos: credits }, null, 2)}\n`);
-writeFileSync('README.md', replaceCredits(readFileSync('README.md', 'utf8'), renderCredits(credits)));
 console.log(`\n${shots.length} screenshots written to ${OUT}; ${credits.length} third-party photo(s), credited in README.md and ${OUT}/photo-credits.json:`);
 for (const c of credits) console.log(`  ${c.registration} | "${c.title}" | ${c.artist} | ${c.license} | ${c.files.join(', ')}`);

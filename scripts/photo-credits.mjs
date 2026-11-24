@@ -8,6 +8,9 @@
  * and the run refuses to finish when a photo cannot be credited. Nothing here is written by hand.
  */
 
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 export const START = '<!-- photo-credits:start -->';
 export const END = '<!-- photo-credits:end -->';
 
@@ -99,6 +102,22 @@ export function replaceCredits(readme, block) {
   const i = readme.indexOf(START), j = readme.indexOf(END);
   if (i < 0 || j < i) throw new CreditError(`README.md has no ${START} … ${END} section for the photo credits`);
   return readme.slice(0, i) + block.replace(/\n/g, nl) + readme.slice(j + END.length);
+}
+
+/**
+ * The last step of a screenshot run: credit every photo, and only then publish. The screenshots are taken
+ * into `stage`; they are copied to `out`, with photo-credits.json and the README's credits section, only if
+ * every photo in them can be credited. Otherwise this throws CreditError and nothing in `out` or the README
+ * is touched, so an uncredited photo can never be committed.
+ * @returns the credits written
+ */
+export function publish({ shots, cache, stage, out, readmePath }) {
+  const credits = buildCredits(shots, cache);
+  const readme = replaceCredits(readFileSync(readmePath, 'utf8'), renderCredits(credits)); // fails before any copy if the markers are gone
+  for (const { file } of shots) copyFileSync(join(stage, file), join(out, file));
+  writeFileSync(join(out, 'photo-credits.json'), `${JSON.stringify({ generatedBy: 'scripts/make-screenshots.mjs', photos: credits }, null, 2)}\n`);
+  writeFileSync(readmePath, readme);
+  return credits;
 }
 
 /** The credits section currently in the README, line endings normalised, or null. */
