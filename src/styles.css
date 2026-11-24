@@ -390,7 +390,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 .class-row .name { font-weight: 500; }
 .class-row .sub { font-size: 13px; color: var(--on-surface-variant); }
 .class-row .val { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; }
+/* .card.tappable sets display: block, and is more specific than .link-card alone: without the full selector the chevron dropped below the text */
+.card.tappable.link-card, .link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; }
 .link-card svg { color: var(--on-surface-variant); flex: none; }
 /* rows that open something, inside a card (e.g. the flights without a type rating on Currency) */
 .link-list { list-style: none; margin: 8px 0 0; padding: 0; }
