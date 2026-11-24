@@ -49,7 +49,9 @@ of truth; the main ones:
 
 ## Tooling
 
-- **No UI tests.** Vitest runs in Node without a DOM, so screens are checked by hand in a browser.
+- **End-to-end tests cover the main flows, not every screen.** `e2e/` checks logging a flight, importing a backup,
+  marking route sectors, removing a type rating, the IR waiver, and two layouts measured at phone and desktop
+  width. How the other screens look is still checked by eye.
 - **An `overrides` entry in `package.json` pins workbox-build's `glob` to 14.0.4.** workbox-build 7.4.1 asks for
   glob 11, which (with its minimatch 10) carries two moderate advisories; build-time only, never shipped. glob 14
   was checked to give the service worker the same 16 precached files. Remove the override once workbox-build
