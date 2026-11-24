@@ -1,13 +1,18 @@
 /**
  * Regenerates the README screenshots from a built app and the demo logbook.
  *
+ *   npm install --no-save playwright-core       # once: this script needs it, the app does not
+ *   npx playwright-core install chromium         # once: the browser for that version
  *   npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
  *   VITE_BASE=/FlightBook/ npm run build
- *   npx vite preview --port 4330 --strictPort &
+ *   VITE_BASE=/FlightBook/ npx vite preview --port 4330 --strictPort &
  *   node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.json
  *
+ * The preview needs VITE_BASE as well as the build: without it the server answers at / instead of
+ * /FlightBook/, the page's scripts 404 and it renders blank.
+ *
  * The clock is pinned to the demo logbook's DEMO_TODAY, so the currency and rating states -- and so the
- * screenshots -- are identical every run. Needs a Chromium from `npx playwright install chromium`.
+ * screenshots -- are identical every run.
  *
  * Screenshots are viewport-sized, never fullPage: the bottom navigation is fixed, so a fullPage capture
  * strands it in the middle of the image. Where a card sits below the fold, the page is scrolled to it first.

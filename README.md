@@ -30,10 +30,11 @@ The PDF logbook: A4 landscape, the holder block and all twelve AMC1 FCL.050 colu
 
 ### Regenerating the screenshots
 ```
-npx playwright install chromium                 # once
+npm install --no-save playwright-core           # once: the script needs it, the app does not
+npx playwright-core install chromium            # once: the browser for that version
 npx vite-node scripts/make-demo-logbook.ts -- /tmp/demo.json
 VITE_BASE=/FlightBook/ npm run build
-npx vite preview --port 4330 --strictPort &
+VITE_BASE=/FlightBook/ npx vite preview --port 4330 --strictPort &   # VITE_BASE here too, or the page is blank
 curl -sLo /tmp/airports.csv https://davidmegginson.github.io/ourairports-data/airports.csv
 node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.json /tmp/airports.csv
 ```

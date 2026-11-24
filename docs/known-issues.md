@@ -44,7 +44,5 @@ of truth; the main ones:
 - **No UI tests.** Vitest runs in Node without a DOM, so screens are checked by hand in a browser.
 - **ESLint is not installed**, although the code carries `eslint-disable react-hooks` comments; the hooks rules
   are never actually checked.
-- **`scripts/make-screenshots.mjs`** says to run `npx vite preview` without `VITE_BASE`; it must be
-  `VITE_BASE=/FlightBook/ npx vite preview …`, or the page loads blank.
 - **`npm audit`** reports 4 moderate issues, all in build-time tooling (minimatch via vite-plugin-pwa). The
   suggested fix downgrades vite-plugin-pwa, so they are left until upstream updates.
