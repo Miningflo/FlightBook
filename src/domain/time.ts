@@ -113,6 +113,21 @@ export function utcDateOf(ts: Timestamp): IsoDate {
   return fmt(ts);
 }
 
+/**
+ * "Today" for currency and expiry checks: the LATER of the UTC date and the device's local date.
+ *
+ * With the UTC date alone, for an hour or two after local midnight in Europe a medical or rating that expired
+ * the day before still showed "0 days left": the dangerous way to be wrong. Taking the later date can only
+ * make things lapse sooner, never later, whatever the time zone: east of UTC it is the local date after
+ * midnight, west of UTC it stays the UTC date. `offsetMinutes` is local minus UTC (+60 for CET); it
+ * defaults to the device's own offset and is a parameter so the rule can be tested in any zone.
+ */
+export function checkDate(ts: Timestamp, offsetMinutes: number = -new Date(ts).getTimezoneOffset()): IsoDate {
+  const utc = fmt(ts);
+  const local = fmt(ts + offsetMinutes * MS_PER_MIN);
+  return local > utc ? local : utc;
+}
+
 export function addDays(d: IsoDate, n: number): IsoDate {
   const { y, m, day } = parseDate(d);
   return fmt(Date.UTC(y, m - 1, day) + n * MS_PER_DAY);

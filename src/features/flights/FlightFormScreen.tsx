@@ -29,8 +29,13 @@ import {
 } from '../../domain/suggestions';
 import { Dialog, DurationField, Field, Stepper, keepFocus } from '../../ui/components';
 import { MoonIcon } from '../../ui/Icons';
+import type { Route } from '../../hooks';
 
-export function FlightFormScreen({ flight }: { flight?: Flight }) {
+/**
+ * `from: 'unassigned'`: opened from the Currency list of flights without a type rating. Saving, cancelling
+ * and deleting then go back to that list, ready for the next flight, instead of to the flight or the logbook.
+ */
+export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: 'unassigned' }) {
   const { data, writer, go, reload, airports } = useApp();
   const typeRatings = data.settings.typeRatings ?? [];
   const editing = flight !== undefined;
@@ -124,7 +129,8 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
   const onRole = (r: Role) => setForm((s) => updateForm(s, { roles: toggleRole(s.roles, r, s.totalMin) }));
 
   const cancel = () => (dirty ? setConfirmDiscard(true) : leave());
-  const leave = () => go(editing ? { name: 'flight', id: flight.id } : { name: 'list' }, { replace: true });
+  const backTo: Route | null = from === 'unassigned' ? { name: 'currency', cls: 'OTHER' } : null;
+  const leave = () => go(backTo ?? (editing ? { name: 'flight', id: flight.id } : { name: 'list' }), { replace: true });
 
   const save = async () => {
     setSubmitted(true);
@@ -138,7 +144,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
       const input = formToFlightInput(form, { attachmentIds: flight?.attachmentIds, previousOverrides: flight?.overrides, typeRatingIds: typeRatings.map((t) => t.id) });
       const saved = await writer.saveFlight(input, flight?.id);
       await reload();
-      go({ name: 'flight', id: saved.id }, { replace: true });
+      go(backTo ?? { name: 'flight', id: saved.id }, { replace: true });
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -150,7 +156,7 @@ export function FlightFormScreen({ flight }: { flight?: Flight }) {
     if (!flight) return;
     await writer.deleteFlight(flight.id);
     await reload();
-    go({ name: 'list' }, { replace: true });
+    go(backTo ?? { name: 'list' }, { replace: true });
   };
 
   return (

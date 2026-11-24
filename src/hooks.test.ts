@@ -51,3 +51,23 @@ describe('scroll position when the screen changes', () => {
     expect(scrollKey({ name: 'totals' }, true)).toBe('#/totals');
   });
 });
+
+describe('the Currency class and the way back from fixing a flight', () => {
+  it('keeps the selected class in the address, and the default chip keeps the plain one', () => {
+    expect(routeToHash({ name: 'currency', cls: 'OTHER' })).toBe('#/currency/OTHER');
+    expect(parseHash('#/currency/OTHER')).toEqual({ name: 'currency', cls: 'OTHER' });
+    expect(parseHash('#/currency')).toEqual({ name: 'currency' });
+    expect(parseHash('#/currency/NOT_A_CLASS')).toEqual({ name: 'currency' });
+  });
+  it('an edit opened from the unassigned list goes back up to that list, not to the flight', () => {
+    const r = { name: 'edit', id: 'f1', from: 'unassigned' } as const;
+    expect(routeToHash(r)).toBe('#/edit/f1/unassigned');
+    expect(parseHash('#/edit/f1/unassigned')).toEqual(r);
+    expect(parentRoute(r)).toEqual({ name: 'currency', cls: 'OTHER' });
+    expect(parentRoute({ name: 'edit', id: 'f1' })).toEqual({ name: 'flight', id: 'f1' });
+    expect(parseHash('#/edit/f1/whatever')).toEqual({ name: 'edit', id: 'f1' });
+  });
+  it('switching class chips keeps one scroll position for the Currency screen', () => {
+    expect(scrollKey({ name: 'currency', cls: 'OTHER' }, false)).toBe(scrollKey({ name: 'currency' }, false));
+  });
+});

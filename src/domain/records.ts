@@ -29,11 +29,17 @@ export function toFlightImports(flights: Flight[], persons: Person[]): FlightImp
   return flights.map((f) => toFlightImport(f, persons));
 }
 
-/** Aircraft record to create for a flight whose registration is not known yet. */
-export function aircraftFromFlight(f: FlightImport, id: string, now: number): Aircraft {
+/**
+ * Aircraft record to create for a flight whose registration is not known yet. Its type rating, which the
+ * flight form fills in from the aircraft, is copied only if this logbook holds it (`heldRatingIds`): an id
+ * from another logbook would point at nothing. The flight keeps its own id either way, and is flagged as
+ * having no type rating until one is picked.
+ */
+export function aircraftFromFlight(f: FlightImport, id: string, now: number, heldRatingIds: ReadonlySet<string> = new Set()): Aircraft {
+  const typeRatingId = f.aircraftClass === 'OTHER' && f.typeRatingId && heldRatingIds.has(f.typeRatingId) ? f.typeRatingId : null;
   return {
     id, registration: f.registration, make: f.aircraftMake, model: f.aircraftModel, variant: f.aircraftVariant,
-    engineClass: f.engineClass, classRating: f.aircraftClass, createdAt: now, updatedAt: now,
+    engineClass: f.engineClass, classRating: f.aircraftClass, typeRatingId, createdAt: now, updatedAt: now,
   };
 }
 
