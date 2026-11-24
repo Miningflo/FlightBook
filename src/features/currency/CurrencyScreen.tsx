@@ -1,12 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
-import { CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
+import { CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type Flight, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
 import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, currencyClasses, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { uuid } from '../../domain/id';
 import { Bar, Dialog, Field, StatusPill } from '../../ui/components';
-import { formatShortDate } from '../flights/format';
+import { aircraftLabel, formatDate, formatShortDate } from '../flights/format';
+import { ChevronIcon } from '../../ui/Icons';
 
 function RulesNote({ rule, extra, title = 'How this is calculated' }: { rule: RuleSource; extra?: ReactNode; title?: string }) {
   return (
@@ -389,6 +390,41 @@ function LanguageCard({ today }: { today: IsoDate }) {
  * of counters per type rating instead, and names the flights that belong to none of them. Every rating
  * held gets its counters, flown or not: a rating with no flights is exactly the one you are not current on.
  */
+/** How many of the flights without a type rating are listed before "Show all". */
+const STRANDED_SHOWN = 5;
+
+/**
+ * The flights the card above counts, so they can be found and fixed: a count alone said "open them" with
+ * no way of knowing which. Each one opens straight into the edit form, where the rating is picked; a
+ * read-only viewer cannot edit, so it opens the flight instead. Newest first, like the logbook.
+ */
+function StrandedFlightList({ flights }: { flights: Flight[] }) {
+  const { canEdit, go } = useApp();
+  const [all, setAll] = useState(false);
+  const shown = all ? flights : flights.slice(0, STRANDED_SHOWN);
+  return (
+    <>
+      <div className="hint" style={{ marginTop: 8 }}>{canEdit ? `Tap ${flights.length === 1 ? 'it' : 'one'} to pick the rating.` : 'Pick the rating on the master device.'}</div>
+      <ul className="link-list">
+        {shown.map((f) => (
+          <li key={f.id}>
+            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id } : { name: 'flight', id: f.id })}>
+              <span>
+                <span className="main">{formatDate(f.date)} · {f.depPlace} → {f.arrPlace}</span>
+                <span className="hint">{f.registration} · {aircraftLabel(f)}{f.typeRatingId ? ' · rating removed' : ''}</span>
+              </span>
+              <ChevronIcon />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {!all && flights.length > STRANDED_SHOWN && (
+        <button type="button" className="btn text" onClick={() => setAll(true)}>Show all {flights.length}</button>
+      )}
+    </>
+  );
+}
+
 function OtherClassPanel({ today }: { today: IsoDate }) {
   const { data } = useApp();
   const ratings = data.settings.typeRatings ?? [];
@@ -402,8 +438,9 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
           <div className="hint">
             {stranded.length} flight{stranded.length === 1 ? '' : 's'} in the Other class do{stranded.length === 1 ? 'es' : ''} not name a type
             rating you hold (none was picked, or it has been removed), so {stranded.length === 1 ? 'it counts' : 'they count'} towards no
-            currency at all. Open {stranded.length === 1 ? 'it' : 'them'} and pick the rating.
+            currency at all.
           </div>
+          <StrandedFlightList flights={stranded} />
         </div>
       )}
       {!anyOther && (

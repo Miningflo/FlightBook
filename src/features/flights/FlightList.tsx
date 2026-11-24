@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useApp } from '../../AppContext';
 import type { Flight } from '../../domain/types';
 import { rolesOfFlight } from '../../domain/roles';
+import { typeRatingOf } from '../../domain/currency';
 import { quickStats } from '../../domain/stats';
 import { formatHHMM } from '../../domain/time';
 import { RoleChip } from '../../ui/components';
@@ -10,7 +11,10 @@ import { AircraftThumb } from '../photos/AircraftPhoto';
 import { aircraftLabel, formatDate, formatMonth, monthKey } from './format';
 
 export function FlightCard({ flight, selected, onOpen }: { flight: Flight; selected: boolean; onOpen: () => void }) {
+  const { data } = useApp();
   const roles = rolesOfFlight(flight);
+  // an Other-class flight without a held rating counts towards no currency: mark it where it can be found
+  const unrated = ['none', 'removed'].includes(typeRatingOf(flight, data.settings.typeRatings ?? []).kind);
   const night = flight.nightMin > 0;
   return (
     <button type="button" className={`card tappable flight-card${selected ? ' selected' : ''}`} onClick={onOpen}>
@@ -27,6 +31,7 @@ export function FlightCard({ flight, selected, onOpen }: { flight: Flight; selec
           {flight.isPicus && <span className="chip flag">PICUS</span>}
           {flight.isSpic && <span className="chip flag">SPIC</span>}
           {night && <span className="chip flag">Night {formatHHMM(flight.nightMin)}</span>}
+          {unrated && <span className="chip flag warn">No type rating</span>}
         </div>
       </div>
     </button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, currencyClasses } from './currency';
+import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, typeRatingOf, unassignedTypeFlights, currencyClasses } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -360,5 +360,25 @@ describe('currencyClasses', () => {
   });
   it('keeps Other last, in the canonical order', () => {
     expect(currencyClasses([], [{ id: 't' }]).at(-1)).toBe('OTHER');
+  });
+});
+
+describe('typeRatingOf', () => {
+  const held = [{ id: 't', name: 'B737' }];
+  const other = (typeRatingId: string | null) => flight(today, { aircraftClass: 'OTHER', typeRatingId });
+  it('names the held rating a flight counts towards', () => {
+    expect(typeRatingOf(other('t'), held)).toEqual({ kind: 'held', rating: held[0] });
+  });
+  it('tells a missing rating from a removed one; both count towards nothing', () => {
+    expect(typeRatingOf(other(null), held).kind).toBe('none');
+    expect(typeRatingOf(other('gone'), held).kind).toBe('removed');
+  });
+  it('does not apply to flights in a class rating, whatever they carry', () => {
+    expect(typeRatingOf(flight(today, { typeRatingId: 'gone' }), held).kind).toBe('class');
+  });
+  it('agrees with unassignedTypeFlights on which flights count towards nothing', () => {
+    const fs = [other('t'), other(null), other('gone'), flight(today)];
+    const unrated = fs.filter((f) => ['none', 'removed'].includes(typeRatingOf(f, held).kind));
+    expect(unrated).toEqual(unassignedTypeFlights(fs, held));
   });
 });

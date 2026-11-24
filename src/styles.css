@@ -391,6 +391,18 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 .class-row .val { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; }
 .link-card svg { color: var(--on-surface-variant); flex: none; }
+/* rows that open something, inside a card (e.g. the flights without a type rating on Currency) */
+.link-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.link-list li + li { border-top: 1px solid var(--outline-variant); }
+.link-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px;
+  padding: 8px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.link-row > span { display: flex; flex-direction: column; min-width: 0; }
+.link-row .main { font-weight: 500; }
+.link-row svg { color: var(--on-surface-variant); flex: none; }
+.chip.flag.warn { background: color-mix(in oklab, var(--warn) 16%, var(--surface-1)); color: var(--warn); }
+.facts .fact-warn { color: var(--warn); }
 
 .cur-card .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .cur-card h3 { margin: 0; font-size: 18px; font-weight: 500; }
