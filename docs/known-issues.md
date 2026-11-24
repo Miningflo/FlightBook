@@ -50,5 +50,7 @@ of truth; the main ones:
 ## Tooling
 
 - **No UI tests.** Vitest runs in Node without a DOM, so screens are checked by hand in a browser.
-- **`npm audit`** reports 4 moderate issues, all in build-time tooling (minimatch via vite-plugin-pwa). The
-  suggested fix downgrades vite-plugin-pwa, so they are left until upstream updates.
+- **An `overrides` entry in `package.json` pins workbox-build's `glob` to 14.0.4.** workbox-build 7.4.1 asks for
+  glob 11, which (with its minimatch 10) carries two moderate advisories; build-time only, never shipped. glob 14
+  was checked to give the service worker the same 16 precached files. Remove the override once workbox-build
+  depends on a fixed glob itself (`npm ls glob` shows it), and compare the precache list again.
