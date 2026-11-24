@@ -161,10 +161,21 @@ describe('sepRevalidation', () => {
     expect(sepRevalidation([], expiry, addDays(expiry, -60))).toMatchObject({ status: 'red', state: 'urgent' });
     expect(sepRevalidation([], expiry, addDays(expiry, -61))).toMatchObject({ status: 'amber', state: 'in-progress' });
   });
-  it('is green once every requirement is met, even close to expiry', () => {
-    const r = sepRevalidation([enough('2025-09-01')], expiry, '2026-03-20');
+  it('is green once every requirement is met, while there is time to have it entered', () => {
+    const r = sepRevalidation([enough('2025-09-01')], expiry, addDays(expiry, -31));
     expect(r).toMatchObject({ status: 'green', state: 'requirements-met' });
     expect(r.progress.every((p) => p.met)).toBe(true);
+  });
+  it('turns amber when met with 30 or fewer days left, because met is not yet revalidated', () => {
+    expect(sepRevalidation([enough('2025-09-01')], expiry, addDays(expiry, -30))).toMatchObject({ status: 'amber', state: 'met-sign-off' });
+    expect(sepRevalidation([enough('2025-09-01')], expiry, '2026-03-20')).toMatchObject({ status: 'amber', state: 'met-sign-off', daysToExpiry: 11 });
+    expect(sepRevalidation([enough('2025-09-01')], expiry, expiry)).toMatchObject({ status: 'amber', state: 'met-sign-off', daysToExpiry: 0 });
+  });
+  it('is expired the day after, met or not', () => {
+    expect(sepRevalidation([enough('2025-09-01')], expiry, addDays(expiry, 1))).toMatchObject({ status: 'red', state: 'expired' });
+  });
+  it('goes back to green once the new expiry date is entered', () => {
+    expect(sepRevalidation([enough('2025-09-01')], '2028-03-31', '2026-03-20')).toMatchObject({ status: 'green' });
   });
   it('one unmet requirement is enough to stay short', () => {
     const r = sepRevalidation([enough('2025-09-01', { dualMin: 30 })], expiry, '2026-03-20');

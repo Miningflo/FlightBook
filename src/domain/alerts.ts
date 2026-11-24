@@ -54,6 +54,7 @@ function ratingItem(cls: ClassRating, flights: Flight[], expiry: IsoDate, today:
     if (c.state === 'expired') return { key, level: 'expired', title: `${name} rating expired`, body: `Expired on ${date}. It has to be renewed.` };
     if (c.state === 'urgent') return { key, level: 'red', title: `${name} rating: ${plural(days, 'day')} left`, body: `Revalidation requirements are still not met. Expires ${date}.` };
     if (c.state === 'in-progress') return { key, level: 'amber', title: `${name} rating expires in ${plural(days, 'day')}`, body: 'Revalidation requirements are not yet met.' };
+    if (c.state === 'met-sign-off') return { key, level: 'amber', title: `${name} rating expires in ${plural(days, 'day')}`, body: `Revalidation requirements are met. Have the revalidation entered in your licence before ${date}, then update the expiry date in the app.` };
     return { key, level: 'green', title: `${name} rating ok`, body: `Valid until ${date}.` };
   }
   const c = proficiencyCheckStatus(expiry, today, rules);
