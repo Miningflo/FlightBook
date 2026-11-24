@@ -1,4 +1,5 @@
 import type { ClassRating, Flight, IsoDate, Minutes } from './types';
+import { CLASS_RATINGS } from './types';
 import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
 import { DEFAULT_RULES, type LanguageLevel, type Rules } from './rules';
 
@@ -209,6 +210,17 @@ export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today
 export function unassignedTypeFlights(flights: Flight[], ratings: readonly { id: string }[]): Flight[] {
   const held = new Set(ratings.map((r) => r.id));
   return flights.filter((f) => f.aircraftClass === 'OTHER' && !(f.typeRatingId && held.has(f.typeRatingId)));
+}
+
+/**
+ * The class chips on the Currency screen. Every real class is always offered, so an expiry date can be
+ * entered before any flight is logged. Other is offered once there is something behind it: a flight
+ * logged under it, or a type rating held. A rating with no flights yet then shows as not current, the
+ * same way an empty class does, instead of not showing at all.
+ */
+export function currencyClasses(flights: Flight[], ratings: readonly { id: string }[]): ClassRating[] {
+  const other = ratings.length > 0 || flights.some((f) => f.aircraftClass === 'OTHER');
+  return CLASS_RATINGS.filter((c) => c !== 'OTHER' || other);
 }
 
 /** Route sectors for a type rating. Countable now that each flight names its rating (FCL.740.A(a)(2)). */

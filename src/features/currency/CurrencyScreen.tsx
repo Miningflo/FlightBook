@@ -1,11 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
-import { CLASS_RATINGS, CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
-import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
+import { CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
+import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, currencyClasses, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
 import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
 import { uuid } from '../../domain/id';
-import { Bar, Field, StatusPill } from '../../ui/components';
+import { Bar, Dialog, Field, StatusPill } from '../../ui/components';
 import { formatShortDate } from '../flights/format';
 
 function RulesNote({ rule, extra, title = 'How this is calculated' }: { rule: RuleSource; extra?: ReactNode; title?: string }) {
@@ -92,17 +92,31 @@ function RenewalSteps({ rule = DEFAULT_RULES.renewal }: { rule?: RenewalRule }) 
 }
 
 /** Edit a rating's expiry date. `onSave(null)` clears it. */
-function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry date', removeLabel = 'Remove date' }: {
+/**
+ * Edits one expiry date. Saving no date removes it. With `confirmRemove`, removing has to be confirmed
+ * first, on both paths that lead there: the remove button, and saving with the date field cleared.
+ */
+function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry date', removeLabel = 'Remove date', confirmRemove }: {
   id: string; current: string; forceOpen: boolean; label?: string; removeLabel?: string;
   onSave: (date: IsoDate | null) => Promise<unknown>;
+  confirmRemove?: { title: string; body: ReactNode; action: string };
 }) {
   const { canEdit } = useApp();
   const [draft, setDraft] = useState(current);
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   if (!canEdit) return null;
+  const remove = async () => {
+    setConfirming(false);
+    setDraft('');
+    await onSave(null);
+    setEditing(false);
+  };
+  const requestRemove = () => { if (confirmRemove) setConfirming(true); else void remove(); };
   const save = async () => {
-    if (draft !== '' && !isValidIsoDate(draft)) return;
-    await onSave(draft === '' ? null : draft);
+    if (draft === '') { if (current !== '') requestRemove(); else setEditing(false); return; }
+    if (!isValidIsoDate(draft)) return;
+    await onSave(draft);
     setEditing(false);
   };
   return (
@@ -115,11 +129,20 @@ function ExpiryEditor({ id, current, forceOpen, onSave, label = 'Rating expiry d
           <div className="row">
             <button type="button" className="btn tonal" onClick={() => void save()}>Save date</button>
             {editing && <button type="button" className="btn text" onClick={() => setEditing(false)}>Cancel</button>}
-            {current !== '' && <button type="button" className="btn text" onClick={() => { setDraft(''); void onSave(null).then(() => setEditing(false)); }}>{removeLabel}</button>}
+            {current !== '' && <button type="button" className="btn text" onClick={requestRemove}>{removeLabel}</button>}
           </div>
         </div>
       ) : (
         <button type="button" className="btn text" onClick={() => { setDraft(current); setEditing(true); }}>Change expiry date</button>
+      )}
+      {confirmRemove && (
+        <Dialog open={confirming} title={confirmRemove.title} onClose={() => setConfirming(false)}
+          actions={<>
+            <button type="button" className="btn text" onClick={() => setConfirming(false)}>Cancel</button>
+            <button type="button" className="btn danger" onClick={() => void remove()}>{confirmRemove.action}</button>
+          </>}>
+          {confirmRemove.body}
+        </Dialog>
       )}
     </div>
   );
@@ -361,13 +384,14 @@ function LanguageCard({ today }: { today: IsoDate }) {
 /**
  * The Other class holds every type-rated aeroplane, so a single currency across it would mix types
  * that have nothing to do with each other. FCL.060 counts per "type or class", so this shows one set
- * of counters per type rating instead, and names the flights that belong to none of them.
+ * of counters per type rating instead, and names the flights that belong to none of them. Every rating
+ * held gets its counters, flown or not: a rating with no flights is exactly the one you are not current on.
  */
 function OtherClassPanel({ today }: { today: IsoDate }) {
   const { data } = useApp();
   const ratings = data.settings.typeRatings ?? [];
   const stranded = unassignedTypeFlights(data.flights, ratings);
-  const flown = ratings.filter((t) => data.flights.some((f) => f.typeRatingId === t.id));
+  const anyOther = data.flights.some((f) => f.aircraftClass === 'OTHER');
   return (
     <>
       {stranded.length > 0 && (
@@ -380,12 +404,12 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
           </div>
         </div>
       )}
-      {flown.length === 0 && stranded.length === 0 && (
+      {!anyOther && (
         <p className="hint" style={{ margin: '0 4px 12px' }}>
-          No flights logged in a type-rated aeroplane yet. Add your type ratings under <strong>Your licence</strong> below, then pick one when you log the flight.
+          No flights logged in a type-rated aeroplane yet. Log them in the Other class and pick the type rating, and they count here.
         </p>
       )}
-      {flown.map((t) => (
+      {ratings.map((t) => (
         <div key={t.id}>
           <RollingCard title="Carrying passengers" subtitle={`${t.name} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`}
             check={passengerCurrency(data.flights, byType(t.id), today)} rule={DEFAULT_RULES.passenger} />
@@ -396,6 +420,13 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
       ))}
     </>
   );
+}
+
+/** What removing a type rating does to the flights logged under it. */
+function removalWarning(flights: number): string {
+  if (flights === 0) return 'No flights are logged under this rating. To keep it and only change its date, cancel and pick a new date instead.';
+  const n = flights === 1 ? '1 flight is' : `${flights} flights are`;
+  return `${n} logged under this rating. They will stop counting towards any currency and will be listed as flights without a type rating until you pick a rating for each of them again. Adding the rating back later does not reconnect them. To keep it and only change its date, cancel and pick a new date instead.`;
 }
 
 /**
@@ -443,8 +474,10 @@ function TypeRatingsCard({ today }: { today: IsoDate }) {
             )}
             {canEdit && (
               <div className="row">
-                {/* clearing a type rating's date removes the rating itself, so the button has to say so */}
+                {/* clearing a type rating's date removes the rating itself, so the button has to say so, and it
+                    asks first: the flights logged under it stop counting, and adding it back does not reconnect them */}
                 <ExpiryEditor id={`expiry-type-${t.id}`} label={`${t.name} expiry date`} removeLabel="Remove rating" forceOpen={false} current={t.expiry}
+                  confirmRemove={{ title: `Remove the ${t.name} type rating?`, action: 'Remove rating', body: removalWarning(data.flights.filter((f) => f.typeRatingId === t.id).length) }}
                   onSave={(d) => (d === null
                     ? save(ratings.filter((r) => r.id !== t.id))
                     : save(ratings.map((r) => (r.id === t.id ? { ...r, expiry: d } : r))))} />
@@ -478,11 +511,10 @@ export function CurrencyScreen() {
   const { data } = useApp();
   const today: IsoDate = utcDateOf(Date.now());
   // Every class with a rating to follow is selectable, so an expiry date can be entered before any flight is logged.
-  const classes = useMemo<ClassRating[]>(() => {
-    const used = new Set<ClassRating>(data.flights.map((f) => f.aircraftClass));
-    return CLASS_RATINGS.filter((c) => c !== 'OTHER' || used.has(c));
-  }, [data.flights]);
-  const [cls, setCls] = useState<ClassRating>('SEP_LAND');
+  const classes = useMemo(() => currencyClasses(data.flights, data.settings.typeRatings ?? []), [data.flights, data.settings.typeRatings]);
+  const [picked, setCls] = useState<ClassRating>('SEP_LAND');
+  // the picked chip can disappear (the last type rating and Other flight removed): fall back rather than show a chip-less panel
+  const cls: ClassRating = classes.includes(picked) ? picked : 'SEP_LAND';
   const passengers = useMemo(() => passengerCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
   const night = useMemo(() => nightCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
   const expiry = classExpiryOf(data.settings, cls);

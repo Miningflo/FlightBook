@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, unassignedTypeFlights } from './currency';
+import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, unassignedTypeFlights, currencyClasses } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -328,5 +328,23 @@ describe('unassignedTypeFlights', () => {
   });
   it('ignores flights in a class rating, whatever they carry', () => {
     expect(unassignedTypeFlights([flight(today, { typeRatingId: 'gone' })], held)).toEqual([]);
+  });
+});
+
+describe('currencyClasses', () => {
+  it('offers every real class but not Other when there is nothing behind it', () => {
+    const c = currencyClasses([], []);
+    expect(c).toContain('SEP_LAND');
+    expect(c).toContain('MEP_SEA');
+    expect(c).not.toContain('OTHER');
+  });
+  it('offers Other once a type rating is held, before any flight is logged in it', () => {
+    expect(currencyClasses([], [{ id: 't' }])).toContain('OTHER');
+  });
+  it('offers Other for flights logged under it even without a rating, so they can be found', () => {
+    expect(currencyClasses([flight(today, { aircraftClass: 'OTHER' })], [])).toContain('OTHER');
+  });
+  it('keeps Other last, in the canonical order', () => {
+    expect(currencyClasses([], [{ id: 't' }]).at(-1)).toBe('OTHER');
   });
 });
