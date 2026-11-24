@@ -79,7 +79,7 @@ describe('block time', () => {
   });
 });
 
-import { addDays, addMonths, daysBetween, utcDateOf } from './time';
+import { addDays, addMonths, checkDate, daysBetween, utcDateOf } from './time';
 
 describe('calendar arithmetic', () => {
   it('adds days across month, year and leap boundaries', () => {
@@ -143,5 +143,25 @@ describe('landing on another UTC date', () => {
     expect(landingDayOffset(t('2025-06-10T23:10:00Z'), t('2025-06-11T01:40:00Z'))).toBe(1);
     expect(landingDayOffset(t('2025-06-10T10:00:00Z'), t('2025-06-11T12:00:00Z'))).toBe(1);
     expect(landingDayOffset(t('2025-06-10T10:00:00Z'), t('2025-06-12T01:00:00Z'))).toBe(2);
+  });
+});
+
+describe('checkDate: the later of the local and the UTC date', () => {
+  const at = (h: number, m = 0) => Date.UTC(2026, 10, 23, h, m); // 23 Nov 2026, UTC
+  it('in Belgium after local midnight it is already the next day, so an expiry on the 23rd reads as past', () => {
+    expect(checkDate(at(23, 30), 60)).toBe('2026-11-24');   // 00:30 CET
+    expect(checkDate(at(22, 30), 120)).toBe('2026-11-24');  // 00:30 CEST
+    expect(checkDate(at(22, 59), 60)).toBe('2026-11-23');   // 23:59 CET: still the 23rd
+  });
+  it('west of UTC it stays the UTC date, which is the later one there', () => {
+    expect(checkDate(at(2), -300)).toBe('2026-11-23');      // 21:00 on the 22nd in New York
+    expect(checkDate(at(23), -300)).toBe('2026-11-23');
+  });
+  it('at UTC it is the UTC date', () => {
+    expect(checkDate(at(0), 0)).toBe('2026-11-23');
+    expect(checkDate(at(23, 59), 0)).toBe('2026-11-23');
+  });
+  it('is never earlier than the UTC date, in any zone', () => {
+    for (let off = -720; off <= 840; off += 30) for (const h of [0, 6, 12, 18, 23]) expect(checkDate(at(h), off) >= utcDateOf(at(h))).toBe(true);
   });
 });
