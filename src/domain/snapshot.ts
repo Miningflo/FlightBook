@@ -13,7 +13,7 @@ import { validateFstd } from './fstd';
  */
 
 /** Bump together with a new entry in MIGRATIONS whenever the snapshot layout changes. */
-export const SNAPSHOT_SCHEMA_VERSION = 2;
+export const SNAPSHOT_SCHEMA_VERSION = 3;
 
 export interface SnapshotAttachment {
   id: string;
@@ -57,9 +57,13 @@ export const serializeSnapshot = (s: Snapshot): string => `${JSON.stringify(s)}\
  * a v1 flight simply belongs to no type rating, which is what an absent field already means. The
  * version was still bumped so that an older copy of the app refuses a v2 backup rather than restoring
  * it and dropping the type links on its next upload.
+ *
+ * 2 -> 3 added `routeSector` to flights, bumped for the same reason and with the same nothing-to-rewrite:
+ * a v2 flight was simply never marked as a route sector, which is what an absent field means.
  */
 export const MIGRATIONS: Record<number, (raw: Record<string, unknown>) => Record<string, unknown>> = {
   1: (raw) => raw,
+  2: (raw) => raw,
 };
 
 const ARRAYS = ['aircraft', 'persons', 'flights', 'fstdSessions', 'previousExperience', 'attachments'] as const;

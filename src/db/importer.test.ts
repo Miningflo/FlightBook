@@ -213,3 +213,19 @@ describe('the aircraft record an import creates for a new registration', () => {
     expect(ac.variant).toBe('B350');
   });
 });
+
+describe('flights saved before route sectors existed', () => {
+  it('match their own CSV and JSON export exactly, instead of all turning into conflicts', async () => {
+    await fill(ra);
+    // as stored by an older version: no routeSector field at all
+    await a.flights.toCollection().modify((f) => { delete (f as { routeSector?: boolean }).routeSector; });
+    expect((await a.flights.toArray()).every((f) => !('routeSector' in f))).toBe(true);
+    const existing = await readBundle(a);
+    const csv = decodeFlights(encodeFlights(existing.flights), () => uuid(), Date.now());
+    const fromCsv = planImport({ flights: csv.records.map((r) => r.value), fstd: [], experience: [] }, existing);
+    expect(fromCsv.flights.conflicts).toHaveLength(0);
+    expect(fromCsv.flights.identical).toHaveLength(existing.flights.length);
+    const fromJson = planImport(snapshotToBundle(parseSnapshot(serializeSnapshot(await snapshotFromDb(a)))).bundle, existing);
+    expect(fromJson.flights.conflicts).toHaveLength(0);
+  });
+});

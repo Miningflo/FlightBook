@@ -242,18 +242,10 @@ export function currencyClasses(flights: Flight[], ratings: readonly { id: strin
   return CLASS_RATINGS.filter((c) => c !== 'OTHER' || other);
 }
 
-/** Route sectors for a type rating. Countable now that each flight names its rating (FCL.740.A(a)(2)). */
+/** Route sectors for a type rating (FCL.740.A(a)(2)), counted per rating since each flight names its rating. */
 export function typeRouteSectors(flights: Flight[], typeRatingId: string, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
   if (!expiry) return null;
-  const r = rules.mepSectors;
-  const windowStart = addDays(addMonths(expiry, -r.validityMonths), 1);
-  const windowEnd = today < expiry ? today : expiry;
-  const inWindow = flights.filter((f) => f.typeRatingId === typeRatingId && f.date >= windowStart && f.date <= windowEnd);
-  const routeFlights = inWindow.filter((f) => place(f.depPlace) !== place(f.arrPlace)).length;
-  return {
-    flights: inWindow.length, routeFlights, need: r.sectors, windowStart,
-    met: routeFlights >= r.sectors, metIfLocalCount: inWindow.length >= r.sectors,
-  };
+  return sectorProgress(flights.filter((f) => f.typeRatingId === typeRatingId), expiry, today, rules);
 }
 
 /** Status of one type rating (FCL.740.A(a)(1)): the same check window as a multi-engine class rating. */
@@ -294,47 +286,42 @@ export function classExpiryPatch(s: { classExpiry?: Partial<Record<ClassRating, 
 /** Multi-engine class ratings: route sectors during the validity period (FCL.740.A(a)(2)). */
 export const SECTOR_CLASSES: readonly ClassRating[] = ['MEP_LAND', 'MEP_SEA'];
 
+/** Classes and aeroplanes whose flights can be marked as route sectors: multi-engine classes and type ratings. */
+export const routeSectorApplies = (cls: ClassRating): boolean => SECTOR_CLASSES.includes(cls) || cls === 'OTHER';
+
 /**
- * Part-FCL asks for "route sectors" and never says what one is. The only definition EASA gives anywhere
- * is in Part-ORO, ORO.FTL.105: a sector is the segment between the aircraft first moving to take off and
- * coming to rest after landing -- one flight, block to block, with no requirement that it end somewhere
- * else. But FCL.740.A(a)(2) says "route" sector, and the usual reading of that is a flight from one
- * aerodrome to another, which would leave out local flying.
- *
- * Rather than pick one and present it as a count, both are reported: every flight in the class, and the
- * subset that landed away. `met` follows the narrow reading, because being told you are short when you
- * are not is the harmless way round -- the reverse lets a rating lapse.
+ * FCL.010 defines a route sector: "a flight comprising take-off, departure, cruise of not less than 15
+ * minutes, arrival, approach and landing phases". The logbook records block times, not the cruise, so it
+ * cannot tell which flights qualify: a local flight with 15 minutes of cruise is one, a short hop to the
+ * next aerodrome may not be. So only flights the pilot marked as route sectors on the form are counted,
+ * and the ones not marked are listed so they can be checked. Guessing from the aerodromes or the block
+ * time could count a flight that is not a sector, which would let the rating lapse unnoticed.
  */
 export interface SectorProgress {
-  /** Every logged flight in the class in the validity period (ORO.FTL.105's reading of a sector). */
+  /** Every logged flight in the class (or under the type rating) in the validity period. */
   flights: number;
-  /** ...of which departed and landed at different aerodromes (the narrow reading of "route"). */
-  routeFlights: number;
+  /** ...of which marked as route sectors. Only these count. */
+  sectors: number;
+  /** The flights in the period not marked as route sectors, newest first, to be checked. */
+  unmarked: Flight[];
   need: number;
   windowStart: IsoDate;
-  /** Met on the narrow reading. */
   met: boolean;
-  /** Met only if local flights count too. */
-  metIfLocalCount: boolean;
 }
 
-const place = (s: string) => s.trim().toUpperCase();
-
-export function routeSectors(flights: Flight[], cls: ClassRating, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
-  if (!expiry || !SECTOR_CLASSES.includes(cls)) return null;
+function sectorProgress(candidates: Flight[], expiry: IsoDate, today: IsoDate, rules: Rules): SectorProgress {
   const r = rules.mepSectors;
   const windowStart = addDays(addMonths(expiry, -r.validityMonths), 1);
   const windowEnd = today < expiry ? today : expiry;
-  const inWindow = flights.filter((f) => f.aircraftClass === cls && f.date >= windowStart && f.date <= windowEnd);
-  const routeFlights = inWindow.filter((f) => place(f.depPlace) !== place(f.arrPlace)).length;
-  return {
-    flights: inWindow.length,
-    routeFlights,
-    need: r.sectors,
-    windowStart,
-    met: routeFlights >= r.sectors,
-    metIfLocalCount: inWindow.length >= r.sectors,
-  };
+  const inWindow = candidates.filter((f) => f.date >= windowStart && f.date <= windowEnd);
+  const sectors = inWindow.filter((f) => f.routeSector === true).length;
+  const unmarked = inWindow.filter((f) => f.routeSector !== true).sort((a, b) => b.depTimeUtc - a.depTimeUtc);
+  return { flights: inWindow.length, sectors, unmarked, need: r.sectors, windowStart, met: sectors >= r.sectors };
+}
+
+export function routeSectors(flights: Flight[], cls: ClassRating, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+  if (!expiry || !SECTOR_CLASSES.includes(cls)) return null;
+  return sectorProgress(flights.filter((f) => f.aircraftClass === cls), expiry, today, rules);
 }
 
 // ---------- licence documents: medical certificate and language endorsement ----------
