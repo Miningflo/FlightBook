@@ -1,6 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CreditError, buildCredits, creditsIn, renderCredits, replaceCredits } from './photo-credits.mjs';
+import { CreditError, buildCredits, creditsIn, publish, renderCredits, replaceCredits } from './photo-credits.mjs';
 
 const cessna = {
   registration: 'OO-CEU', status: 'found', source: 'commons', imageUrl: 'https://upload.wikimedia.org/a.jpg',
@@ -25,8 +27,11 @@ describe('the committed screenshots are credited', () => {
   });
   it('every credited photo names its author, licence and source, and screenshots that exist', () => {
     for (const p of json.photos) {
+      // Vitest's expect takes a failure message as its second argument
+      // oxlint-disable-next-line vitest/valid-expect
       for (const k of ['title', 'artist', 'license', 'pageUrl']) expect(p[k], `${p.registration} ${k}`).toBeTruthy();
       expect(p.files.length).toBeGreaterThan(0);
+      // oxlint-disable-next-line vitest/valid-expect -- the message names the missing screenshot
       for (const f of p.files) expect(existsSync(`docs/screenshots/${f}`), f).toBe(true);
     }
   });
@@ -82,5 +87,45 @@ describe('replaceCredits', () => {
   });
   it('refuses a README without the markers instead of guessing where the credits go', () => {
     expect(() => replaceCredits('# README\n', renderCredits([]))).toThrow(/no <!-- photo-credits:start -->/);
+  });
+});
+
+describe('publish: the end of a screenshot run', () => {
+  const setup = () => {
+    const root = mkdtempSync(join(tmpdir(), 'credits-test-'));
+    const stage = join(root, 'stage'), out = join(root, 'out'), readmePath = join(root, 'README.md');
+    mkdirSync(stage); mkdirSync(out);
+    for (const { file } of shots) writeFileSync(join(stage, file), `new ${file}`);
+    writeFileSync(join(out, 'logbook.png'), 'old logbook.png');
+    writeFileSync(readmePath, '# R\n### Photo credits\n<!-- photo-credits:start -->\nold\n<!-- photo-credits:end -->\n## Setup\n');
+    return { root, stage, out, readmePath, done: () => rmSync(root, { recursive: true, force: true }) };
+  };
+  it('copies the screenshots and writes the credits when every photo can be credited', () => {
+    const t = setup();
+    try {
+      const credits = publish({ shots, cache: [cessna, piper], ...t });
+      expect(readdirSync(t.out).sort()).toEqual(['flight.png', 'logbook.png', 'photo-credits.json', 'totals.png']);
+      expect(readFileSync(join(t.out, 'logbook.png'), 'utf8')).toBe('new logbook.png');
+      expect(JSON.parse(readFileSync(join(t.out, 'photo-credits.json'), 'utf8')).photos).toEqual(credits);
+      expect(creditsIn(readFileSync(t.readmePath, 'utf8'))).toBe(renderCredits(credits));
+    } finally { t.done(); }
+  });
+  it('refuses and changes nothing when one photo cannot be credited', () => {
+    const t = setup();
+    try {
+      const before = readFileSync(t.readmePath, 'utf8');
+      expect(() => publish({ shots, cache: [cessna, { ...piper, artist: '' }], ...t })).toThrow(CreditError);
+      expect(readdirSync(t.out)).toEqual(['logbook.png']);
+      expect(readFileSync(join(t.out, 'logbook.png'), 'utf8')).toBe('old logbook.png'); // the old image, untouched
+      expect(readFileSync(t.readmePath, 'utf8')).toBe(before);
+    } finally { t.done(); }
+  });
+  it('refuses before copying anything when the README has lost its credits section', () => {
+    const t = setup();
+    try {
+      writeFileSync(t.readmePath, '# R\n');
+      expect(() => publish({ shots, cache: [cessna, piper], ...t })).toThrow(/no <!-- photo-credits:start -->/);
+      expect(readdirSync(t.out)).toEqual(['logbook.png']);
+    } finally { t.done(); }
   });
 });
