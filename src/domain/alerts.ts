@@ -1,7 +1,7 @@
 import type { AlertLevel, ClassRating, Flight, IsoDate, TypeRating } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
 import { daysBetween } from './time';
-import { byClass, byType, classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, type RollingCheck } from './currency';
+import { byClass, byType, classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, type RollingCheck, type SectorProgress } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -98,9 +98,15 @@ function sectorsBehindPace(flights: Flight[], cls: ClassRating, expiry: IsoDate,
   const elapsed = gone / total;
   // leave the first half of the validity period alone: a slow start is normal and nagging is not useful
   if (elapsed < 0.5) return null;
-  if (s.routeFlights >= Math.floor(s.need * elapsed)) return null;
+  if (s.sectors >= Math.floor(s.need * elapsed)) return null;
   const pct = Math.round(elapsed * 100);
-  return `${s.routeFlights} of ${s.need} route sectors flown with ${pct}% of the validity period gone${s.metIfLocalCount ? ` (${s.flights} if local flights count as sectors)` : ''}.`;
+  return `${s.sectors} of ${s.need} route sectors with ${pct}% of the validity period gone.${unmarkedNote(s)}`;
+}
+
+/** Only flights marked as route sectors count; say how many in the period are still unmarked, if any. */
+function unmarkedNote(s: SectorProgress): string {
+  const n = s.unmarked.length;
+  return n === 0 ? '' : ` ${plural(n, 'more flight')} in the period ${n === 1 ? 'is' : 'are'} not marked as a route sector; check ${n === 1 ? 'it' : 'them'} on the Currency screen.`;
 }
 
 /** One type rating. Keyed by its id, so renaming it does not look like a different rating. */
@@ -116,8 +122,8 @@ function typeRatingItem(t: TypeRating, flights: Flight[], today: IsoDate, rules:
   if (s && !s.met) {
     const total = daysBetween(s.windowStart, t.expiry), gone = daysBetween(s.windowStart, today);
     const elapsed = total > 0 ? gone / total : 0;
-    if (elapsed >= 0.5 && s.routeFlights < Math.floor(s.need * elapsed)) {
-      return { key, level: 'amber', title: `${t.name}: route sectors behind`, body: `${s.routeFlights} of ${s.need} route sectors flown with ${Math.round(elapsed * 100)}% of the validity period gone. One sector flown with an examiner also satisfies it. Expires ${date}.` };
+    if (elapsed >= 0.5 && s.sectors < Math.floor(s.need * elapsed)) {
+      return { key, level: 'amber', title: `${t.name}: route sectors behind`, body: `${s.sectors} of ${s.need} route sectors with ${Math.round(elapsed * 100)}% of the validity period gone.${unmarkedNote(s)} One sector flown with an examiner also satisfies it. Expires ${date}.` };
     }
   }
   return { key, level: 'green', title: `${t.name} type rating ok`, body: `Valid until ${date}.` };

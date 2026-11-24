@@ -1,10 +1,13 @@
 /**
  * Regulatory parameters used by the currency checks, taken from Commission Regulation (EU) No 1178/2011
- * (Part-FCL) as published in the EASA Easy Access Rules for Aircrew, revision from October 2026
- * (https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew),
- * checked word by word against the text of FCL.060, FCL.740 and FCL.740.A on 23 November 2026 (all three
- * carrying the amendments of Regulation (EU) 2024/2076 in that revision), and FCL.625 and FCL.625.A
- * (Regulation (EU) 2020/2193) on the same day, and FCL.055 and MED.A.045 (Regulation (EU) 2019/27).
+ * as published in the EASA Easy Access Rules for Aircrew. Re-checked against EASA's text on 24 November 2026:
+ *  - FCL.060, FCL.055, FCL.625 and FCL.740 in the revision from October 2026
+ *    (https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-aircrew);
+ *  - FCL.740.A, the FCL.010 definitions ("night", "route sector"), MED.A.045 and AMC1 FCL.050 in the paginated
+ *    edition (revision from August 2023, ...easy-access-rules-aircrew-regulation-eu-no?page=5, 24 and 52), the
+ *    only one whose text could be read for them. FCL.010 was amended by Regulation (EU) 2021/2227, FCL.740.A by
+ *    2020/2193 and MED.A.045 by 2019/27; check them against the current revision when it can be read.
+ * An earlier check (23 November 2026) had missed that FCL.010 defines "route sector"; it is quoted below.
  *
  * MED.A.045 is Part-MED, not Part-FCL: the medical certificate is the one document that grounds you
  * whatever your ratings say, so it is tracked here even though it comes from a different Annex.
@@ -36,9 +39,11 @@ export const PASSENGER_CURRENCY: RollingRule = {
   reference: 'Part-FCL FCL.060(b)(1): a pilot shall not operate an aircraft in commercial air transport or to carry passengers as PIC or co-pilot unless, in the preceding 90 days, they carried out at least 3 take-offs, approaches and landings as pilot flying in an aircraft of the same type or class (or an FFS representing it).',
   verified: true,
   todo: [
-    'Limit: the logbook does not record who was flying, so every logged take-off and landing is counted although the rule requires them as pilot flying.',
+    'Every logged take-off and landing is counted. The rule requires them as pilot flying; the AMC1 FCL.050 logbook records landings as pilot flying, so log only the take-offs and landings you flew.',
     'Limit: take-offs and landings in a simulator (FFS) of the class also count under the rule; none are counted here.',
     'Limit: approaches are not recorded, only take-offs and landings.',
+    'Not modelled: where the operational suitability data allows it, the take-offs and landings may be flown in another type with similar handling characteristics (FCL.060(b)(4)); the app counts each type rating on its own.',
+    'Not modelled: in commercial air transport the 90 days may be extended to at most 120 while the pilot flies the line under the supervision of a type rating instructor or examiner (FCL.060(c)).',
     'Limit: "preceding 90 days" is applied conservatively: an event counts on the day it happens and the 89 days after.',
   ],
 };
@@ -52,7 +57,7 @@ export const NIGHT_CURRENCY: RollingRule = {
   todo: [
     'Holders of an IR are exempt from this requirement: the extra night take-off and landing. FCL.060(b)(1), the 3 take-offs and landings for carrying passengers, still applies to every passenger flight, by day and at night. Enter your IR expiry date and the app stops asking for the night one, for as long as the rating is valid.',
     'Limit: FCL.060(b)(2)(ii) says "holds an IR", not "holds a valid IR". The app takes the strict reading and only exempts you while the rating has not expired, because being told you are not current when you are is the harmless way round.',
-    'Limit: the logbook does not record who was flying, so every logged night take-off and landing is counted.',
+    'Every logged night take-off and landing is counted; as for passenger currency, log only the ones you flew as pilot flying.',
     'Limit: night take-offs and landings in a simulator (FFS) of the class also count under the rule; none are counted here.',
   ],
 };
@@ -88,7 +93,7 @@ export const SEP_REVALIDATION: SepRule = {
   verified: true,
   todo: [
     'Limit: the training flight must be with an FI or CRI; the logbook has no instructor flag, so DUAL time is used as a stand-in.',
-    'Limit: the 1 hour refresher training is not needed if you passed a class or type rating proficiency check, a skill test, an EBT practical assessment or an assessment of competence in any class or type of aeroplane (FCL.740.A(b)(1)(ii)(C)); the app does not know about those and always asks for it.',
+    'Limit: the 1 hour refresher training is not needed if you passed a class or type rating proficiency check, a skill test, an EBT practical assessment or an assessment of competence in any other class or type of aeroplane (FCL.740.A(b)(1)(ii)(C)); the app does not know about those and always asks for it.',
     'Limit: if you hold both SEP (land) and TMG the hours may be flown in either class or a combination and revalidate both (FCL.740.A(b)(2)); if you hold SEP (land) and SEP (sea) the same applies, with at least 1 hour of the PIC time and 6 of the 12 take-offs and landings in each class (FCL.740.A(b)(4)). The app counts the selected class only.',
     'Limit: flights before the app was used (previous experience carry-ins) have no dates and are not counted.',
     'Limit: these are the EASA figures. A UK CAA licence follows the retained wording, which lets the 12 hours be spread over the whole validity period provided 6 fall in the last 12 months.',
@@ -122,11 +127,11 @@ export const MULTI_ENGINE_SECTORS: SectorRule = {
    */
   validityMonths: 12,
   sectors: 10,
-  reference: 'Part-FCL FCL.740.A(a)(2): complete during the period of validity of the rating at least (i) 10 route sectors as pilot of the relevant class, or (ii) 1 route sector as pilot flown with an examiner, which may be flown during the proficiency check. A multi-engine class rating is valid for 1 year (FCL.740(a)(1)), so the window here is the 12 months before expiry.',
+  reference: 'Part-FCL FCL.740.A(a)(2): complete during the period of validity of the rating at least (i) 10 route sectors as pilot of the relevant class or type of aeroplane, or (ii) 1 route sector as pilot of the relevant class or type of aeroplane or FFS, flown with an examiner, which may be flown during the proficiency check. FCL.010: "route sector" means a flight comprising take-off, departure, cruise of not less than 15 minutes, arrival, approach and landing phases. A multi-engine class rating is valid for 1 year (FCL.740(a)(1)), so the window here is the 12 months before expiry.',
   verified: true,
   todo: [
-    'Part-FCL asks for "route sectors" and nowhere says what one is. The only definition EASA gives is in Part-ORO, ORO.FTL.105: the segment between the aircraft first moving to take off and coming to rest after landing -- one flight, with no requirement that it end anywhere else. "Route" is usually read as a flight from one aerodrome to another, which would leave local flying out.',
-    'Both readings are therefore shown: every flight in the class, and the subset that landed away. The status follows the narrower one, so it can tell you that you are short when you are not, but never the reverse. Check which reading the authority that issued your licence takes.',
+    'Only flights you mark as a route sector on the flight form are counted. The logbook records block times, not the cruise, so it cannot tell by itself which flights had the 15 minutes FCL.010 requires: a local flight can qualify, and a short hop to the next aerodrome may not.',
+    'The flights in the period that are not marked are listed on the card, so you can check them and mark the ones that were route sectors.',
     'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
     'Limit: a pilot working for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt (FCL.740.A(a)(3)); not tracked.',
   ],
@@ -182,7 +187,7 @@ export const TYPE_RATING: ProficiencyRule = {
   verified: true,
   todo: [
     'Validity is 1 year "unless otherwise determined in the OSD" (FCL.740(a)(1)), and for many types the OSD does determine otherwise. Enter the expiry date from your licence; the app never works it out.',
-    'FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. Each flight names the type rating it was flown under, so the sectors are counted per rating, on the same two readings as for MEP: every flight, and the subset that landed away.',
+    'FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. Each flight names the type rating it was flown under, so the sectors are counted per rating, from the flights you mark as route sectors (FCL.010: take-off to landing with at least 15 minutes of cruise), as for MEP.',
     'Limit: the sectors are counted over the 12 months before the expiry date, which is the default 1-year validity. Where the OSD sets a different validity for your type, the window does not follow it.',
     'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
     'A pilot flying for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt from the route sectors (FCL.740.A(a)(3)).',
@@ -205,7 +210,7 @@ export const MEDICAL: MedicalRule = {
     'The app does not know your age, so it does not work out the validity period. Enter the expiry date printed on the certificate, which already accounts for it.',
     'Watch the age edges: a class 2 or LAPL certificate issued before you turn 40 stops being valid once you reach 42, and a class 2 issued before 50 stops once you reach 51 (MED.A.045(a)(3)-(4)). The printed expiry date may therefore be later than the date it actually ceases to be valid.',
     'Revalidating inside the 45-day window keeps the old expiry date as the starting point; an examination outside it counts as a renewal and the new period runs from the examination (MED.A.045(a)(5)).',
-    'Once expired, a renewal examination is needed, and after 2 years (and again after 5) the examiner has to look at your aero-medical records first (MED.A.045(c)). The app only tells you it has expired.',
+    'Once a class 1 or class 2 certificate has expired: less than 2 years, a routine revalidation examination; 2 to 5 years, a renewal examination after the examiner has assessed your aero-medical records; more than 5 years, the examination requirements for an initial issue (MED.A.045(c)(2)). The app only tells you it has expired.',
   ],
 };
 

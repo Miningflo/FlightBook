@@ -30,8 +30,9 @@ export const ENGINE_CLASSES: readonly EngineClass[] = ['SP-SE', 'SP-ME', 'MP'];
  * Class / type grouping used for totals and rating currency.
  *
  * Checked on 23 November 2026 against the EASA "Class and Type Rating & Licence Endorsement List"
- * (https://www.easa.europa.eu/en/downloads/11737/en), which is where the class ratings are actually
- * named -- Part-FCL only ever refers to them. That list defines exactly seven aeroplane class ratings:
+ * (https://www.easa.europa.eu/en/downloads/11737/en), which is where the full set of class ratings is
+ * listed; Part-FCL names some of them in passing (FCL.740.A: single-engine piston, TMG, single-engine
+ * turbo-prop) but never lists them all. That list defines exactly seven aeroplane class ratings:
  * SEP (land), SEP (sea), TMG, MEP (land), MEP (sea), SET (land) and SET (sea). The seven below are
  * those, so the land/sea split for SET is confirmed. OTHER is ours, for type-rated aeroplanes and for
  * anything that is not an aeroplane class rating at all.
@@ -128,6 +129,13 @@ export interface Flight extends BaseRecord {
    * because one rating covers several models and a guess that misses is a currency silently undercounted.
    */
   typeRatingId?: Uuid | null;
+  /**
+   * The pilot confirms this flight was a route sector: FCL.010, "a flight comprising take-off, departure,
+   * cruise of not less than 15 minutes, arrival, approach and landing phases". Only asked for multi-engine
+   * classes and type-rated aeroplanes, which need 10 of them per validity period (FCL.740.A(a)(2)). The
+   * logbook does not record the cruise, so this is never inferred: absent (older flights) means no.
+   */
+  routeSector?: boolean;
 
   /** Single-pilot SE / SP ME / multi-pilot time. Normally exactly one equals `totalMin`. */
   spSeMin: Minutes;

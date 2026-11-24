@@ -110,26 +110,33 @@ describe('nightCurrency', () => {
   });
 });
 
-describe('routeSectors (multi-engine)', () => {
+describe('routeSectors (multi-engine): FCL.010 route sectors, as marked by the pilot', () => {
   const expiry = '2026-03-31';
-  const mep = (date: string) => ({ ...flight(date), aircraftClass: 'MEP_LAND' as const });
-  it('counts flights in the class in the 12 months before expiry, both readings of "sector"', () => {
-    const r = routeSectors([mep('2025-06-01'), mep('2025-04-01'), mep('2025-03-31'), flight('2025-06-01')], 'MEP_LAND', expiry, '2025-12-01');
-    expect(r).toMatchObject({ flights: 2, routeFlights: 2, need: 10, windowStart: '2025-04-01', met: false });
+  const mep = (date: string, routeSector?: boolean, o = {}) => flight(date, { aircraftClass: 'MEP_LAND', routeSector, ...o });
+  it('looks at the flights in the class in the 12 months before expiry', () => {
+    const r = routeSectors([mep('2025-06-01', true), mep('2025-04-01', true), mep('2025-03-31', true), flight('2025-06-01', { routeSector: true })], 'MEP_LAND', expiry, '2025-12-01');
+    expect(r).toMatchObject({ flights: 2, sectors: 2, need: 10, windowStart: '2025-04-01', met: false });
   });
-  it('separates flights that landed away from local ones, and the status follows the stricter count', () => {
-    const local = (d: string) => ({ ...mep(d), depPlace: 'EBKT', arrPlace: 'EBKT' });
-    const away = (d: string) => ({ ...mep(d), depPlace: 'EBKT', arrPlace: 'EBOS' });
-    const flights = [...Array.from({ length: 6 }, (_, i) => local(`2025-05-0${i + 1}`)), ...Array.from({ length: 5 }, (_, i) => away(`2025-06-0${i + 1}`))];
-    const r = routeSectors(flights, 'MEP_LAND', expiry, '2025-12-01')!;
-    expect(r.flights).toBe(11);
-    expect(r.routeFlights).toBe(5);
-    expect(r.metIfLocalCount).toBe(true);   // 11 flights, if every flight is a sector
-    expect(r.met).toBe(false);              // only 5 landed away, so the strict reading is not met
+  it('counts only flights marked as route sectors, never guessing from the aerodromes', () => {
+    // FCL.010 needs 15 minutes of cruise: a local flight can be a route sector, a short hop away may not be
+    const localSector = mep('2025-05-01', true, { depPlace: 'EBKT', arrPlace: 'EBKT', totalMin: 70 });
+    const shortHop = mep('2025-05-02', false, { depPlace: 'EBAW', arrPlace: 'EBMB', totalMin: 12 });
+    const unmarkedOld = mep('2025-05-03', undefined, { depPlace: 'EBKT', arrPlace: 'EBOS' });
+    const r = routeSectors([localSector, shortHop, unmarkedOld], 'MEP_LAND', expiry, '2025-12-01')!;
+    expect(r.flights).toBe(3);
+    expect(r.sectors).toBe(1);
+    expect(r.unmarked.map((f) => f.id)).toEqual([unmarkedOld.id, shortHop.id]); // newest first, to be checked
   });
-  it('treats the same aerodrome written differently as local', () => {
-    const r = routeSectors([{ ...mep('2025-06-01'), depPlace: ' ebkt ', arrPlace: 'EBKT' }], 'MEP_LAND', expiry, '2025-12-01')!;
-    expect(r.routeFlights).toBe(0);
+  it('is met at 10 marked sectors, and not at 9 however many other flights there are', () => {
+    const marked = (n: number) => Array.from({ length: n }, (_, i) => mep(`2025-06-${String(i + 1).padStart(2, '0')}`, true));
+    const others = Array.from({ length: 20 }, (_, i) => mep(`2025-07-${String(i + 1).padStart(2, '0')}`, false));
+    expect(routeSectors([...marked(9), ...others], 'MEP_LAND', expiry, '2025-12-01')!.met).toBe(false);
+    expect(routeSectors(marked(10), 'MEP_LAND', expiry, '2025-12-01')!.met).toBe(true);
+  });
+  it('the rule text quotes the FCL.010 definition and no longer claims there is none', () => {
+    const text = [DEFAULT_RULES.mepSectors.reference, ...DEFAULT_RULES.mepSectors.todo].join(' ');
+    expect(text).toMatch(/cruise of not less than 15 minutes/);
+    expect(text).not.toMatch(/nowhere says|never says|ORO\.FTL/);
   });
   it('only applies to multi-engine classes with an expiry date', () => {
     expect(routeSectors([], 'SET_LAND', expiry, today)).toBeNull();
@@ -380,5 +387,14 @@ describe('typeRatingOf', () => {
     const fs = [other('t'), other(null), other('gone'), flight(today)];
     const unrated = fs.filter((f) => ['none', 'removed'].includes(typeRatingOf(f, held).kind));
     expect(unrated).toEqual(unassignedTypeFlights(fs, held));
+  });
+});
+
+describe('typeRouteSectors', () => {
+  it('counts only the marked flights flown under that rating', () => {
+    const typed = (d: string, id: string, routeSector?: boolean) => flight(d, { aircraftClass: 'OTHER', typeRatingId: id, routeSector });
+    const r = typeRouteSectors([typed('2025-12-01', 't', true), typed('2025-12-02', 't'), typed('2025-12-03', 'u', true)], 't', '2026-03-31', '2026-01-01')!;
+    expect(r).toMatchObject({ flights: 2, sectors: 1, need: 10, met: false });
+    expect(r.unmarked).toHaveLength(1);
   });
 });

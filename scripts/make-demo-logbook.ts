@@ -100,6 +100,9 @@ function makeFlights(): Flight[] {
       aircraftVariant: a.variant, aircraftClass: a.cls,
       // one King Air flight is deliberately left unassigned, to show what that looks like
       typeRatingId: a.typeRatingId && i !== 33 ? a.typeRatingId : null,
+      // route sectors are marked by the pilot (FCL.010: 15 min of cruise); the demo marks the cross-country
+      // multi-engine and type-rated flights and leaves the local ones unmarked, so both show on the cards
+      routeSector: (isMe || a.cls === 'OTHER') && from !== to,
       spSeMin: isMe ? 0 : mins, spMeMin: isMe ? mins : 0, mpMin: 0, totalMin: mins,
       picNameId: dual ? 'p-dm' : 'p-self',
       takeoffsDay: night ? 0 : 1, takeoffsNight: night ? 1 : 0,

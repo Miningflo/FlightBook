@@ -59,12 +59,15 @@ describe('the Currency class and the way back from fixing a flight', () => {
     expect(parseHash('#/currency')).toEqual({ name: 'currency' });
     expect(parseHash('#/currency/NOT_A_CLASS')).toEqual({ name: 'currency' });
   });
-  it('an edit opened from the unassigned list goes back up to that list, not to the flight', () => {
-    const r = { name: 'edit', id: 'f1', from: 'unassigned' } as const;
-    expect(routeToHash(r)).toBe('#/edit/f1/unassigned');
-    expect(parseHash('#/edit/f1/unassigned')).toEqual(r);
+  it('an edit opened from a list on the Currency screen goes back up to that list and chip, not to the flight', () => {
+    const r = { name: 'edit', id: 'f1', from: 'OTHER' } as const;
+    expect(routeToHash(r)).toBe('#/edit/f1/currency/OTHER');
+    expect(parseHash('#/edit/f1/currency/OTHER')).toEqual(r);
     expect(parentRoute(r)).toEqual({ name: 'currency', cls: 'OTHER' });
+    expect(parentRoute({ name: 'edit', id: 'f1', from: 'MEP_LAND' })).toEqual({ name: 'currency', cls: 'MEP_LAND' });
+    expect(parentRoute({ name: 'edit', id: 'f1', from: 'SEP_LAND' })).toEqual({ name: 'currency' }); // the default chip
     expect(parentRoute({ name: 'edit', id: 'f1' })).toEqual({ name: 'flight', id: 'f1' });
+    expect(parseHash('#/edit/f1/currency/NOPE')).toEqual({ name: 'edit', id: 'f1' });
     expect(parseHash('#/edit/f1/whatever')).toEqual({ name: 'edit', id: 'f1' });
   });
   it('switching class chips keeps one scroll position for the Currency screen', () => {
