@@ -311,3 +311,17 @@ describe('class and pilot-time category agree', () => {
     expect(() => formToFlightInput(s)).not.toThrow();
   });
 });
+
+describe('type rating on save', () => {
+  const typed = (typeRatingId: string | null) => updateForm(base(), { aircraftClass: 'OTHER', engineClass: 'MP', typeRatingId });
+  it('keeps a rating the pilot holds', () => {
+    expect(formToFlightInput(typed('t'), { typeRatingIds: ['t'] }).typeRatingId).toBe('t');
+  });
+  it('drops a rating that has been removed (e.g. still remembered by the aircraft record)', () => {
+    expect(formToFlightInput(typed('gone'), { typeRatingIds: ['t'] }).typeRatingId).toBeNull();
+    expect(formToFlightInput(typed('gone'), { typeRatingIds: [] }).typeRatingId).toBeNull();
+  });
+  it('never puts a rating on a flight in a class rating', () => {
+    expect(formToFlightInput(updateForm(typed('t'), { aircraftClass: 'SEP_LAND', engineClass: 'SP-SE' }), { typeRatingIds: ['t'] }).typeRatingId).toBeNull();
+  });
+});

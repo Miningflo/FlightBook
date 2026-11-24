@@ -200,11 +200,15 @@ export function proficiencyCheckStatus(expiry: IsoDate | null | undefined, today
 // ---------- instrument rating ----------
 
 /**
- * Flights logged under OTHER that say nothing about which type rating they belong to. Those flights
- * count towards no currency at all, so the number has to be shown rather than quietly dropped.
+ * Flights logged under OTHER that count towards none of the type ratings held: either they name no
+ * rating, or they name one that is no longer in the list (removed, or brought in by an import from a
+ * logbook whose ratings had other ids). Either way they count towards no currency at all, so the
+ * number has to be shown rather than quietly dropped. `ratings` is required for that reason: without
+ * it a flight pointing at a removed rating would look assigned and vanish from every count.
  */
-export function unassignedTypeFlights(flights: Flight[]): Flight[] {
-  return flights.filter((f) => f.aircraftClass === 'OTHER' && !f.typeRatingId);
+export function unassignedTypeFlights(flights: Flight[], ratings: readonly { id: string }[]): Flight[] {
+  const held = new Set(ratings.map((r) => r.id));
+  return flights.filter((f) => f.aircraftClass === 'OTHER' && !(f.typeRatingId && held.has(f.typeRatingId)));
 }
 
 /** Route sectors for a type rating. Countable now that each flight names its rating (FCL.740.A(a)(2)). */
