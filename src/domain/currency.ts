@@ -4,7 +4,7 @@ import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
 import { DEFAULT_RULES, type LanguageLevel, type Rules } from './rules';
 
 /**
- * Currency checks (green / amber / red). All regulatory numbers come from rules.ts, checked against the EASA Easy Access Rules (October 2026 revision). `today` is a UTC date passed in, so everything is deterministic.
+ * Currency checks (green / amber / red). All regulatory numbers come from rules.ts, checked against the EASA Easy Access Rules (October 2026 revision). `today` is a calendar date passed in (the app uses checkDate in time.ts), so everything is deterministic.
  */
 
 export type Status = 'green' | 'amber' | 'red' | 'unknown';
