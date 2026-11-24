@@ -64,10 +64,20 @@ function date<T>(key: keyof T & string, header: string, required = false): Col<T
   };
 }
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
+/**
+ * A UTC time, strictly. Date.parse quietly rolls an impossible date or time over ("2025-02-30T10:00Z" becomes
+ * 2 March), so the parsed value must print back as the same date, hour and minute that were written.
+ */
+function parseInstant(text: string): number | null {
+  const c = text.trim();
+  if (!INSTANT.test(c)) return null;
+  const ms = Date.parse(c);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 16) === c.slice(0, 16) ? ms : null;
+}
 function instant<T>(key: keyof T & string, header: string, required = false): Col<T> {
   return {
     header, required, format: (r) => new Date(Number(r[key])).toISOString(),
-    parse: (c) => (INSTANT.test(c.trim()) && !Number.isNaN(Date.parse(c.trim())) ? Date.parse(c.trim()) : fail(`"${c}" is not a UTC time like 2025-06-01T09:30:00Z`)), apply: (d, v) => { d[key] = v; },
+    parse: (c) => parseInstant(c) ?? fail(`"${c}" is not a UTC time like 2025-06-01T09:30:00Z`), apply: (d, v) => { d[key] = v; },
   };
 }
 function bool<T>(key: keyof T & string, header: string): Col<T> {
