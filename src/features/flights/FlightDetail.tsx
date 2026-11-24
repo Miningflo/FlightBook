@@ -5,8 +5,9 @@ import { CLASS_RATING_LABELS } from '../../domain/types';
 import { rolesOfFlight } from '../../domain/roles';
 import { formatHHMM } from '../../domain/time';
 import { engineClassOfFlight } from '../../domain/flightForm';
+import { typeRatingOf } from '../../domain/currency';
 import { RoleChip } from '../../ui/components';
-import { ClockIcon, LandingIcon, MoonIcon, PlaneGlyph } from '../../ui/Icons';
+import { ArrivalIcon, ClockIcon, MoonIcon, PlaneGlyph, TakeoffIcon } from '../../ui/Icons';
 import { PhotoCreditLine, PhotoFrame } from '../photos/AircraftPhoto';
 import { useAircraftPhoto } from '../photos/usePhoto';
 import { aircraftLabel, formatDate } from './format';
@@ -44,6 +45,7 @@ export function FlightDetail({ flight, onEdit }: { flight: Flight; onEdit: () =>
   const o = (k: OverridableField) => flight.overrides[k] === true;
   const roles = rolesOfFlight(flight);
   const roleMin: Record<Role, number> = { PIC: flight.picMin, COPI: flight.copiMin, DUAL: flight.dualMin, INS: flight.instMin };
+  const rating = typeRatingOf(flight, data.settings.typeRatings ?? []);
 
   return (
     <div className="detail">
@@ -64,14 +66,20 @@ export function FlightDetail({ flight, onEdit }: { flight: Flight; onEdit: () =>
 
       <div className="tiles">
         {roles.map((r) => <Tile key={r} label={r} tone={r} value={formatHHMM(roleMin[r])} />)}
-        <Tile icon={<LandingIcon />} label="Take-offs" value={`${flight.takeoffsDay} day · ${flight.takeoffsNight} night`} overridden={o('takeoffsDay') || o('takeoffsNight')} />
-        <Tile icon={<LandingIcon />} label="Landings" value={`${flight.landingsDay} day · ${flight.landingsNight} night`} overridden={o('landingsDay') || o('landingsNight')} />
+        <Tile icon={<TakeoffIcon />} label="Take-offs" value={`${flight.takeoffsDay} day · ${flight.takeoffsNight} night`} overridden={o('takeoffsDay') || o('takeoffsNight')} />
+        <Tile icon={<ArrivalIcon />} label="Landings" value={`${flight.landingsDay} day · ${flight.landingsNight} night`} overridden={o('landingsDay') || o('landingsNight')} />
         {flight.nightMin > 0 && <Tile icon={<MoonIcon />} label="Night" value={formatHHMM(flight.nightMin)} overridden={o('nightMin')} />}
         {flight.ifrMin > 0 && <Tile icon={<ClockIcon />} label="IFR" value={formatHHMM(flight.ifrMin)} />}
       </div>
 
       <div className="card facts">
         <div><PlaneGlyph className="fact-icon" /><span>{CLASS_RATING_LABELS[flight.aircraftClass]} · {engineClassOfFlight(flight)}</span></div>
+        {rating.kind === 'held' && <div><span className="fact-icon">Type</span><span>{rating.rating.name}</span></div>}
+        {(rating.kind === 'none' || rating.kind === 'removed') && (
+          <div className="fact-warn"><span className="fact-icon">Type</span>
+            <span>{rating.kind === 'none' ? 'No type rating' : 'Its type rating has been removed'}: this flight counts towards no currency.{canEdit ? ' Edit it to pick one.' : ''}</span>
+          </div>
+        )}
         <div><span className="fact-icon">PIC</span><span>{pic}</span></div>
       </div>
 
