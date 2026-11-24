@@ -3,7 +3,7 @@ import { BackupService, ViewerService } from './backupService';
 import { DriveReader, DriveWriter, qs } from './driveApi';
 import { createFakeDrive, fakeTokens, type FakeDrive } from './testing/fakeDrive';
 import { DriveError, DriveUnreachableError, MasterMismatchError, NeedsSignInError, NoBackupsError } from './types';
-import { BACKUP_FOLDER_NAME, KEEP_PRE_RESTORE, KEEP_SNAPSHOTS, MASTER_FILE_NAME, isSnapshotName } from '../domain/driveRules';
+import { BACKUP_FOLDER_NAME, KEEP_PRE_RESTORE, KEEP_SNAPSHOT_DAYS, MASTER_FILE_NAME, isSnapshotName } from '../domain/driveRules';
 import { SNAPSHOT_SCHEMA_VERSION, buildSnapshot, SnapshotError, parseSnapshot } from '../domain/snapshot';
 import { flight } from '../domain/testFactories';
 import type { Person } from '../domain/types';
@@ -58,6 +58,7 @@ describe('first backup', () => {
     const svc = master();
     await svc.runBackup();
     const claimed = [...drive.files.values()].find((f) => f.name === MASTER_FILE_NAME)!.content;
+    clock += 24 * 60 * 60 * 1000; // the next day, so the first snapshot is kept too
     await svc.runBackup();
     expect(ours()).toHaveLength(2);
     expect([...drive.files.values()].filter((f) => f.name === MASTER_FILE_NAME)).toHaveLength(1);
@@ -72,15 +73,31 @@ describe('first backup', () => {
   });
 });
 
-describe('retention: keep the last 30', () => {
-  it('deletes only the oldest snapshots beyond 30 and nothing else', async () => {
+const DAY = 24 * 60 * 60 * 1000;
+
+describe('retention: one snapshot per day, for 30 days', () => {
+  it('a later backup on the same day replaces the earlier one', async () => {
+    const svc = master();
+    const first = await svc.runBackup();
+    const second = await svc.runBackup();
+    expect(second.pruned).toBe(1);
+    expect(ours().map((f) => f.id)).toEqual([second.file.id]);
+    expect(drive.files.has(first.file.id)).toBe(false);
+  });
+  it('keeps one per day across days', async () => {
+    const svc = master();
+    for (let d = 0; d < 3; d++) { await svc.runBackup(); await svc.runBackup(); clock += DAY; }
+    expect(ours()).toHaveLength(3);
+  });
+  it('deletes only snapshots older than the 30 most recent days, and nothing else', async () => {
     const svc = master();
     const r0 = await svc.runBackup();
+    clock += DAY;
     // someone put unrelated files in the folder: they must survive
     const folder = [...drive.files.values()].find((f) => f.mimeType.endsWith('folder'))!;
     for (const name of ['notes.txt', 'flightbook-snapshot-notes.json', 'holiday.jpg']) drive.files.set(name, { id: name, name, mimeType: 'text/plain', parents: [folder.id], content: 'x', createdTime: '2020-01-01T00:00:00Z', trashed: false, clientId: CLIENT });
-    for (let i = 0; i < 31; i++) await svc.runBackup();
-    expect(ours()).toHaveLength(KEEP_SNAPSHOTS);
+    for (let i = 0; i < 30; i++) { await svc.runBackup(); clock += DAY; }
+    expect(ours()).toHaveLength(KEEP_SNAPSHOT_DAYS);
     expect(drive.files.has(r0.file.id)).toBe(false); // the very first one was pruned
     for (const name of ['notes.txt', 'flightbook-snapshot-notes.json', 'holiday.jpg', MASTER_FILE_NAME]) expect([...drive.files.values()].some((f) => f.name === name)).toBe(true);
     const times = ours().map((f) => f.name).sort();
@@ -88,15 +105,15 @@ describe('retention: keep the last 30', () => {
   });
   it('a failed delete is reported as a warning and does not fail the backup', async () => {
     const svc = master();
-    for (let i = 0; i < KEEP_SNAPSHOTS; i++) await svc.runBackup();
-    // next backup needs to prune one; make DELETE fail
+    await svc.runBackup();
+    // the next backup on the same day needs to prune that one; make DELETE fail
     const realFetch = drive.fetch;
     const failing = new DriveWriter({ tokens: fakeTokens(drive, CLIENT), sleep: noSleep, fetchFn: ((u: RequestInfo | URL, init?: RequestInit) => init?.method === 'DELETE' ? Promise.resolve(new Response('{}', { status: 403 })) : realFetch(u, init)) as typeof fetch });
     const svc2 = new BackupService(failing, { device: () => ({ deviceId: 'phone-1', deviceName: 'Galaxy' }), now: () => new Date((clock += 1000)), buildSnapshot: async () => buildSnapshot({ exportedAt: '', deviceName: '', settings: {}, aircraft: [], persons: [self], flights: [], fstdSessions: [], previousExperience: [], attachments: [] }) });
     const r = await svc2.runBackup();
     expect(r.pruned).toBe(0);
     expect(r.warnings[0]).toMatch(/Could not delete/);
-    expect(ours()).toHaveLength(KEEP_SNAPSHOTS + 1);
+    expect(ours()).toHaveLength(2);
   });
   it('safety copies before a restore are kept apart and pruned to 5 on their own', async () => {
     const svc = master();
