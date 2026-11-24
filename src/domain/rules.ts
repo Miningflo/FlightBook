@@ -50,7 +50,7 @@ export const NIGHT_CURRENCY: RollingRule = {
   reference: 'Part-FCL FCL.060(b)(2)(i): to act as PIC at night, at least 1 take-off, approach and landing at night as pilot flying in the preceding 90 days, in an aircraft of the same type or class (or an FFS representing it). FCL.060(b)(2)(ii) exempts holders of an IR.',
   verified: true,
   todo: [
-    'Holders of an IR are exempt from this requirement. Enter your IR expiry date and the app stops asking, for as long as the rating is valid.',
+    'Holders of an IR are exempt from this requirement: the extra night take-off and landing. FCL.060(b)(1), the 3 take-offs and landings for carrying passengers, still applies to every passenger flight, by day and at night. Enter your IR expiry date and the app stops asking for the night one, for as long as the rating is valid.',
     'Limit: FCL.060(b)(2)(ii) says "holds an IR", not "holds a valid IR". The app takes the strict reading and only exempts you while the rating has not expired, because being told you are not current when you are is the harmless way round.',
     'Limit: the logbook does not record who was flying, so every logged night take-off and landing is counted.',
     'Limit: night take-offs and landings in a simulator (FFS) of the class also count under the rule; none are counted here.',

@@ -56,16 +56,34 @@ const countRow = (label: string, c: RollingCurrency) => (
     ok={c.count >= c.need} bad={c.state === 'lapsed'} warn={c.state === 'expiring'} />
 );
 
+/**
+ * What an IR waives, said so it cannot be misread. FCL.060(b)(2)(ii) only lifts the EXTRA night take-off
+ * and landing; the 3 take-offs and landings of (b)(1) apply to every passenger flight, day or night. A
+ * card titled "Passengers at night" saying just "Exempt" read as "night passengers are fine", even with
+ * (b)(1) lapsed, so it names the waiver and says where (b)(1) stands right now.
+ */
+function irWaiverText(exemptUntil: IsoDate, passengers: RollingCheck): string {
+  const p = DEFAULT_RULES.passenger;
+  const base = `Waived because you hold an instrument rating, valid until ${formatShortDate(exemptUntil)} (FCL.060(b)(2)(ii)). The ${p.takeoffs} take-offs and ${p.landings} landings for carrying passengers still apply at night`;
+  return passengers.state === 'lapsed'
+    ? `${base}, and they are not met: no passengers, by day or at night.`
+    : `${base}, and they are met until ${passengers.validUntil ? formatShortDate(passengers.validUntil) : ''}.`;
+}
+
 /** An exemption is not a currency state: the counts still show, but nothing is required of them. */
-function RollingCard({ title, subtitle, check, rule, exemptUntil }: { title: string; subtitle: string; check: RollingCheck; rule: RuleSource; exemptUntil?: IsoDate }) {
-  const h = exemptUntil
-    ? { headline: 'Not required', sub: `You hold an instrument rating, valid until ${formatShortDate(exemptUntil)}. FCL.060(b)(2)(ii) exempts IR holders from the night requirement.` }
+function RollingCard({ title, subtitle, check, rule, exemptUntil, passengers }: {
+  title: string; subtitle: string; check: RollingCheck; rule: RuleSource; exemptUntil?: IsoDate;
+  /** With `exemptUntil`: the passenger currency, which the IR does not waive. */
+  passengers?: RollingCheck;
+}) {
+  const h = exemptUntil && passengers
+    ? { headline: 'Extra night landing waived', sub: irWaiverText(exemptUntil, passengers) }
     : rollingHeadline(check);
   return (
     <div className="card cur-card">
       <div className="head"><div><h3>{title}</h3><div className="hint">{subtitle}</div></div>
         {exemptUntil
-          ? <StatusPill status="unknown" label="Exempt" />
+          ? <StatusPill status="unknown" label="Waived (IR)" />
           : <StatusPill status={check.status} label={check.status === 'green' ? 'Current' : check.status === 'amber' ? 'Expiring soon' : 'Lapsed'} />}
       </div>
       <div className="headline">{h.headline}</div>
@@ -269,11 +287,11 @@ function IrCard({ today }: { today: IsoDate }) {
     expired: `Expired on ${d(check.expiry)}`,
   };
   const sub: Record<string, string> = {
-    'not-set': 'Enter its expiry date to track it. While it is valid, night currency is not required of you.',
-    'window-not-open': `Night currency is not required while this is valid. The check may be taken from ${d(check.windowStart)}.`,
-    'window-open': 'Revalidate with a proficiency check before expiry. Night currency is not required while it is valid.',
-    urgent: 'Proficiency check still needed. Night currency applies again once it expires.',
-    expired: 'Revalidation is no longer possible; the rating must be renewed. Night currency applies again.',
+    'not-set': `Enter its expiry date to track it. While it is valid, the extra night take-off and landing for carrying passengers is waived; the ${DEFAULT_RULES.passenger.takeoffs} take-offs and ${DEFAULT_RULES.passenger.landings} landings still apply.`,
+    'window-not-open': `While it is valid, the extra night take-off and landing is waived. The check may be taken from ${d(check.windowStart)}.`,
+    'window-open': 'Revalidate with a proficiency check before expiry. While it is valid, the extra night take-off and landing is waived.',
+    urgent: 'Proficiency check still needed. The extra night take-off and landing applies again once it expires.',
+    expired: 'Revalidation is no longer possible; the rating must be renewed. The extra night take-off and landing applies again.',
   };
   return (
     <div className="card cur-card">
@@ -456,7 +474,8 @@ function OtherClassPanel({ today }: { today: IsoDate }) {
       {current.map((t) => <TypeCurrencyCard key={t.id} rating={t} today={today} nightExempt={exemptUntil !== undefined} />)}
       {current.length > 0 && exemptUntil && (
         <p className="hint" style={{ margin: '0 4px 12px' }}>
-          Night currency is not required while your instrument rating is valid, until {formatShortDate(exemptUntil)} (FCL.060(b)(2)(ii)).
+          At night: the extra night take-off and landing is waived while your instrument rating is valid, until {formatShortDate(exemptUntil)} (FCL.060(b)(2)(ii)).
+          The Passengers line on each card still applies, by day and at night.
         </p>
       )}
       {expired.length > 0 && (
@@ -627,7 +646,7 @@ export function CurrencyScreen() {
       {cls !== 'OTHER' && (
         <>
           <RollingCard title="Carrying passengers" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.passenger)}`} check={passengers} rule={DEFAULT_RULES.passenger} />
-          <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} exemptUntil={nightExempt} />
+          <RollingCard title="Passengers at night" subtitle={`${CLASS_RATING_LABELS[cls]} · ${rollingSubtitle(DEFAULT_RULES.night, 'night ')}`} check={night} rule={DEFAULT_RULES.night} exemptUntil={nightExempt} passengers={passengers} />
         </>
       )}
       {isExperienceClass(cls) ? <ExperienceCard cls={cls} check={experience} />
