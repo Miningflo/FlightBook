@@ -91,10 +91,29 @@ describe('previous experience and date ranges', () => {
     expect(t.experienceExcluded).toBe(1);
     expect(t.experienceIncluded).toBe(0);
   });
-  it('treats a record without a start date as covering its end date only', () => {
+  it('treats a record without a start date as covering everything up to its end date', () => {
     const e2 = exp({ periodFrom: null, periodTo: '2024-12-31' });
-    expect(experienceCovered(e2, { from: '2024-12-31' })).toBe(true);
+    expect(experienceCovered(e2, {})).toBe(true);
+    expect(experienceCovered(e2, { to: '2024-12-31' })).toBe(true);
+    // any start date cuts into "everything up to", even one on or before the end date
+    expect(experienceCovered(e2, { from: '2024-12-31' })).toBe(false);
+    expect(experienceCovered(e2, { from: '1900-01-01' })).toBe(false);
     expect(experienceCovered(e2, { from: '2025-01-01' })).toBe(false);
+    expect(experienceCovered(e2, { to: '2024-06-30' })).toBe(false);
+  });
+  it('keeps a lifetime carry-in without a start date out of this year and the last 12 months', () => {
+    const today = '2026-11-24';
+    const lifetime = exp({ periodFrom: null, periodTo: '2026-03-01', totalMin: 60_000 });
+    for (const p of ['year', '12m', '90d'] as const) {
+      const t = computeTotals({ flights: [], fstd: [], experience: [lifetime], range: presetRange(p, today) });
+      expect(t.flightMin).toBe(0);
+      expect(t.experienceExcluded).toBe(1);
+    }
+    expect(computeTotals({ flights: [], fstd: [], experience: [lifetime], range: presetRange('all', today) }).flightMin).toBe(60_000);
+  });
+  it('still counts a dated record that lies wholly inside the range', () => {
+    const t = computeTotals({ flights: [], fstd: [], experience: [exp({ periodFrom: '2026-01-10', periodTo: '2026-03-01', totalMin: 90 })], range: presetRange('year', '2026-11-24') });
+    expect(t.flightMin).toBe(90);
   });
 });
 
