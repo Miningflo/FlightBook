@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { CLASS_RATINGS, type ClassRating } from './domain/types';
 
 export type Route =
   | { name: 'list' }
   | { name: 'flight'; id: string }
   | { name: 'new' }
-  | { name: 'edit'; id: string }
+  /**
+   * `from: 'unassigned'`: opened from the Currency list of flights without a type rating, so saving or
+   * cancelling goes back to that list rather than to the flight, ready for the next one.
+   */
+  | { name: 'edit'; id: string; from?: 'unassigned' }
   | { name: 'settings' }
   | { name: 'export' }
   | { name: 'totals' }
-  | { name: 'currency' }
+  /** The class chip that is selected; absent means the default (SEP land). */
+  | { name: 'currency'; cls?: ClassRating }
   | { name: 'map' }
   | { name: 'fstd' }
   | { name: 'fstd-new' }
@@ -21,12 +27,12 @@ export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   const [a, b, c] = parts;
   if (a === 'flight' && b) return { name: 'flight', id: b };
-  if (a === 'edit' && b) return { name: 'edit', id: b };
+  if (a === 'edit' && b) return c === 'unassigned' ? { name: 'edit', id: b, from: 'unassigned' } : { name: 'edit', id: b };
   if (a === 'new') return { name: 'new' };
   if (a === 'settings') return { name: 'settings' };
   if (a === 'export') return { name: 'export' };
   if (a === 'totals') return { name: 'totals' };
-  if (a === 'currency') return { name: 'currency' };
+  if (a === 'currency') return b && (CLASS_RATINGS as readonly string[]).includes(b) ? { name: 'currency', cls: b as ClassRating } : { name: 'currency' };
   if (a === 'map') return { name: 'map' };
   if (a === 'fstd') return b === 'new' ? { name: 'fstd-new' } : b === 'edit' && c ? { name: 'fstd-edit', id: c } : { name: 'fstd' };
   if (a === 'experience') return b === 'new' ? { name: 'experience-new' } : b === 'edit' && c ? { name: 'experience-edit', id: c } : { name: 'experience' };
@@ -37,12 +43,12 @@ export function routeToHash(r: Route): string {
   switch (r.name) {
     case 'list': return '#/';
     case 'flight': return `#/flight/${r.id}`;
-    case 'edit': return `#/edit/${r.id}`;
+    case 'edit': return r.from ? `#/edit/${r.id}/${r.from}` : `#/edit/${r.id}`;
     case 'new': return '#/new';
     case 'settings': return '#/settings';
     case 'export': return '#/export';
     case 'totals': return '#/totals';
-    case 'currency': return '#/currency';
+    case 'currency': return r.cls ? `#/currency/${r.cls}` : '#/currency';
     case 'map': return '#/map';
     case 'fstd': return '#/fstd';
     case 'fstd-new': return '#/fstd/new';
@@ -60,7 +66,7 @@ export function routeToHash(r: Route): string {
 export function parentRoute(r: Route): Route | null {
   switch (r.name) {
     case 'flight': case 'new': case 'settings': return { name: 'list' };
-    case 'edit': return { name: 'flight', id: r.id };
+    case 'edit': return r.from === 'unassigned' ? { name: 'currency', cls: 'OTHER' } : { name: 'flight', id: r.id };
     case 'export': return { name: 'settings' };
     case 'fstd': case 'experience': return { name: 'totals' };
     case 'fstd-new': case 'fstd-edit': return { name: 'fstd' };
@@ -112,6 +118,8 @@ const RETURN_TO: ReadonlySet<Route['name']> = new Set<Route['name']>(['list', 't
 /** Which scroll position a route uses. On wide screens the list stays on screen beside the selected flight. */
 export function scrollKey(r: Route, wide: boolean): string {
   if (wide && (r.name === 'list' || r.name === 'flight')) return 'list';
+  // one Currency screen, whichever class chip is selected: switching chips must not jump the page
+  if (r.name === 'currency') return '#/currency';
   return routeToHash(r);
 }
 

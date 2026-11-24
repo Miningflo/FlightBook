@@ -426,7 +426,7 @@ function StrandedFlightList({ flights }: { flights: Flight[] }) {
       <ul className="link-list">
         {shown.map((f) => (
           <li key={f.id}>
-            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id } : { name: 'flight', id: f.id })}>
+            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id, from: 'unassigned' } : { name: 'flight', id: f.id })}>
               <span>
                 <span className="main">{formatDate(f.date)} · {f.depPlace} → {f.arrPlace}</span>
                 <span className="hint">{f.registration} · {aircraftLabel(f)}{f.typeRatingId ? ' · rating removed' : ''}</span>
@@ -617,13 +617,16 @@ function TypeRatingsCard({ today }: { today: IsoDate }) {
   );
 }
 
-export function CurrencyScreen() {
-  const { data } = useApp();
+/** `cls` comes from the address (#/currency/OTHER), so coming back from a flight lands on the same chip. */
+export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
+  const { data, go } = useApp();
   // the later of the local and UTC date, so nothing reads as valid past its expiry (see checkDate)
   const today: IsoDate = checkDate(Date.now());
   // Every class with a rating to follow is selectable, so an expiry date can be entered before any flight is logged.
   const classes = useMemo(() => currencyClasses(data.flights, data.settings.typeRatings ?? []), [data.flights, data.settings.typeRatings]);
-  const [picked, setCls] = useState<ClassRating>('SEP_LAND');
+  const picked: ClassRating = routeCls ?? 'SEP_LAND';
+  // the default chip keeps the plain address; replace, so chips do not pile up in the history
+  const setCls = (c: ClassRating) => go({ name: 'currency', ...(c === 'SEP_LAND' ? {} : { cls: c }) }, { replace: true });
   // the picked chip can disappear (the last type rating and Other flight removed): fall back rather than show a chip-less panel
   const cls: ClassRating = classes.includes(picked) ? picked : 'SEP_LAND';
   const passengers = useMemo(() => passengerCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
