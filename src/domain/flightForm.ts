@@ -404,7 +404,7 @@ export function formToFlightInput(
 ): FlightInput {
   if (hasErrors(validateForm(s))) throw new Error('Flight form has validation errors');
   const times = resolveBlockTimes(s.date, s.depClock, s.arrClock, s.arrDate)!;
-  const overrides: Overrides = { ...(extra.previousOverrides ?? {}) };
+  const overrides: Overrides = { ...extra.previousOverrides };
   const flag = (key: keyof Overrides, on: boolean) => { if (on) overrides[key] = true; else delete overrides[key]; };
   flag('totalMin', s.totalManual);
   flag('nightMin', s.nightManual);

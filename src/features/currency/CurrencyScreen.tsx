@@ -653,8 +653,11 @@ export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
   const setCls = (c: ClassRating) => go(currencyRoute(c), { replace: true });
   // the picked chip can disappear (the last type rating and Other flight removed): fall back rather than show a chip-less panel
   const cls: ClassRating = classes.includes(picked) ? picked : 'SEP_LAND';
-  const passengers = useMemo(() => passengerCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
-  const night = useMemo(() => nightCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
+  // one scope object per class: byClass(cls) inline in the dependency list made a new object every render,
+  // so both counts were recomputed on every render (found by the react-hooks lint rule)
+  const scope = useMemo(() => byClass(cls), [cls]);
+  const passengers = useMemo(() => passengerCurrency(data.flights, scope, today), [data.flights, scope, today]);
+  const night = useMemo(() => nightCurrency(data.flights, scope, today), [data.flights, scope, today]);
   const expiry = classExpiryOf(data.settings, cls);
   const experience = useMemo(() => sepRevalidation(data.flights, expiry, today, DEFAULT_RULES, cls), [data.flights, expiry, today, cls]);
   const check = useMemo(() => proficiencyCheckStatus(expiry, today), [expiry, today]);
