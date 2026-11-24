@@ -66,6 +66,7 @@ npm install
 npm run dev          # http://localhost:5173
 npm test             # Vitest unit tests
 npm run typecheck
+npm run lint         # Oxlint: React hooks rules and correctness checks (CI runs it before the tests)
 npm run build        # type-check + production build into dist/
 npm run preview      # serve dist/ locally (service worker active)
 ```
@@ -220,10 +221,15 @@ The Planespotters response format was verified against the live API (November 20
 | workbox-precaching, -routing, -strategies, -expiration, -cacheable-response, -core | the caching primitives `src/sw.ts` is built from; direct dependencies now that the worker is hand-written rather than generated |
 | pdf-lib | writes the PDF logbook (no native code, works offline; loaded on demand) |
 | vitest, fake-indexeddb | unit tests, including database tests without a browser |
+| oxlint | linting, mainly the React hooks rules that no Node-run test can catch; Oxlint rather than ESLint because TypeScript 7 has no JavaScript API for typescript-eslint to use |
 | @types/node | types for `vite.config.ts` |
 | suncalc (dev only) | independent cross-check of the sun calculation in tests |
+| playwright-core, pdfjs-dist (not installed by `npm install`) | only for `scripts/make-screenshots.mjs`, which drives a headless browser and renders the PDF page; installed with `--no-save` when regenerating the screenshots |
 
 No UI library: Material 3 styling is plain CSS tokens in `src/styles.css`.
+
+## Licence
+All rights reserved: see [LICENSE](LICENSE). The code is published for reference; no licence is granted to copy, modify or use it. The screenshots that contain third-party photos are the exception, shared under CC BY-SA 4.0 as listed in [Photo credits](#photo-credits), and the basemap data is Natural Earth (public domain).
 
 ## Layout
 `scripts/make-demo-logbook.ts` writes the seeded demo logbook and `scripts/make-screenshots.mjs` regenerates the README images from it (see [Regenerating the screenshots](#regenerating-the-screenshots)).

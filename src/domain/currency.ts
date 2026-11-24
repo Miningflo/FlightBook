@@ -278,7 +278,7 @@ export function classExpiryOf(s: { sepLandExpiry?: IsoDate | null; classExpiry?:
 /** Settings patch that sets (or clears, with null) the expiry date of a class rating. */
 export function classExpiryPatch(s: { classExpiry?: Partial<Record<ClassRating, IsoDate>> }, cls: ClassRating, date: IsoDate | null): { sepLandExpiry: IsoDate | null } | { classExpiry: Partial<Record<ClassRating, IsoDate>> } {
   if (cls === 'SEP_LAND') return { sepLandExpiry: date };
-  const next = { ...(s.classExpiry ?? {}) };
+  const next = { ...s.classExpiry };
   if (date) next[cls] = date; else delete next[cls];
   return { classExpiry: next };
 }

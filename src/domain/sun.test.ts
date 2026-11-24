@@ -14,6 +14,8 @@ describe('sunAltitudeDeg: analytic anchors (independent of any sun library)', ()
     ['Equator, March equinox', 0, 0, '2025-03-20', 90, -90],
   ];
   for (const [name, lat, lon, date, upper, lower] of cases) {
+    // the title is the first (string) entry of each case
+    // oxlint-disable-next-line vitest/valid-title
     it(name, () => {
       const { max, min } = maxMinAltitude(lat, lon, utc(`${date}T00:00:00Z`));
       expect(max).toBeCloseTo(upper, 0); // within 0.5 degree...

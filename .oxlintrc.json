@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // Oxlint, not ESLint: TypeScript 7 ships no JavaScript API, which typescript-eslint needs to parse .ts/.tsx.
+  "plugins": ["typescript", "unicorn", "oxc", "react", "vitest"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    // the reason the linter is here: hooks bugs that no test in this project (Node, no DOM) can see
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "error",
+    // screens read today's date (Date.now) during render on purpose, so a status is never stale
+    "react/purity": "off",
+    // effects that reset local state when their input changes (photo lookup, alert registration)
+    "react/set-state-in-effect": "off",
+    // a style rule: tests assert the error type, and the message where it matters
+    "vitest/require-to-throw-message": "off"
+  },
+  "ignorePatterns": ["dist", "dev-dist", "node_modules"]
+}

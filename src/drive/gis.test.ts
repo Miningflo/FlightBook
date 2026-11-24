@@ -83,6 +83,8 @@ describe('GisTokenProvider', () => {
   it('gives up after the timeout', async () => {
     const u = setup(() => { /* never answers */ });
     const q = u.provider.getToken({ interactive: true });
+    // attached before the fake timers run and awaited after them, on purpose
+    // oxlint-disable-next-line vitest/valid-expect
     const assertion2 = expect(q).rejects.toBeInstanceOf(DriveError);
     await vi.advanceTimersByTimeAsync(5001);
     await assertion2;
