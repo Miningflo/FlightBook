@@ -1,16 +1,49 @@
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { useApp } from '../../AppContext';
-import { CLASS_RATING_LABELS, ROLES } from '../../domain/types';
+import { CLASS_RATING_LABELS, type Minutes, ROLES } from '../../domain/types';
 import { type RangePreset, classesWithTime, computeTotals, percentOf, presetRange } from '../../domain/totals';
 import { formatHHMM, utcDateOf } from '../../domain/time';
 import { Bar } from '../../ui/components';
-import { ChevronIcon } from '../../ui/Icons';
+import { CapIcon, ChevronIcon, CloudIcon, EyeIcon, LandingIcon, MonitorIcon, MoonIcon, PeopleIcon, PersonIcon } from '../../ui/Icons';
 import { formatShortDate } from '../flights/format';
 
 const PRESETS: [RangePreset, string][] = [['all', 'All time'], ['year', 'This year'], ['12m', 'Last 12 months'], ['90d', 'Last 90 days'], ['custom', 'Custom']];
 
-function Tile({ label, value }: { label: string; value: string }) {
-  return <div className="tile"><div className="tile-label">{label}</div><div className="tile-value">{value}</div></div>;
+/**
+ * Colour follows meaning, and only hues the screen does not already use for something else: the pilot
+ * functions above own green, cyan, orange and purple. Flight time by crew category is the primary blue of
+ * the hero card; PICUS and SPIC take the PIC green on purpose, because they are PIC time; night is a dark
+ * night sky (lightness, not a hue, so it never reads as INS purple); IFR is cloud grey. Text keeps the text
+ * colours: the tint, the icon badge and the share bar carry the colour.
+ */
+type Tone = 'crew' | 'pic' | 'night' | 'ifr';
+
+function StatTile({ icon, label, value, tone, share }: {
+  icon: ReactNode; label: string; value: Minutes; tone: Tone;
+  /** Draw the share of this total (flight time). Left out where it is not part of that total (simulator). */
+  share?: Minutes;
+}) {
+  return (
+    <div className={`tile stat tone-${tone}`}>
+      <div className="tile-label"><span className="badge">{icon}</span>{label}</div>
+      <div className="tile-value">{formatHHMM(value)}</div>
+      {share !== undefined && <Bar value={value} max={share} label={`${label} ${Math.round(percentOf(value, share))}% of flight time`} />}
+    </div>
+  );
+}
+
+/** Day and night counts, with a split bar: day in sun yellow, night in the night-sky navy of the Night tile. */
+function DayNightTile({ icon, label, day, night }: { icon: ReactNode; label: string; day: number; night: number }) {
+  return (
+    <div className="tile stat tone-daynight">
+      <div className="tile-label"><span className="badge">{icon}</span>{label}</div>
+      <div className="tile-value">{day} <span className="unit">day</span> · {night} <span className="unit">night</span></div>
+      <div className="split" role="img" aria-label={`${day} by day, ${night} at night`}>
+        {day > 0 && <span className="day" style={{ flexGrow: day }} />}
+        {night > 0 && <span className="night" style={{ flexGrow: night }} />}
+      </div>
+    </div>
+  );
 }
 
 export function TotalsScreen() {
@@ -85,18 +118,18 @@ export function TotalsScreen() {
 
       <h2 className="section-label">Crew and conditions</h2>
       <div className="tiles">
-        <Tile label="Single-pilot SE" value={formatHHMM(t.spSeMin)} />
-        <Tile label="Single-pilot ME" value={formatHHMM(t.spMeMin)} />
-        <Tile label="Multi-pilot" value={formatHHMM(t.mpMin)} />
-        <Tile label="PICUS" value={formatHHMM(t.picusMin)} />
-        <Tile label="SPIC" value={formatHHMM(t.spicMin)} />
-        <Tile label="Night" value={formatHHMM(t.nightMin)} />
-        <Tile label="IFR" value={formatHHMM(t.ifrMin)} />
-        <Tile label="Simulator" value={formatHHMM(t.fstdMin)} />
+        <StatTile tone="crew" icon={<PersonIcon />} label="Single-pilot SE" value={t.spSeMin} share={t.flightMin} />
+        <StatTile tone="crew" icon={<PersonIcon />} label="Single-pilot ME" value={t.spMeMin} share={t.flightMin} />
+        <StatTile tone="crew" icon={<PeopleIcon />} label="Multi-pilot" value={t.mpMin} share={t.flightMin} />
+        <StatTile tone="pic" icon={<EyeIcon />} label="PICUS" value={t.picusMin} share={t.flightMin} />
+        <StatTile tone="pic" icon={<CapIcon />} label="SPIC" value={t.spicMin} share={t.flightMin} />
+        <StatTile tone="night" icon={<MoonIcon />} label="Night" value={t.nightMin} share={t.flightMin} />
+        <StatTile tone="ifr" icon={<CloudIcon />} label="IFR" value={t.ifrMin} share={t.flightMin} />
+        <StatTile tone="crew" icon={<MonitorIcon />} label="Simulator" value={t.fstdMin} />
       </div>
       <div className="tiles">
-        <Tile label="Take-offs day / night" value={`${t.takeoffsDay} / ${t.takeoffsNight}`} />
-        <Tile label="Landings day / night" value={`${t.landingsDay} / ${t.landingsNight}`} />
+        <DayNightTile icon={<LandingIcon />} label="Take-offs" day={t.takeoffsDay} night={t.takeoffsNight} />
+        <DayNightTile icon={<LandingIcon />} label="Landings" day={t.landingsDay} night={t.landingsNight} />
       </div>
 
       <h2 className="section-label">By class</h2>
