@@ -4,19 +4,20 @@ import { CLASS_RATING_LABELS, type Minutes, ROLES } from '../../domain/types';
 import { type RangePreset, classesWithTime, computeTotals, percentOf, presetRange } from '../../domain/totals';
 import { formatHHMM, utcDateOf } from '../../domain/time';
 import { Bar } from '../../ui/components';
-import { CapIcon, ChevronIcon, CloudIcon, EyeIcon, LandingIcon, MonitorIcon, MoonIcon, PeopleIcon, PersonIcon } from '../../ui/Icons';
+import { ArrivalIcon, CapIcon, ChevronIcon, CloudIcon, EyeIcon, MonitorIcon, MoonIcon, PeopleIcon, PersonIcon, TakeoffIcon } from '../../ui/Icons';
 import { formatShortDate } from '../flights/format';
 
 const PRESETS: [RangePreset, string][] = [['all', 'All time'], ['year', 'This year'], ['12m', 'Last 12 months'], ['90d', 'Last 90 days'], ['custom', 'Custom']];
 
 /**
- * Colour follows meaning, and only hues the screen does not already use for something else: the pilot
- * functions above own green, cyan, orange and purple. Flight time by crew category is the primary blue of
- * the hero card; PICUS and SPIC take the PIC green on purpose, because they are PIC time; night is a dark
- * night sky (lightness, not a hue, so it never reads as INS purple); IFR is cloud grey. Text keeps the text
- * colours: the tint, the icon badge and the share bar carry the colour.
+ * Colour follows meaning. Flight time by crew category (one AMC1 FCL.050 column) is the primary blue of
+ * the hero card; PICUS and SPIC take the PIC green on purpose, because they are PIC time; night is a violet
+ * night sky, and the night part of the take-off and landing bars uses the same violet; IFR is magenta, the
+ * one hue clear of every pilot-function colour; the simulator is amber. Violet and amber sit close to the
+ * INS and DUAL colours of the card above: a deliberate choice for a livelier screen, acceptable because
+ * every tile is labelled. Text keeps the text colours: the tint, the icon badge and the bar carry the colour.
  */
-type Tone = 'crew' | 'pic' | 'night' | 'ifr';
+type Tone = 'crew' | 'pic' | 'night' | 'ifr' | 'sim';
 
 function StatTile({ icon, label, value, tone, share }: {
   icon: ReactNode; label: string; value: Minutes; tone: Tone;
@@ -32,7 +33,7 @@ function StatTile({ icon, label, value, tone, share }: {
   );
 }
 
-/** Day and night counts, with a split bar: day in sun yellow, night in the night-sky navy of the Night tile. */
+/** Day and night counts, with a split bar: day in sun yellow, night in the violet of the Night tile. */
 function DayNightTile({ icon, label, day, night }: { icon: ReactNode; label: string; day: number; night: number }) {
   return (
     <div className="tile stat tone-daynight">
@@ -125,11 +126,11 @@ export function TotalsScreen() {
         <StatTile tone="pic" icon={<CapIcon />} label="SPIC" value={t.spicMin} share={t.flightMin} />
         <StatTile tone="night" icon={<MoonIcon />} label="Night" value={t.nightMin} share={t.flightMin} />
         <StatTile tone="ifr" icon={<CloudIcon />} label="IFR" value={t.ifrMin} share={t.flightMin} />
-        <StatTile tone="crew" icon={<MonitorIcon />} label="Simulator" value={t.fstdMin} />
+        <StatTile tone="sim" icon={<MonitorIcon />} label="Simulator" value={t.fstdMin} />
       </div>
       <div className="tiles">
-        <DayNightTile icon={<LandingIcon />} label="Take-offs" day={t.takeoffsDay} night={t.takeoffsNight} />
-        <DayNightTile icon={<LandingIcon />} label="Landings" day={t.landingsDay} night={t.landingsNight} />
+        <DayNightTile icon={<TakeoffIcon />} label="Take-offs" day={t.takeoffsDay} night={t.takeoffsNight} />
+        <DayNightTile icon={<ArrivalIcon />} label="Landings" day={t.landingsDay} night={t.landingsNight} />
       </div>
 
       <h2 className="section-label">By class</h2>
