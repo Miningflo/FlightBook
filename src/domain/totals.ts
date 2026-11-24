@@ -54,8 +54,11 @@ export function inRange(date: IsoDate, range: DateRange): boolean {
  * the selected range covers its whole period.
  */
 export function experienceCovered(e: PreviousExperience, range: DateRange): boolean {
-  const start = e.periodFrom ?? e.periodTo;
-  return (range.from === undefined || range.from <= start) && (range.to === undefined || range.to >= e.periodTo);
+  // Without a start date the record means "everything up to periodTo" (the screen shows it as
+  // "Up to ..."), so only a range with no start covers it. Reading the missing start as periodTo
+  // instead would put a lifetime of hours into "this year" whenever the record ends this year.
+  const startCovered = range.from === undefined || (e.periodFrom !== null && range.from <= e.periodFrom);
+  return startCovered && (range.to === undefined || range.to >= e.periodTo);
 }
 
 const emptyClass = (): ClassTotals => ({ totalMin: 0, picMin: 0, takeoffs: 0, landings: 0 });
