@@ -10,7 +10,12 @@ lives in the code, so it can be picked up later. Fixed items are removed from th
   after that hour, or after reopening the app, an automatic backup stops at the banner "Your latest changes are
   not backed up yet… Sign in and back up". A read-only viewer keeps showing its last copy until **Refresh**.
   `src/drive/gis.ts`. Removing the tap would need Google's authorisation-code flow, which needs a server.
-- **Only one Drive snapshot per day is kept.** A later backup replaces any earlier one from the same day
+
+## By design
+
+Chosen on purpose; listed so the consequence is not a surprise.
+
+- **One Drive snapshot per day, by request.** A later backup replaces any earlier one from the same day
   (UTC), so a mistake made today can only be undone back to yesterday's last snapshot, not to earlier today. A
   "replace everything" restore still saves its own safety copy first. `src/domain/driveRules.ts`
   (`dailyRetentionPlan`).
