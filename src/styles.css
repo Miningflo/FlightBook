@@ -408,12 +408,20 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 .cur-card h3 { margin: 0; font-size: 18px; font-weight: 500; }
 .cur-card .headline { font-size: 22px; font-weight: 500; margin: 10px 0 2px; }
 .cur-card .progress-row { margin-top: 12px; }
+/* a type rating's card: its name as the heading, one compact line per currency */
+.cur-card.type-cur .type-name { font-size: 22px; font-weight: 500; letter-spacing: 0.2px; }
+.compact-rolling { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--outline-variant); }
+.compact-rolling .line { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.compact-rolling .what { font-weight: 500; }
+.compact-rolling .hint { margin-top: 2px; }
 .cur-card .progress-row .line { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
 .cur-card .progress-row .line .num { font-variant-numeric: tabular-nums; color: var(--on-surface-variant); }
 details.rules { margin-top: 14px; font-size: 13px; color: var(--on-surface-variant); }
 details.rules summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 8px; }
 details.rules ul { margin: 6px 0 0 18px; padding: 0; }
 details.rules li { margin-bottom: 4px; }
+/* a card holding only rule notes (below the type-rating cards): no gap above the first */
+.cur-card.rules-only details.rules:first-child { margin-top: 0; }
 .chip.unverified { background: var(--warn-bg); color: var(--warn-fg); }
 .field.inline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sub-form { border-top: 1px solid var(--outline-variant); padding-top: 12px; margin-top: 12px; }
