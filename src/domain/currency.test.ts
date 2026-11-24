@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, unassignedTypeFlights, currencyClasses } from './currency';
+import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, currencyClasses } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -309,10 +309,13 @@ describe('type ratings (FCL.740.A(a))', () => {
     expect(typeRatingStatus(expiry, '2025-12-31')).toMatchObject({ state: 'window-not-open', windowStart: '2026-01-01' });
     expect(typeRatingStatus(expiry, '2026-04-01')).toMatchObject({ status: 'red', state: 'expired' });
   });
-  it('says plainly that route sectors are not counted for a type rating', () => {
-    expect(DEFAULT_RULES.typeRating.todo.join(' ')).toMatch(/does not count them/i);
-    // ...whereas they are counted for MEP, and that difference must stay visible
-    expect(routeSectors([], 'MEP_LAND', expiry, '2026-01-01')).not.toBeNull();
+  it('counts route sectors per type rating, and the rule text says so and what it does not track', () => {
+    expect(typeRouteSectors([flight('2025-12-01', { aircraftClass: 'OTHER', typeRatingId: 't' })], 't', expiry, '2026-01-01')).toMatchObject({ flights: 1, need: 10 });
+    const text = DEFAULT_RULES.typeRating.todo.join(' ');
+    expect(text).toMatch(/counted per rating/i);
+    expect(text).not.toMatch(/does not count them/i);
+    expect(text).toMatch(/1 route sector flown with an examiner .* not tracked/i);
+    expect(text).toMatch(/OSD sets a different validity/i);
   });
 });
 

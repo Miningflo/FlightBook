@@ -182,7 +182,9 @@ export const TYPE_RATING: ProficiencyRule = {
   verified: true,
   todo: [
     'Validity is 1 year "unless otherwise determined in the OSD" (FCL.740(a)(1)), and for many types the OSD does determine otherwise. Enter the expiry date from your licence; the app never works it out.',
-    'Limit: FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. The app does not count them: the logbook records a make and model per flight, not which type rating they fall under, and one rating can cover several models. The counter shown for MEP is not shown here for that reason.',
+    'FCL.740.A(a)(2) also asks for 10 route sectors in the type during the validity period, or 1 flown with an examiner. Each flight names the type rating it was flown under, so the sectors are counted per rating, on the same two readings as for MEP: every flight, and the subset that landed away.',
+    'Limit: the sectors are counted over the 12 months before the expiry date, which is the default 1-year validity. Where the OSD sets a different validity for your type, the window does not follow it.',
+    'Limit: the alternative of 1 route sector flown with an examiner (it may be the proficiency check) is not tracked; the counter only shows the 10-sector route.',
     'A pilot flying for a commercial air transport operator who passes the operator proficiency check combined with the revalidation check is exempt from the route sectors (FCL.740.A(a)(3)).',
     'If you fail a section of the check before expiry you may not use the rating until you have passed it (FCL.740.A(c)). An expired type rating is renewed under FCL.740(b), the same steps as a class rating.',
   ],
