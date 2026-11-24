@@ -5,6 +5,8 @@ The Android phone is the master logbook; the same app in a desktop browser is a 
 
 **Status:** complete and in use. Core flight logging (with aircraft photos), airports and automatic night time, totals, currency and class-rating revalidation, notification alerts, the map, export / import / PDF, and Google Drive backup with a read-only viewer. Drive needs a Google client ID before it does anything (see [docs/google-cloud-setup.md](docs/google-cloud-setup.md)); without one the app works fully offline and the Drive screens say so.
 
+**Known issues and limits** are kept in [docs/known-issues.md](docs/known-issues.md): what the app does imperfectly, what it cannot know, and where each one lives in the code.
+
 **The regulatory numbers are checked against the EASA text** — see [Totals and currency](#totals-and-currency) for what was checked, against which revision, and what the app still cannot know.
 
 ## Screenshots
