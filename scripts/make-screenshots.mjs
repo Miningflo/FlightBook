@@ -20,19 +20,33 @@
  * Planespotters is blocked for the whole run, so the aircraft photos can only come from Wikimedia Commons.
  * That is a licensing requirement, not a preference: Commons photos are freely licensed and can be credited
  * (see the photo credits in README.md), Planespotters photos are not and must never end up committed under
- * docs/. The run prints the credit for every photo it actually used, taken from the app's own photo cache,
- * so the README is written from what was really shown rather than from what was expected.
+ * docs/.
+ *
+ * Attribution is part of the run, not a follow-up chore. Each screenshot records which photos are visible in
+ * it; at the end the credits (title, author, licence, source, and which screenshot shows them) are built from
+ * the app's own photo cache, written to docs/screenshots/photo-credits.json, and written into the README's
+ * "Photo credits" section (see photo-credits.mjs). The screenshots are taken into a temporary folder and only
+ * copied into docs/screenshots once every photo in them can be credited: if one cannot (no author, no
+ * licence, not from Commons, or a licence that cannot be combined under CC BY-SA 4.0), the run stops and
+ * changes nothing, so an uncredited photo can never be committed. A unit test keeps the README section and
+ * the JSON in step.
  *
  * An optional third argument is an OurAirports airports.csv; with it, the airport names and the map work.
  */
 import { chromium } from 'playwright-core';
-import { existsSync, readdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CreditError, buildCredits, renderCredits, replaceCredits } from './photo-credits.mjs';
 
 const [url, demoPath, airportsPath] = process.argv.slice(2);
 if (!url || !demoPath) { console.error('usage: make-screenshots.mjs <app-url> <demo.json> [airports.csv]'); process.exit(1); }
 
 const OUT = 'docs/screenshots';
+/** Shots land here first, and are copied to OUT only once every photo in them is credited. */
+const STAGE = mkdtempSync(join(tmpdir(), 'flightbook-shots-'));
+/** What each screenshot shows: { file, imageUrls } in the order they were taken. */
+const shots = [];
 const DEMO_TODAY = '2026-11-23T09:30:00Z';
 /** 412x915 at 2x: the same frame as the screenshots that were already in the README. */
 const PHONE = { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2 };
@@ -130,8 +144,14 @@ async function shot(page, name, { anchor, offset = 76 } = {}) {
     }, offset);
     if (!ok) throw new Error(`${name}: the anchor ${anchor} is not in frame after scrolling`);
   }
-  await page.screenshot({ path: `${OUT}/${name}.png` });
-  console.log(`${OUT}/${name}.png`);
+  // which photos are on screen in this shot: they all have to be credited
+  const imageUrls = await page.$$eval('.photo img', (els) => els.filter((e) => {
+    const r = e.getBoundingClientRect();
+    return e.complete && e.naturalWidth > 0 && r.width > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+  }).map((e) => e.getAttribute('src')));
+  shots.push({ file: `${name}.png`, imageUrls: [...new Set(imageUrls)] });
+  await page.screenshot({ path: join(STAGE, `${name}.png`) });
+  console.log(`${name}.png${imageUrls.length ? ` (${imageUrls.length} photo${imageUrls.length === 1 ? '' : 's'})` : ''}`);
 }
 
 /** Credits for the photos this context loaded, printed and checked. */
@@ -185,7 +205,7 @@ await (await dl).saveAs('/tmp/demo-logbook.pdf');
 console.log('/tmp/demo-logbook.pdf');
 await shot(light.page, 'export', { anchor: '#pilot-name', offset: 110 }); // 110: keep the field's label in frame
 
-console.log('\n--- aircraft photos used (for the README credits) ---');
+console.log('\n--- aircraft photos the app looked up (credited below, per screenshot) ---');
 const lightCredits = await reportCredits(light.page, 'light');
 await light.ctx.close();
 
@@ -224,5 +244,19 @@ await dark.ctx.close();
 
 await browser.close();
 
-const all = new Map([...lightCredits, ...darkCredits].map((c) => [c.registration, c]));
-console.log(`\n${all.size} aircraft photo(s) in the screenshots, all from Wikimedia Commons.`);
+// ---------- credits: nothing reaches docs/ unless every photo in it is credited ----------
+let credits;
+try {
+  credits = buildCredits(shots, [...lightCredits, ...darkCredits]);
+} catch (e) {
+  if (!(e instanceof CreditError)) throw e;
+  rmSync(STAGE, { recursive: true, force: true });
+  console.error(`\nNOT WRITTEN: ${e.message}\nThe screenshots in ${OUT} and the README are unchanged.`);
+  process.exit(1);
+}
+for (const { file } of shots) copyFileSync(join(STAGE, file), join(OUT, file));
+rmSync(STAGE, { recursive: true, force: true });
+writeFileSync(join(OUT, 'photo-credits.json'), `${JSON.stringify({ generatedBy: 'scripts/make-screenshots.mjs', photos: credits }, null, 2)}\n`);
+writeFileSync('README.md', replaceCredits(readFileSync('README.md', 'utf8'), renderCredits(credits)));
+console.log(`\n${shots.length} screenshots written to ${OUT}; ${credits.length} third-party photo(s), credited in README.md and ${OUT}/photo-credits.json:`);
+for (const c of credits) console.log(`  ${c.registration} | "${c.title}" | ${c.artist} | ${c.license} | ${c.files.join(', ')}`);

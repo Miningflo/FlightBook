@@ -40,20 +40,22 @@ node scripts/make-screenshots.mjs http://localhost:4330/FlightBook/ /tmp/demo.js
 ```
 The script loads the demo logbook through the app's own import and imports the airport database the same way, so the screenshots can only show states the app can really reach: the airport names on the flight form and the routes on the map are looked up, not drawn in. It also saves the PDF the app generates; `pdf-logbook.png` is a page of that file rendered to an image. The `airports.csv` argument is optional; without it the map and the airport names are skipped.
 
-**Planespotters is blocked for the whole run**, so aircraft photos can only come from Wikimedia Commons, and the run aborts if a photo from anywhere else was used. This is a licensing rule, not a preference: Commons photos are freely licensed and can be credited, Planespotters photos are not and must never be committed under `docs/`. The run prints the author and licence of every photo it actually used, read from the app's own cache, so the credits below are written from what was really shown.
+**Planespotters is blocked for the whole run**, so aircraft photos can only come from Wikimedia Commons, and the run aborts if a photo from anywhere else was used. This is a licensing rule, not a preference: Commons photos are freely licensed and can be credited, Planespotters photos are not and must never be committed under `docs/`. **The run writes the photo credits below itself**, from what was actually on screen: each screenshot records which photos are visible in it, and the title, author, licence and source come from the app's own cache. It writes them to `docs/screenshots/photo-credits.json` and into this README between the `photo-credits` markers, and it takes the screenshots into a temporary folder, copying them to `docs/screenshots/` only once every photo can be credited. A photo without an author or licence, not from Commons, or under a licence that cannot be combined under CC BY-SA 4.0 stops the run and changes nothing. A unit test fails if the README's credits and the JSON ever disagree, so the credits cannot be edited away by hand either.
 
 ### Photo credits
-Three third-party photos appear in the screenshots: all three in `docs/screenshots/logbook.png`, and the Cessna again in `docs/screenshots/flight.png`. The app looked each one up on Wikimedia Commons by registration and displays the author and licence itself, as you can see in the Flight screenshot. In the screenshots they are cropped and scaled to fit the app's cards, and shown inside the app's screen.
+<!-- photo-credits:start -->
+<!-- Written by scripts/make-screenshots.mjs from docs/screenshots/photo-credits.json. Do not edit by hand: re-run the screenshots. -->
+Two third-party photos appear in the screenshots: OO-CEU and OO-ILS in `docs/screenshots/logbook.png` and OO-CEU in `docs/screenshots/flight.png`. The app looked each one up on Wikimedia Commons by registration and shows the author and licence itself on the flight screen. In the screenshots they are cropped and scaled to fit the app's cards, and shown inside the app's screen.
 
-| Photo | Author | Licence | Source |
-|---|---|---|---|
-| "Keiheuvel Cessna 172S Skyhawk OO-CEU 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG) |
-| "Keiheuvel Robin DR400 120 Dauphin OO-KGB 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Robin_DR400_120_Dauphin_OO-KGB_02.JPG) |
-| "Piper PA28-181 'OO-ILS'" | Alan Wilson | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Piper_PA28-181_OO-ILS_(8439360388).jpg) |
+| Photo | Author | Licence | Source | Appears in |
+|---|---|---|---|---|
+| "Keiheuvel Cessna 172S Skyhawk OO-CEU 02" | Ad Meskens | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Keiheuvel_Cessna_172S_Skyhawk_OO-CEU_02.JPG) | `logbook.png`, `flight.png` |
+| "Piper PA28-181 OO-ILS (8439360388)" | Alan Wilson | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Piper_PA28-181_OO-ILS_(8439360388).jpg) | `logbook.png` |
 
-Because those two screenshots contain the photos in changed form, **`docs/screenshots/logbook.png` and `docs/screenshots/flight.png` are shared under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0)**. This applies to those two image files only, not to the FlightBook code or to the other screenshots, none of which contain a third-party photo.
+Because those screenshots contain the photos in changed form, **`docs/screenshots/logbook.png` and `docs/screenshots/flight.png` are shared under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0)**. This applies to those image files only, not to the FlightBook code or to the other screenshots, none of which contain a third-party photo.
 
-`flight.png` holds only the Cessna, which is already CC BY-SA 4.0. `logbook.png` also holds the Archer, which is CC BY-SA 2.0, and 4.0 is the one licence that covers the mixture: [CC BY-SA 2.0 §4(b)](https://creativecommons.org/licenses/by-sa/2.0/legalcode) lets a derivative work be distributed under "a later version of this License with the same License Elements", and CC BY-SA 4.0 is exactly that (Attribution, ShareAlike).
+CC BY-SA 2.0 ([§4(b)](https://creativecommons.org/licenses/by-sa/2.0/legalcode)) lets an adaptation be distributed under "a later version of this License with the same License Elements", and CC BY-SA 4.0 is exactly that (Attribution, ShareAlike), so it is the one licence that covers the mixture.
+<!-- photo-credits:end -->
 
 ## Setup
 Node 20.19+ or 22.12+ (what Vite 8 requires; CI uses Node 20, which resolves to the latest 20.x).
