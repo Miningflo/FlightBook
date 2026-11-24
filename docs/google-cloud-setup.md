@@ -51,8 +51,9 @@ once; every device and every address the app is served from shares it. This take
 
 ## Things to expect
 - **Tokens last about an hour.** There is no refresh token in this flow. Renewing needs Google's small sign-in
-  pop-up, which browsers only allow after a tap. If an automatic backup finds it needs one, a banner offers
-  **Sign in and back up**; nothing fails silently.
+  pop-up, which browsers only allow after a tap. The app never opens it by itself: if an automatic backup
+  finds it needs one, a banner offers **Sign in and back up**, and a viewer keeps showing its last copy with a
+  **Refresh** button; nothing fails silently.
 - **Testing mode may ask you to approve again** roughly weekly. Publishing the app ("In production") avoids this;
   because `drive.file` is a restricted-to-own-files scope I believe it needs no Google verification for personal use,
   but check Google's current policy before relying on that.
