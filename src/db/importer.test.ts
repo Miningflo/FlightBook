@@ -177,3 +177,39 @@ describe('attachments in a backup', () => {
     expect(await b.attachments.count()).toBe(1);
   });
 });
+
+describe('the aircraft record an import creates for a new registration', () => {
+  const typed = (date: string, typeRatingId: string | null, over: Partial<FlightFormState> = {}) => ({
+    ...flightInput({ date, registration: 'OO-KAB', make: 'Beechcraft', model: 'King Air', variant: 'B200', aircraftClass: 'OTHER', engineClass: 'MP', typeRatingId, ...over }),
+    id: uuid(), createdAt: 1, updatedAt: 1,
+  });
+  const bundle = (...flights: ReturnType<typeof typed>[]): ImportBundle => ({ flights, fstd: [], experience: [] });
+  const run = async (incoming: ImportBundle, extras: Parameters<typeof applyImport>[3] = {}) =>
+    applyImport(a, planImport(incoming, await readBundle(a)), 'skip', extras);
+  const aircraft = async () => a.aircraft.where('registration').equals('OO-KAB').first();
+
+  it('takes the type rating when this logbook holds it', async () => {
+    await ra.updateSettings({ typeRatings: [{ id: 'be20', name: 'BE20', expiry: '2027-06-01' }] });
+    await run(bundle(typed('2025-06-01', 'be20')));
+    expect((await aircraft())!.typeRatingId).toBe('be20');
+  });
+  it('takes it from a backup whose ratings are imported in the same step (restoring into an empty logbook)', async () => {
+    await run(bundle(typed('2025-06-01', 'be20')), { settings: { typeRatings: [{ id: 'be20', name: 'BE20', expiry: '2027-06-01' }] } });
+    expect((await aircraft())!.typeRatingId).toBe('be20');
+  });
+  it('leaves it out when the rating is not held here, so the aircraft never points at nothing', async () => {
+    await ra.updateSettings({ typeRatings: [{ id: 'mine', name: 'BE20', expiry: '2027-06-01' }] });
+    // a backup from another logbook: its ratings are not applied, because this one already has its own
+    await run(bundle(typed('2025-06-01', 'theirs')), { settings: { typeRatings: [{ id: 'theirs', name: 'BE20', expiry: '2027-06-01' }] } });
+    expect((await aircraft())!.typeRatingId).toBeNull();
+    // the flight keeps its id and is flagged as having no rating; nothing is quietly rewritten
+    expect((await a.flights.toArray())[0]!.typeRatingId).toBe('theirs');
+  });
+  it('takes its details from the most recent incoming flight, not the first one in the file', async () => {
+    await ra.updateSettings({ typeRatings: [{ id: 'old', name: 'BE20', expiry: '2027-06-01' }, { id: 'new', name: 'B350', expiry: '2027-06-01' }] });
+    await run(bundle(typed('2025-06-09', 'new', { variant: 'B350' }), typed('2025-06-01', 'old'), typed('2025-06-05', 'old')));
+    const ac = (await aircraft())!;
+    expect(ac.typeRatingId).toBe('new');
+    expect(ac.variant).toBe('B350');
+  });
+});

@@ -38,10 +38,25 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
 
     const aircraft = new Map<string, Aircraft>((await db.aircraft.toArray()).map((a) => [a.registration, a]));
     const persons = new Map<string, Person>((await db.persons.toArray()).map((p) => [p.nameKey, p]));
+    const current = (await db.settings.get('main')) as Settings | undefined;
+
+    // The type ratings this logbook will hold once the import is applied. The incoming ones are applied below
+    // only when there are none yet, so a new aircraft can be given a rating only if it is in this list.
+    const incomingRatings = extras.settings?.typeRatings ?? [];
+    const takesIncoming = !!current && incomingRatings.length > 0 && !current.typeRatings?.length;
+    const held = new Set((takesIncoming ? incomingRatings : current?.typeRatings ?? []).map((t) => t.id));
+
+    // A new aircraft takes its details from its registration's most recent incoming flight, as a normal save
+    // does, not from whichever flight happens to come first in the file.
+    const newest = new Map<string, FlightImport>();
+    for (const f of [...plan.flights.added, ...(policy === 'replace' ? plan.flights.conflicts.map((c) => c.incoming) : [])]) {
+      const seen = newest.get(f.registration);
+      if (!seen || f.depTimeUtc > seen.depTimeUtc) newest.set(f.registration, f);
+    }
 
     const resolve = async (f: FlightImport): Promise<Flight> => {
       let ac = aircraft.get(f.registration);
-      if (!ac) { ac = aircraftFromFlight(f, uuid(), now); aircraft.set(ac.registration, ac); await db.aircraft.add(ac); }
+      if (!ac) { ac = aircraftFromFlight(newest.get(f.registration) ?? f, uuid(), now, held); aircraft.set(ac.registration, ac); await db.aircraft.add(ac); }
       const key = personKey(f.picName);
       let pe = persons.get(key);
       if (!pe) { pe = { id: uuid(), name: f.picName.trim().replace(/\s+/g, ' '), nameKey: key, isSelf: false, createdAt: now, updatedAt: now }; persons.set(key, pe); await db.persons.add(pe); }
