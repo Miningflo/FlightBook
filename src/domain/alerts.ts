@@ -54,6 +54,7 @@ function ratingItem(cls: ClassRating, flights: Flight[], expiry: IsoDate, today:
     if (c.state === 'expired') return { key, level: 'expired', title: `${name} rating expired`, body: `Expired on ${date}. It has to be renewed.` };
     if (c.state === 'urgent') return { key, level: 'red', title: `${name} rating: ${plural(days, 'day')} left`, body: `Revalidation requirements are still not met. Expires ${date}.` };
     if (c.state === 'in-progress') return { key, level: 'amber', title: `${name} rating expires in ${plural(days, 'day')}`, body: 'Revalidation requirements are not yet met.' };
+    if (c.state === 'met-sign-off') return { key, level: 'amber', title: `${name} rating expires in ${plural(days, 'day')}`, body: `Revalidation requirements are met. Have the revalidation entered in your licence before ${date}, then update the expiry date in the app.` };
     return { key, level: 'green', title: `${name} rating ok`, body: `Valid until ${date}.` };
   }
   const c = proficiencyCheckStatus(expiry, today, rules);
@@ -177,12 +178,12 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
       if (includeNight) items.push(currencyItem(t.name, `TYPE:${t.id}`, 'night', nightCurrency(flights, byType(t.id), today, rules)));
     }
   }
-  const stranded = unassignedTypeFlights(flights).length;
+  const stranded = unassignedTypeFlights(flights, settings.typeRatings ?? []).length;
   if (stranded > 0) {
     items.push({
       key: 'TYPE:unassigned', level: 'amber',
       title: `${plural(stranded, 'flight')} not counted towards any rating`,
-      body: 'They are logged in the Other class without a type rating, so they count towards no currency. Open them and pick the rating they were flown under.',
+      body: 'They are logged in the Other class without a type rating you hold (none was picked, or it has been removed), so they count towards no currency. Open them and pick the rating they were flown under.',
     });
   }
   items.push(...licenceItems(settings, today, rules));

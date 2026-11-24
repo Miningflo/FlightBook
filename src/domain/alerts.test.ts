@@ -50,6 +50,25 @@ describe('watchedItems', () => {
   });
 });
 
+describe('SEP rating alert once the requirements are met', () => {
+  const expiry = '2025-07-20'; // 20 days after today
+  const enough = [flight('2025-01-15', { totalMin: 720, picMin: 360, dualMin: 60, takeoffsDay: 12, landingsDay: 12 })];
+  const rating = (e: string) => watchedItems(enough, { sepLandExpiry: e, alerts: { enabled: true, night: false } }, today).find((i) => i.key === 'SEP_LAND:rating')!;
+  it('is green while there is time to have the revalidation entered', () => {
+    expect(rating('2025-09-30').level).toBe('green');
+  });
+  it('turns amber near expiry instead of staying green until it expires', () => {
+    const i = rating(expiry);
+    expect(i.level).toBe('amber');
+    expect(i.title).toBe('SEP (land) rating expires in 20 days');
+    expect(i.body).toMatch(/requirements are met.*entered in your licence/);
+  });
+  it('notifies on the change from green to amber, so the reminder is not silent', () => {
+    const before = alertOutcome([rating('2025-09-30')], undefined).state;
+    expect(alertOutcome([{ ...rating(expiry) }], before).fresh.map((i) => i.key)).toEqual(['SEP_LAND:rating']);
+  });
+});
+
 describe('watchedItems and the instrument rating', () => {
   const flown = [flight(today, { takeoffsNight: 0, landingsNight: 0 })];
   it('stops watching night currency while a valid IR is held', () => {
@@ -177,6 +196,14 @@ describe('per-type currency (FCL.060 counts per "type or class")', () => {
     const i = watchedItems([other(today, null)], { typeRatings: [t] }, today).find((x) => x.key === 'TYPE:unassigned')!;
     expect(i.level).toBe('amber');
     expect(i.title).toMatch(/not counted towards any rating/);
+  });
+  it('counts a flight whose rating has been removed as unassigned, not as nothing', () => {
+    const items = watchedItems([{ ...other(today, 'removed'), takeoffsDay: 3, landingsDay: 3 }], { typeRatings: [t] }, today);
+    expect(items.find((x) => x.key === 'TYPE:unassigned')!.title).toMatch(/^1 flight not counted/);
+    expect(items.some((x) => x.key.startsWith('TYPE:removed'))).toBe(false);
+  });
+  it('flags orphaned flights even when no type ratings are left at all', () => {
+    expect(watchedItems([other(today, 'removed')], { typeRatings: [] }, today).map((i) => i.key)).toContain('TYPE:unassigned');
   });
   it('says nothing about unassigned flights when there are none', () => {
     expect(watchedItems([other(today, 't')], { typeRatings: [t] }, today).map((i) => i.key)).not.toContain('TYPE:unassigned');

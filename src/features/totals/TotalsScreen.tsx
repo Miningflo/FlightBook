@@ -63,7 +63,7 @@ export function TotalsScreen() {
               <div>Include previous experience</div>
               <div className="hint">
                 {t.experienceIncluded} of {data.previousExperience.length} record{data.previousExperience.length === 1 ? '' : 's'} included
-                {t.experienceExcluded > 0 && includeExp ? '. A record is left out when the date range cuts through its period, because a lump sum cannot be split by date.' : '.'}
+                {t.experienceExcluded > 0 && includeExp ? '. A record is left out when the date range cuts through its period, because a lump sum cannot be split by date. A record without a start date covers everything up to its end date.' : '.'}
               </div>
             </div>
             <input type="checkbox" checked={includeExp} onChange={(e) => setIncludeExp(e.target.checked)} aria-label="Include previous experience" />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus } from './currency';
+import { byClass, classExpiryOf, classExpiryPatch, collectEvents, irStatus, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, rolling, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, currencyClasses } from './currency';
 import { DEFAULT_RULES } from './rules';
 import { flight } from './testFactories';
 import { addDays } from './time';
@@ -161,10 +161,21 @@ describe('sepRevalidation', () => {
     expect(sepRevalidation([], expiry, addDays(expiry, -60))).toMatchObject({ status: 'red', state: 'urgent' });
     expect(sepRevalidation([], expiry, addDays(expiry, -61))).toMatchObject({ status: 'amber', state: 'in-progress' });
   });
-  it('is green once every requirement is met, even close to expiry', () => {
-    const r = sepRevalidation([enough('2025-09-01')], expiry, '2026-03-20');
+  it('is green once every requirement is met, while there is time to have it entered', () => {
+    const r = sepRevalidation([enough('2025-09-01')], expiry, addDays(expiry, -31));
     expect(r).toMatchObject({ status: 'green', state: 'requirements-met' });
     expect(r.progress.every((p) => p.met)).toBe(true);
+  });
+  it('turns amber when met with 30 or fewer days left, because met is not yet revalidated', () => {
+    expect(sepRevalidation([enough('2025-09-01')], expiry, addDays(expiry, -30))).toMatchObject({ status: 'amber', state: 'met-sign-off' });
+    expect(sepRevalidation([enough('2025-09-01')], expiry, '2026-03-20')).toMatchObject({ status: 'amber', state: 'met-sign-off', daysToExpiry: 11 });
+    expect(sepRevalidation([enough('2025-09-01')], expiry, expiry)).toMatchObject({ status: 'amber', state: 'met-sign-off', daysToExpiry: 0 });
+  });
+  it('is expired the day after, met or not', () => {
+    expect(sepRevalidation([enough('2025-09-01')], expiry, addDays(expiry, 1))).toMatchObject({ status: 'red', state: 'expired' });
+  });
+  it('goes back to green once the new expiry date is entered', () => {
+    expect(sepRevalidation([enough('2025-09-01')], '2028-03-31', '2026-03-20')).toMatchObject({ status: 'green' });
   });
   it('one unmet requirement is enough to stay short', () => {
     const r = sepRevalidation([enough('2025-09-01', { dualMin: 30 })], expiry, '2026-03-20');
@@ -309,9 +320,45 @@ describe('type ratings (FCL.740.A(a))', () => {
     expect(typeRatingStatus(expiry, '2025-12-31')).toMatchObject({ state: 'window-not-open', windowStart: '2026-01-01' });
     expect(typeRatingStatus(expiry, '2026-04-01')).toMatchObject({ status: 'red', state: 'expired' });
   });
-  it('says plainly that route sectors are not counted for a type rating', () => {
-    expect(DEFAULT_RULES.typeRating.todo.join(' ')).toMatch(/does not count them/i);
-    // ...whereas they are counted for MEP, and that difference must stay visible
-    expect(routeSectors([], 'MEP_LAND', expiry, '2026-01-01')).not.toBeNull();
+  it('counts route sectors per type rating, and the rule text says so and what it does not track', () => {
+    expect(typeRouteSectors([flight('2025-12-01', { aircraftClass: 'OTHER', typeRatingId: 't' })], 't', expiry, '2026-01-01')).toMatchObject({ flights: 1, need: 10 });
+    const text = DEFAULT_RULES.typeRating.todo.join(' ');
+    expect(text).toMatch(/counted per rating/i);
+    expect(text).not.toMatch(/does not count them/i);
+    expect(text).toMatch(/1 route sector flown with an examiner .* not tracked/i);
+    expect(text).toMatch(/OSD sets a different validity/i);
+  });
+});
+
+describe('unassignedTypeFlights', () => {
+  const held = [{ id: 't' }];
+  const other = (typeRatingId: string | null) => flight(today, { aircraftClass: 'OTHER', typeRatingId });
+  it('names flights with no rating, and flights whose rating is no longer held', () => {
+    const none = other(null), removed = other('gone'), ok = other('t');
+    expect(unassignedTypeFlights([none, removed, ok], held)).toEqual([none, removed]);
+  });
+  it('treats every rated flight as unassigned once the last rating is removed', () => {
+    expect(unassignedTypeFlights([other('t')], [])).toHaveLength(1);
+  });
+  it('ignores flights in a class rating, whatever they carry', () => {
+    expect(unassignedTypeFlights([flight(today, { typeRatingId: 'gone' })], held)).toEqual([]);
+  });
+});
+
+describe('currencyClasses', () => {
+  it('offers every real class but not Other when there is nothing behind it', () => {
+    const c = currencyClasses([], []);
+    expect(c).toContain('SEP_LAND');
+    expect(c).toContain('MEP_SEA');
+    expect(c).not.toContain('OTHER');
+  });
+  it('offers Other once a type rating is held, before any flight is logged in it', () => {
+    expect(currencyClasses([], [{ id: 't' }])).toContain('OTHER');
+  });
+  it('offers Other for flights logged under it even without a rating, so they can be found', () => {
+    expect(currencyClasses([flight(today, { aircraftClass: 'OTHER' })], [])).toContain('OTHER');
+  });
+  it('keeps Other last, in the canonical order', () => {
+    expect(currencyClasses([], [{ id: 't' }]).at(-1)).toBe('OTHER');
   });
 });
