@@ -70,7 +70,7 @@ function irWaiverText(exemptUntil: IsoDate, passengers: RollingCheck): string {
     : `${base}, and they are met until ${passengers.validUntil ? formatShortDate(passengers.validUntil) : ''}.`;
 }
 
-/** An exemption is not a currency state: the counts still show, but nothing is required of them. */
+/** An exemption is not a currency state. While it applies the night counts are beside the point, so they are left out. */
 function RollingCard({ title, subtitle, check, rule, exemptUntil, passengers }: {
   title: string; subtitle: string; check: RollingCheck; rule: RuleSource; exemptUntil?: IsoDate;
   /** With `exemptUntil`: the passenger currency, which the IR does not waive. */
@@ -88,8 +88,8 @@ function RollingCard({ title, subtitle, check, rule, exemptUntil, passengers }: 
       </div>
       <div className="headline">{h.headline}</div>
       <div className="hint">{h.sub}</div>
-      {countRow('Take-offs in the last 90 days', check.takeoffs)}
-      {countRow('Landings in the last 90 days', check.landings)}
+      {!exemptUntil && countRow('Take-offs in the last 90 days', check.takeoffs)}
+      {!exemptUntil && countRow('Landings in the last 90 days', check.landings)}
       <RulesNote rule={rule} />
     </div>
   );
