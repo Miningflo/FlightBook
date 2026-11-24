@@ -3,7 +3,7 @@ import { useApp } from '../../AppContext';
 import { CLASS_RATING_LABELS, MEDICAL_CLASS_LABELS, type ClassRating, type Flight, type IsoDate, type MedicalClass, type TypeRating } from '../../domain/types';
 import { byClass, type ProficiencyCheck, type RollingCheck, type RollingCurrency, type SepCheck, type ValidityCheck, classExpiryOf, classExpiryPatch, currencyClasses, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, routeSectors, passengerCurrency, proficiencyCheckStatus, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, byType } from '../../domain/currency';
 import { DEFAULT_RULES, type RenewalRule, type RollingRule, type RuleSource } from '../../domain/rules';
-import { addDays, formatHHMM, isValidIsoDate, utcDateOf } from '../../domain/time';
+import { addDays, checkDate, formatHHMM, isValidIsoDate } from '../../domain/time';
 import { uuid } from '../../domain/id';
 import { Bar, Dialog, Field, StatusPill } from '../../ui/components';
 import { aircraftLabel, formatDate, formatShortDate } from '../flights/format';
@@ -221,7 +221,7 @@ function ExperienceCard({ cls, check }: { cls: ClassRating; check: SepCheck }) {
 
 function CheckCard({ cls, check }: { cls: ClassRating; check: ProficiencyCheck }) {
   const { data } = useApp();
-  const sectors = routeSectors(data.flights, cls, check.expiry, utcDateOf(Date.now()));
+  const sectors = routeSectors(data.flights, cls, check.expiry, checkDate(Date.now()));
   const rule = DEFAULT_RULES.proficiencyCheck;
   const name = CLASS_RATING_LABELS[cls];
   const days = check.daysToExpiry ?? 0;
@@ -426,7 +426,7 @@ function StrandedFlightList({ flights }: { flights: Flight[] }) {
       <ul className="link-list">
         {shown.map((f) => (
           <li key={f.id}>
-            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id } : { name: 'flight', id: f.id })}>
+            <button type="button" className="link-row" onClick={() => go(canEdit ? { name: 'edit', id: f.id, from: 'unassigned' } : { name: 'flight', id: f.id })}>
               <span>
                 <span className="main">{formatDate(f.date)} · {f.depPlace} → {f.arrPlace}</span>
                 <span className="hint">{f.registration} · {aircraftLabel(f)}{f.typeRatingId ? ' · rating removed' : ''}</span>
@@ -617,12 +617,16 @@ function TypeRatingsCard({ today }: { today: IsoDate }) {
   );
 }
 
-export function CurrencyScreen() {
-  const { data } = useApp();
-  const today: IsoDate = utcDateOf(Date.now());
+/** `cls` comes from the address (#/currency/OTHER), so coming back from a flight lands on the same chip. */
+export function CurrencyScreen({ cls: routeCls }: { cls?: ClassRating }) {
+  const { data, go } = useApp();
+  // the later of the local and UTC date, so nothing reads as valid past its expiry (see checkDate)
+  const today: IsoDate = checkDate(Date.now());
   // Every class with a rating to follow is selectable, so an expiry date can be entered before any flight is logged.
   const classes = useMemo(() => currencyClasses(data.flights, data.settings.typeRatings ?? []), [data.flights, data.settings.typeRatings]);
-  const [picked, setCls] = useState<ClassRating>('SEP_LAND');
+  const picked: ClassRating = routeCls ?? 'SEP_LAND';
+  // the default chip keeps the plain address; replace, so chips do not pile up in the history
+  const setCls = (c: ClassRating) => go({ name: 'currency', ...(c === 'SEP_LAND' ? {} : { cls: c }) }, { replace: true });
   // the picked chip can disappear (the last type rating and Other flight removed): fall back rather than show a chip-less panel
   const cls: ClassRating = classes.includes(picked) ? picked : 'SEP_LAND';
   const passengers = useMemo(() => passengerCurrency(data.flights, byClass(cls), today), [data.flights, byClass(cls), today]);
@@ -636,7 +640,7 @@ export function CurrencyScreen() {
   return (
     <div>
       <p className="hint" style={{ margin: '0 4px 12px' }}>
-        Status as of {formatShortDate(today)} (UTC). Currency uses logged take-offs and landings; carry-in records have no dates and are not counted.
+        Status as of {formatShortDate(today)}. Currency uses logged take-offs and landings; carry-in records have no dates and are not counted.
       </p>
       <div className="range-chips" role="group" aria-label="Aircraft class">
         {classes.map((c) => <button key={c} type="button" className="chip" aria-pressed={cls === c} onClick={() => setCls(c)}>{CLASS_RATING_LABELS[c]}</button>)}

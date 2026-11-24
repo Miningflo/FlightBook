@@ -1,6 +1,6 @@
 import type { LogbookDB } from '../db/db';
 import { alertOutcome, watchedItems, type AlertItem } from '../domain/alerts';
-import { utcDateOf } from '../domain/time';
+import { checkDate } from '../domain/time';
 
 /** Shows one notification. Passed in because the page and the service worker show them differently. */
 export type Notify = (item: AlertItem) => Promise<void>;
@@ -14,7 +14,7 @@ export async function checkAlerts(db: LogbookDB, notify: Notify, now = Date.now(
   const settings = await db.settings.get('main');
   if (!settings || !settings.isMaster || !settings.alerts?.enabled) return 0;
   const flights = await db.flights.toArray();
-  const items = watchedItems(flights, settings, utcDateOf(now));
+  const items = watchedItems(flights, settings, checkDate(now));
   const { fresh, state } = alertOutcome(items, seed ? undefined : settings.alertState);
   // remember first: a failure to show one must not make the same alert fire again on the next check
   await db.settings.update('main', { alertState: state }); // a partial update, so it never overwrites a setting changed meanwhile

@@ -169,7 +169,7 @@ export function App() {
   } else if (route.name === 'map') {
     title = 'Map'; showNav = true; body = <Suspense fallback={<div className="empty"><p className="hint">Loading the map…</p></div>}><MapScreen /></Suspense>;
   } else if (route.name === 'currency') {
-    title = 'Currency'; showNav = true; body = <CurrencyScreen />;
+    title = 'Currency'; showNav = true; body = <CurrencyScreen cls={route.cls} />;
   } else if (route.name === 'fstd') {
     title = 'Simulator sessions'; back = true; body = <FstdList />;
   } else if (route.name === 'fstd-new') {
@@ -191,7 +191,7 @@ export function App() {
   } else if (route.name === 'edit') {
     title = 'Edit flight'; back = true;
     // keyed so a form's state can never leak into another flight's form (state is initialised once per mount)
-    body = missing ? <NotFound what="flight" /> : ctx.canEdit ? <FlightFormScreen key={`edit-${flight!.id}`} flight={flight} /> : notMaster;
+    body = missing ? <NotFound what="flight" /> : ctx.canEdit ? <FlightFormScreen key={`edit-${flight!.id}`} flight={flight} from={route.from} /> : notMaster;
   } else if (route.name === 'flight' && !wide) {
     title = 'Flight'; back = true;
     body = missing ? <NotFound what="flight" /> : <FlightDetail flight={flight!} onEdit={() => go({ name: 'edit', id: flight!.id })} />;
