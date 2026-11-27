@@ -1,6 +1,6 @@
 # Known issues and limits
 
-What FlightBook is known not to do, or to do imperfectly, as of 24 November 2026. Each entry says where it
+What FlightBook is known not to do, or to do imperfectly, as of 27 November 2026. Each entry says where it
 lives in the code, so it can be picked up later. Fixed items are removed from this list, not struck through.
 
 ## Behaviour you may notice
@@ -11,12 +11,18 @@ lives in the code, so it can be picked up later. Fixed items are removed from th
   not backed up yet… Sign in and back up". A read-only viewer keeps showing its last copy until **Refresh**.
   `src/drive/gis.ts`. Removing the tap would need Google's authorisation-code flow, which needs a server.
 
+- **A half-typed form can still be lost if the app is closed.** Leaving a form inside the app asks first, but
+  swiping the installed app away, or the phone stopping it in the background, gives no chance to ask, and drafts
+  are not saved. `src/ui/useDiscardGuard.tsx`
+- **The back-gesture question is tested in desktop Chromium only**, not on a physical Android phone.
+  `src/hooks.ts` (`createRouter`)
+
 ## By design
 
 Chosen on purpose; listed so the consequence is not a surprise.
 
-- **One Drive snapshot per day, by request.** A later backup replaces any earlier one from the same day
-  (UTC), so a mistake made today can only be undone back to yesterday's last snapshot, not to earlier today. A
+- **One Drive snapshot per day, by request.** A later backup replaces any earlier one this device made the same
+  day (UTC), so a mistake made today can only be undone back to yesterday's last snapshot, not to earlier today. A
   "replace everything" restore still saves its own safety copy first. `src/domain/driveRules.ts`
   (`dailyRetentionPlan`).
 
@@ -50,8 +56,8 @@ of truth; the main ones:
 ## Tooling
 
 - **End-to-end tests cover the main flows, not every screen.** `e2e/` checks logging a flight, importing a backup,
-  marking route sectors, removing a type rating, the IR waiver, and two layouts measured at phone and desktop
-  width. How the other screens look is still checked by eye.
+  marking route sectors, removing a type rating, the IR waiver, leaving a form with unsaved input, a backup with
+  an unreadable date, and two layouts measured at phone and desktop width. How the other screens look is still checked by eye.
 - **An `overrides` entry in `package.json` pins workbox-build's `glob` to 14.0.4.** workbox-build 7.4.1 asks for
   glob 11, which (with its minimatch 10) carries two moderate advisories; build-time only, never shipped. glob 14
   was checked to give the service worker the same 16 precached files. Remove the override once workbox-build

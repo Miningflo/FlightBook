@@ -15,10 +15,11 @@ export function DriveCard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [stillGranted, setStillGranted] = useState(false);
   const [restore, setRestore] = useState(false);
 
   const run = async (label: string, job: () => Promise<void>) => {
-    setBusy(label); setError(null); setNotice(null);
+    setBusy(label); setError(null); setNotice(null); setStillGranted(false);
     try { await job(); } catch (e) { setError(errorText(e)); } finally { setBusy(null); }
   };
 
@@ -36,7 +37,7 @@ export function DriveCard() {
       <div>Google Drive</div>
       <p className="hint">
         {canEdit
-          ? 'The master logbook writes a snapshot to a “Logbook backups” folder in your Drive: after you save changes, when the app opens if the last backup is over a day old, and on demand. The latest 30 are kept. The app can only see files it created itself.'
+          ? 'The master logbook writes a snapshot to a “Logbook backups” folder in your Drive: after you save changes, when the app opens with changes not yet backed up or a backup over a day old, and on demand. The last snapshot of each day is kept for each device, for the 30 most recent days that have one. The app can only see files it created itself.'
           : 'This device is a read-only viewer. It loads the newest snapshot from your Drive and never writes to it.'}
       </p>
       {!state.enabled ? (
@@ -58,7 +59,22 @@ export function DriveCard() {
           <div className="row"><button type="button" className="btn tonal" disabled={!!busy || state.viewer.status === 'loading'} onClick={() => void run('refresh', () => controller.refreshViewer(true))}>Refresh</button></div>
         </>
       )}
-      {state.enabled && <button type="button" className="btn text" style={{ marginTop: 8 }} disabled={!!busy} onClick={() => void run('disconnect', () => controller.disconnect())}>Disconnect Google Drive</button>}
+      {state.enabled && (
+        <>
+          <button type="button" className="btn text" style={{ marginTop: 8 }} disabled={!!busy} onClick={() => void run('disconnect', async () => {
+            const { revoked } = await controller.disconnect();
+            if (revoked) setNotice('Disconnected, and Google removed FlightBook\u2019s access.');
+            else setStillGranted(true);
+          })}>{busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect Google Drive'}</button>
+          <p className="hint">Disconnecting also removes FlightBook’s access to your Google account, so your other devices will need to be allowed again. Google may ask you to sign in once more to do it.</p>
+        </>
+      )}
+      {stillGranted && (
+        <div className="msg warning" role="alert">
+          Disconnected on this device, but Google did not remove FlightBook’s access. Remove it at{' '}
+          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>.
+        </div>
+      )}
       {notice && <div className="msg hint" role="status">{notice}</div>}
       {error && <div className="msg error" role="alert">{error}</div>}
       <p className="hint">Device: {data.settings.deviceName}</p>

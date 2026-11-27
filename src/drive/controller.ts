@@ -32,6 +32,9 @@ export interface ControllerDeps {
   updateSettings: (patch: Partial<Omit<Settings, 'key'>>) => Promise<void>;
   /** The logbook as a snapshot (master only). */
   buildSnapshot: () => Promise<Snapshot>;
+  /** The "changes not backed up yet" marker, read from the database (see db/changes.ts). */
+  readPendingChange: () => Promise<string | null>;
+  clearPendingChange: (token: string) => Promise<void>;
   readViewerCache: () => Promise<ViewerCacheEntry | undefined>;
   writeViewerCache: (e: ViewerCacheEntry) => Promise<void>;
   now?: () => number;
@@ -61,6 +64,7 @@ export class DriveController {
     this.scheduler = new BackupScheduler({
       run: (interactive) => this.runBackup(interactive),
       getLastBackupAt: () => this.d.getSettings().lastBackupAt,
+      hasUnbackedChanges: () => !!this.d.getSettings().pendingChange,
       isActive: () => this.d.configured && !!this.d.getSettings().driveEnabled && !!this.d.getSettings().isMaster,
       isOnline: d.isOnline, now: d.now, debounceMs: d.debounceMs,
     });
@@ -106,19 +110,25 @@ export class DriveController {
     this.settingsChanged();
   }
 
-  async disconnect(): Promise<void> {
-    try { await this.d.tokens.revoke?.(); } catch { /* the local forget below is what matters */ }
+  /** Forget Drive on this device. `revoked` says whether Google also removed the app's access. */
+  async disconnect(): Promise<{ revoked: boolean }> {
+    let revoked = false;
+    try { revoked = (await this.d.tokens.revoke?.()) ?? false; } catch { /* the local forget below must still happen */ }
     this.d.tokens.invalidate();
     this.backupService = null;
     await this.d.updateSettings({ driveEnabled: false });
     this.scheduler.clearNotMaster();
     this.set({ viewer: { status: 'idle' }, enabled: false });
+    return { revoked };
   }
 
   // ---------- master ----------
 
   private async runBackup(interactive: boolean): Promise<void> {
+    // read before the snapshot is built: a change made from here on keeps the marker
+    const pending = await this.d.readPendingChange();
     const r = await this.writerService().runBackup({ interactive });
+    if (pending) await this.d.clearPendingChange(pending);
     await this.d.updateSettings({ lastBackupAt: this.now() });
     this.set({ backup: { ...this.state.backup, lastBackupAt: this.now(), warnings: r.warnings } });
   }

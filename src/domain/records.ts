@@ -22,8 +22,8 @@ export interface ImportBundle {
 
 export function toFlightImport(f: Flight, persons: Person[]): FlightImport {
   const { aircraftId: _a, picNameId, ...rest } = f;
-  // routeSector: older flights do not have it, which means no; spelled out so "absent" and "no" compare equal
-  return { ...rest, routeSector: f.routeSector === true, picName: persons.find((p) => p.id === picNameId)?.name ?? 'UNKNOWN', engineClass: engineClassOfFlight(f) };
+  // older flights lack typeRatingId and routeSector, which means none and no; spelled out so "absent" and "none" compare equal
+  return { ...rest, typeRatingId: f.typeRatingId ?? null, routeSector: f.routeSector === true, picName: persons.find((p) => p.id === picNameId)?.name ?? 'UNKNOWN', engineClass: engineClassOfFlight(f) };
 }
 
 export function toFlightImports(flights: Flight[], persons: Person[]): FlightImport[] {

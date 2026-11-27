@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MIGRATIONS, SNAPSHOT_SCHEMA_VERSION, SnapshotError, base64ToBytes, buildSnapshot, bytesToBase64, parseSnapshot, serializeSnapshot, snapshotToBundle,
+  MIGRATIONS, SNAPSHOT_SCHEMA_VERSION, SnapshotError, base64ToBytes, buildSnapshot, bytesToBase64, parseSnapshot, readSnapshot, serializeSnapshot, snapshotToBundle,
 } from './snapshot';
 import { flight } from './testFactories';
 import { emptyExperience } from './experience';
@@ -112,5 +112,40 @@ describe('schema 3: route sectors', () => {
     expect(parsed.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
     expect(parsed.flights.every((f) => f.routeSector === undefined)).toBe(true);
     expect(snapshotToBundle(parsed).bundle.flights.every((f) => f.routeSector === false)).toBe(true);
+  });
+});
+
+describe('a backup with unreadable parts', () => {
+  const read = (change: (s: Record<string, any>) => void) => {
+    const raw = JSON.parse(serializeSnapshot(snap())) as Record<string, any>;
+    change(raw);
+    return readSnapshot(parseSnapshot(JSON.stringify(raw)));
+  };
+  it('a complete backup has no problems', () => {
+    expect(read(() => {}).problems).toEqual([]);
+  });
+  it('reports a record with a missing field, or that is not a record, instead of throwing', () => {
+    for (const [list, field] of [['flights', 'depPlace'], ['flights', 'remarks'], ['flights', 'overrides'], ['fstdSessions', 'fstdType'], ['previousExperience', 'byClass'], ['previousExperience', 'source'], ['persons', 'nameKey'], ['aircraft', 'registration']] as const) {
+      const r = read((s) => { delete s[list][0][field]; });
+      expect(r.problems.some((p) => p.message.includes(field)), `${list}.${field}`).toBe(true);
+    }
+    const r = read((s) => { s.flights.push(null); s.fstdSessions.push(7); });
+    expect(r.problems).toHaveLength(2);
+    expect(r.bundle.flights).toHaveLength(2);
+  });
+  it('leaves out and names licence data it cannot read, and keeps the rest', () => {
+    const r = read((s) => { s.settings = { pilotName: 'A', irExpiry: '31/12/2027', medicalClass: 'GOLD', typeRatings: 'BE20', classExpiry: { TMG: '2027-01-01', MEP_LAND: 'soon' } }; });
+    expect(r.records.settings).toEqual({ pilotName: 'A', classExpiry: { TMG: '2027-01-01' } });
+    expect(r.problems.map((p) => p.message).join(' | ')).toMatch(/instrument rating.*medical class.*type ratings.*MEP_LAND/);
+  });
+  it('empty dates mean none entered, not a problem', () => {
+    const r = read((s) => { s.settings = { sepLandExpiry: '', irExpiry: null }; });
+    expect(r.problems).toEqual([]);
+    expect(r.records.settings).toEqual({ sepLandExpiry: null, irExpiry: null });
+  });
+  it('reports an attachment whose data is not readable', () => {
+    const r = read((s) => { s.attachments = [{ id: 'x', flightId: 'f', mime: 'image/png', name: 'sig', createdAt: 1, updatedAt: 1, data: '%%%' }]; });
+    expect(r.records.attachments).toEqual([]);
+    expect(r.problems).toHaveLength(1);
   });
 });

@@ -6,6 +6,7 @@ import { formatHHMM, utcDateOf } from '../../domain/time';
 import { CountField, Dialog, DurationField, Field } from '../../ui/components';
 import { PlusIcon } from '../../ui/Icons';
 import { formatShortDate } from '../flights/format';
+import { useDiscardGuard } from '../../ui/useDiscardGuard';
 
 export function ExperienceList() {
   const { data, go, canEdit } = useApp();
@@ -47,6 +48,8 @@ export function ExperienceForm({ record }: { record?: PreviousExperience }) {
   const [submitted, setSubmitted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const discardDialog = useDiscardGuard(JSON.stringify(d) !== JSON.stringify(initial), 'Your unsaved changes to this record will be lost.');
   const issues = validateExperience(d, today);
   const err = (f: string) => (submitted ? issues.find((i) => i.field === f && i.severity === 'error')?.message : undefined);
   const warning = (f: string) => issues.find((i) => i.field === f && i.severity === 'warning')?.message;
@@ -69,13 +72,15 @@ export function ExperienceForm({ record }: { record?: PreviousExperience }) {
       requestAnimationFrame(() => document.querySelector('.field.invalid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
       return;
     }
+    if (saving) return;
+    setSaving(true);
     try {
       await writer.savePreviousExperience(normalizeExperience(d), record?.id);
       await reload();
-      go({ name: 'experience' }, { replace: true });
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      go({ name: 'experience' }, { replace: true, force: true });
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); setSaving(false); }
   };
-  const remove = async () => { if (record) { await writer.deletePreviousExperience(record.id); await reload(); go({ name: 'experience' }, { replace: true }); } };
+  const remove = async () => { if (record) { await writer.deletePreviousExperience(record.id); await reload(); go({ name: 'experience' }, { replace: true, force: true }); } };
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void save(); }} noValidate>
@@ -135,9 +140,10 @@ export function ExperienceForm({ record }: { record?: PreviousExperience }) {
       {error && <div className="msg error" role="alert" style={{ marginTop: 12 }}>Could not save: {error}</div>}
       {submitted && issues.some((i) => i.severity === 'error') && <div className="msg error" role="alert" style={{ marginTop: 12 }}>Fix the highlighted fields to save.</div>}
       <div className="actionbar">
-        <button type="button" className="btn text" onClick={() => go({ name: 'experience' })}>Cancel</button>
-        <button type="submit" className="btn filled">{record ? 'Save changes' : 'Save record'}</button>
+        <button type="button" className="btn text" onClick={() => go({ name: 'experience' }, { replace: true })}>Cancel</button>
+        <button type="submit" className="btn filled" disabled={saving}>{saving ? 'Saving…' : record ? 'Save changes' : 'Save record'}</button>
       </div>
+      {discardDialog}
       <Dialog open={confirmDelete} title="Delete this record?" onClose={() => setConfirmDelete(false)}
         actions={<><button type="button" className="btn text" onClick={() => setConfirmDelete(false)}>Cancel</button><button type="button" className="btn danger" onClick={() => void remove()}>Delete</button></>}>
         Your totals will drop by the hours in this record. It cannot be undone, except by restoring a backup.

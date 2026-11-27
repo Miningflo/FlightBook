@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CLASS_RATINGS, type ClassRating } from './domain/types';
 
 export type Route =
@@ -84,26 +84,67 @@ export function parentRoute(r: Route): Route | null {
 export interface GoOptions {
   /** Replace the current history entry instead of adding one (after saving, deleting, cancelling, or going up). */
   replace?: boolean;
+  /** Leave without asking: the form's changes have just been saved, or its record deleted. */
+  force?: boolean;
+}
+
+/** Called instead of leaving the screen; calling `proceed` leaves after all. */
+export type LeaveGuard = (proceed: () => void) => void;
+let leaveGuard: LeaveGuard | null = null;
+
+/** Ask `guard` before the current screen is left (one at a time). Returns the way to stop asking. */
+export function setLeaveGuard(guard: LeaveGuard): () => void {
+  leaveGuard = guard;
+  return () => { if (leaveGuard === guard) leaveGuard = null; };
+}
+
+/** The parts of the browser the router uses; passed in so it can be tested without one. */
+export interface RouterWindow {
+  location: { hash: string };
+  history: { pushState(data: unknown, unused: string, url: string): void; replaceState(data: unknown, unused: string, url: string): void; back(): void };
+}
+
+/** The router without React: `go` for the app's own buttons, `onHashChange` for the browser's (Back, a typed address). */
+export function createRouter(win: RouterWindow, onRoute: (r: Route) => void) {
+  let current = routeToHash(parseHash(win.location.hash));
+  const show = (r: Route) => { current = routeToHash(r); onRoute(r); };
+  const go = (r: Route, opts: GoOptions = {}): void => {
+    const hash = routeToHash(r);
+    if (opts.force) leaveGuard = null;
+    else if (leaveGuard && hash !== current) {
+      leaveGuard(() => go(r, { ...opts, force: true }));
+      return;
+    }
+    if (opts.replace) {
+      // replaceState does not fire "hashchange", so the route state is updated directly
+      win.history.replaceState(null, '', hash);
+      show(r);
+    } else {
+      win.location.hash = hash;
+    }
+  };
+  const onHashChange = (): void => {
+    const next = parseHash(win.location.hash);
+    if (leaveGuard && routeToHash(next) !== current) {
+      // the browser has already moved: put this screen's address back on top, so that leaving is one step back
+      win.history.pushState(null, '', current);
+      leaveGuard(() => { leaveGuard = null; win.history.back(); });
+      return;
+    }
+    show(next);
+  };
+  return { go, onHashChange };
 }
 
 /** Minimal hash router: works on static hosting (GitHub Pages) with no rewrite rules. */
 export function useRoute(): [Route, (r: Route, opts?: GoOptions) => void] {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
+  const [router] = useState(() => createRouter(window, setRoute));
   useEffect(() => {
-    const on = () => setRoute(parseHash(window.location.hash));
-    window.addEventListener('hashchange', on);
-    return () => window.removeEventListener('hashchange', on);
-  }, []);
-  const go = useCallback((r: Route, opts?: GoOptions) => {
-    if (opts?.replace) {
-      // replaceState does not fire "hashchange", so the route state is updated directly
-      window.history.replaceState(null, '', routeToHash(r));
-      setRoute(r);
-    } else {
-      window.location.hash = routeToHash(r);
-    }
-  }, []);
-  return [route, go];
+    window.addEventListener('hashchange', router.onHashChange);
+    return () => window.removeEventListener('hashchange', router.onHashChange);
+  }, [router]);
+  return [route, router.go];
 }
 
 export function useMediaQuery(query: string): boolean {

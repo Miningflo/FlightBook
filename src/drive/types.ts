@@ -9,8 +9,8 @@ export interface TokenProvider {
   getToken(opts?: { interactive?: boolean }): Promise<string>;
   /** Forget the current token (it was rejected or the user disconnected). */
   invalidate(): void;
-  /** Revoke the grant at Google. */
-  revoke?(): Promise<void>;
+  /** Revoke the grant at Google (from a user gesture). False if it could not be revoked. */
+  revoke?(): Promise<boolean>;
 }
 
 /** No token without showing the sign-in popup: the UI should offer a "Connect / sign in" button. */

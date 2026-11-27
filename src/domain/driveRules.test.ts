@@ -119,6 +119,17 @@ describe('daily retention of snapshots', () => {
     expect(keep).toHaveLength(30);
     expect(keep.at(-1)).toBe(files[0]); // day 1 survives
   });
+  it('keeps one per device per day, so one device never deletes what another wrote that day', () => {
+    const by = (device: string, h: number) => ({ ...on(1, h), appProperties: { device } });
+    const phoneEarly = by('phone', 8), phone = by('phone', 9), laptop = by('laptop', 10), unknown = on(1, 7);
+    const { keep, prune } = dailyRetentionPlan([phoneEarly, phone, laptop, unknown], 30);
+    expect(keep).toEqual([laptop, phone, unknown]);
+    expect(prune).toEqual([phoneEarly]);
+  });
+  it('the file just written wins its day over one with a later name', () => {
+    const later = on(1, 18), written = on(1, 9);
+    expect(dailyRetentionPlan([later, written], 30, written)).toEqual({ keep: [written], prune: [later] });
+  });
   it('never offers a file that is not ours', () => {
     const files = [on(1, 9), on(1, 10), file('master.json'), file('notes.txt'), file('flightbook-prerestore-20250101T120000Z.json')];
     const { keep, prune } = dailyRetentionPlan(files, 30);

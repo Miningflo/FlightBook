@@ -1,7 +1,7 @@
 import type { AlertLevel, ClassRating, Flight, IsoDate, TypeRating } from './types';
 import { CLASS_RATINGS, CLASS_RATING_LABELS } from './types';
 import { daysBetween } from './time';
-import { byClass, byType, classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, type RollingCheck, type SectorProgress } from './currency';
+import { byClass, byType, classExpiryOf, irStatus, isExperienceClass, languageStatus, medicalStatus, nightCurrency, nightExemptByIr, passengerCurrency, proficiencyCheckStatus, readableDate, routeSectors, sepRevalidation, typeRatingStatus, typeRouteSectors, unassignedTypeFlights, type RollingCheck, type SectorProgress } from './currency';
 import { DEFAULT_RULES, type Rules } from './rules';
 import { formatShortDate } from '../features/flights/format';
 
@@ -19,6 +19,11 @@ export interface AlertItem {
   level: AlertLevel;
   title: string;
   body: string;
+  /**
+   * The level assumed when this item was not there at the last check. For a problem that only has an item
+   * while it exists: without it the first appearance would be remembered and never notified.
+   */
+  unseenIs?: AlertLevel;
 }
 
 export interface AlertSettings {
@@ -135,9 +140,9 @@ function typeRatingItem(t: TypeRating, flights: Flight[], today: IsoDate, rules:
  */
 function licenceItems(settings: AlertSettings, today: IsoDate, rules: Rules): AlertItem[] {
   const out: AlertItem[] = [];
-  if (settings.medicalExpiry) {
+  if (readableDate(settings.medicalExpiry)) {
     const c = medicalStatus(settings.medicalExpiry, today, rules);
-    const date = formatShortDate(settings.medicalExpiry);
+    const date = formatShortDate(settings.medicalExpiry!);
     const days = c.daysToExpiry ?? 0;
     out.push(
       c.state === 'expired' ? { key: 'MEDICAL', level: 'expired', title: 'Medical certificate expired', body: `Expired on ${date}. You may not fly until it is renewed.` }
@@ -175,9 +180,9 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
     const expiry = classExpiryOf(settings, cls);
     if (expiry) items.push(ratingItem(cls, flights, expiry, today, rules));
   }
-  if (settings.irExpiry) items.push(irItem(settings.irExpiry, today, rules));
+  if (readableDate(settings.irExpiry)) items.push(irItem(settings.irExpiry!, today, rules));
   for (const t of settings.typeRatings ?? []) {
-    items.push(typeRatingItem(t, flights, today, rules));
+    if (readableDate(t.expiry)) items.push(typeRatingItem(t, flights, today, rules));
     // FCL.060 counts recent experience per type, so each rating carries its own currency
     if (flights.some((f) => f.typeRatingId === t.id)) {
       items.push(currencyItem(t.name, `TYPE:${t.id}`, 'passengers', passengerCurrency(flights, byType(t.id), today, rules)));
@@ -187,7 +192,7 @@ export function watchedItems(flights: Flight[], settings: AlertSettings, today: 
   const stranded = unassignedTypeFlights(flights, settings.typeRatings ?? []).length;
   if (stranded > 0) {
     items.push({
-      key: 'TYPE:unassigned', level: 'amber',
+      key: 'TYPE:unassigned', level: 'amber', unseenIs: 'green',
       title: `${plural(stranded, 'flight')} not counted towards any rating`,
       body: 'They are logged in the Other class without a type rating you hold (none was picked, or it has been removed), so they count towards no currency. Open them and pick the rating they were flown under.',
     });
@@ -206,16 +211,17 @@ export interface AlertOutcome {
 }
 
 /**
- * Compares the watched items with the levels seen last time. Only a worse level notifies. An item with no
- * earlier level (first run, a new date entered) is remembered without notifying, so turning alerts on never
- * floods you with things you can already see. Better levels are remembered so a later worsening notifies again.
+ * Compares the watched items with the levels seen last time. Only a worse level notifies. On the first run
+ * nothing does, so turning alerts on never floods you with things you can already see. After that, an item with
+ * no earlier level (a new date entered) is remembered without notifying, unless it says what its absence meant
+ * (`unseenIs`). Better levels are remembered so a later worsening notifies again.
  */
 export function alertOutcome(items: AlertItem[], previous: AlertState | undefined): AlertOutcome {
   const state: AlertState = {};
   const fresh: AlertItem[] = [];
   for (const it of items) {
     state[it.key] = it.level;
-    const before = previous?.[it.key];
+    const before = previous && (previous[it.key] ?? it.unseenIs);
     if (before !== undefined && RANK[it.level] > RANK[before]) fresh.push(it);
   }
   fresh.sort((a, b) => RANK[b.level] - RANK[a.level]);

@@ -345,4 +345,6 @@ export interface Settings {
   driveEnabled?: boolean;
   /** Epoch ms of the last successful Drive backup (phase 5). */
   lastBackupAt: Timestamp | null;
+  /** Device-local: set by every logbook change, cleared by the backup that includes it (see db/changes.ts). */
+  pendingChange?: Uuid | null;
 }

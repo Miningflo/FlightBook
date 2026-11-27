@@ -5,13 +5,19 @@ import { aircraftFromFlight, toFlightImports } from '../domain/records';
 import type { Aircraft, Attachment, ClassRating, Flight, IsoDate, MedicalClass, Person, Settings, TypeRating } from '../domain/types';
 import { personKey } from '../domain/suggestions';
 import { uuid } from '../domain/id';
-import { type Snapshot, base64ToBytes, snapshotToBundle } from '../domain/snapshot';
+import { markChanged } from './changes';
+import { licenceAfterReplace } from '../domain/replacePlan';
+import { type Snapshot, type SnapshotAttachment, base64ToBytes, readSnapshot } from '../domain/snapshot';
 
 /** Everything in the logbook, as portable records. The "existing" side of an import plan. */
 export async function readBundle(db: LogbookDB): Promise<ImportBundle> {
   const [flights, persons, fstd, experience] = await Promise.all([db.flights.toArray(), db.persons.toArray(), db.fstdSessions.toArray(), db.previousExperience.toArray()]);
   return { flights: toFlightImports(flights, persons), fstd, experience };
 }
+
+/** The attachments of a snapshot as database records. */
+export const attachmentRecords = (list: SnapshotAttachment[]): Attachment[] =>
+  list.map(({ data, ...a }) => ({ ...a, blob: new Blob([base64ToBytes(data) as BlobPart], { type: a.mime }) }));
 
 export interface ImportExtras {
   attachments?: Attachment[];
@@ -24,6 +30,10 @@ export interface ImportResult {
   attachments: number;
   settingsApplied: string[];
 }
+
+/** Whether an import wrote anything at all. */
+export const importChanged = ({ written: w, replaced: r, attachments, settingsApplied }: ImportResult): boolean =>
+  w.flights + w.fstd + w.experience + r.flights + r.fstd + r.experience + attachments + settingsApplied.length > 0;
 
 /**
  * Apply a plan in ONE transaction: either every record is written or none is.
@@ -101,6 +111,7 @@ export async function applyImport(db: LogbookDB, plan: ImportPlan, policy: Confl
         if (Object.keys(patch).length > 0) await db.settings.put({ ...cur, ...patch });
       }
     }
+    if (importChanged(result)) await markChanged(db);
     return result;
   });
 }
@@ -115,7 +126,7 @@ export class ReplaceRefusedError extends Error {}
  * Callers must make a safety copy of the current logbook first; see features/drive.
  */
 export async function applyReplace(db: LogbookDB, snapshot: Snapshot): Promise<{ flights: number; fstd: number; experience: number }> {
-  const { bundle, problems } = snapshotToBundle(snapshot);
+  const { bundle, records, problems } = readSnapshot(snapshot);
   if (problems.length > 0) throw new ReplaceRefusedError(`The snapshot has ${problems.length} invalid record(s), e.g. ${problems[0]!.record}: ${problems[0]!.message}. Nothing was changed.`);
   const now = Date.now();
   return db.transaction('rw', [db.flights, db.aircraft, db.persons, db.fstdSessions, db.previousExperience, db.attachments, db.settings], async () => {
@@ -128,9 +139,10 @@ export async function applyReplace(db: LogbookDB, snapshot: Snapshot): Promise<{
     await db.flights.bulkAdd(snapshot.flights);
     await db.fstdSessions.bulkAdd(snapshot.fstdSessions);
     await db.previousExperience.bulkAdd(snapshot.previousExperience);
-    await db.attachments.bulkAdd(snapshot.attachments.map((a) => ({ id: a.id, flightId: a.flightId, mime: a.mime, name: a.name, createdAt: a.createdAt, updatedAt: a.updatedAt, blob: new Blob([base64ToBytes(a.data) as BlobPart], { type: a.mime }) })));
+    await db.attachments.bulkAdd(attachmentRecords(snapshot.attachments));
     const cur = await db.settings.get('main');
-    if (cur) await db.settings.put({ ...cur, pilotName: snapshot.settings.pilotName ?? cur.pilotName, licenceNumber: snapshot.settings.licenceNumber ?? cur.licenceNumber, address: snapshot.settings.address ?? cur.address, sepLandExpiry: snapshot.settings.sepLandExpiry ?? null, classExpiry: snapshot.settings.classExpiry ?? {}, irExpiry: snapshot.settings.irExpiry ?? null, medicalClass: snapshot.settings.medicalClass ?? null, medicalExpiry: snapshot.settings.medicalExpiry ?? null, languageLevel: snapshot.settings.languageLevel ?? null, languageExpiry: snapshot.settings.languageExpiry ?? null, typeRatings: snapshot.settings.typeRatings ?? [] });
+    if (cur) await db.settings.put({ ...cur, ...licenceAfterReplace(records.settings, cur) });
+    await markChanged(db);
     return { flights: bundle.flights.length, fstd: bundle.fstd.length, experience: bundle.experience.length };
   });
 }

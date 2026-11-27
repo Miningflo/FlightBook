@@ -55,6 +55,27 @@ describe('planKind', () => {
   });
 });
 
+describe('records that can legitimately look alike', () => {
+  const sim = (id: string, remarks = '') => ({ id, createdAt: 1, updatedAt: 1, date: '2025-02-01', fstdType: 'FNPT II', totalMin: 60, remarks });
+  const none = { flights: [], experience: [] };
+  const plan = (incoming: ReturnType<typeof sim>[], existing: ReturnType<typeof sim>[]) => countKind(planImport({ ...none, fstd: incoming }, { ...none, fstd: existing }).fstd);
+  it('two identical sessions in a backup are both restored', () => {
+    expect(plan([sim('a'), sim('b')], [])).toMatchObject({ added: 2, duplicates: 0 });
+    expect(plan([sim('a'), sim('b')], [sim('a')])).toMatchObject({ added: 1, identical: 1, duplicates: 0 });
+  });
+  it('the same session twice by id is still a duplicate', () => {
+    expect(plan([sim('a'), sim('a')], [])).toMatchObject({ added: 1, duplicates: 1 });
+  });
+  it('a file without ids imported again adds nothing, and only the extra one of a pair', () => {
+    expect(plan([sim('n1'), sim('n2')], [sim('a'), sim('b')])).toMatchObject({ added: 0, duplicates: 2 });
+    expect(plan([sim('n1'), sim('n2')], [sim('a')])).toMatchObject({ added: 1, duplicates: 1 });
+  });
+  it('a flight saved without a type rating field matches its own export', () => {
+    const stored = flight('2025-03-01'); // no typeRatingId at all
+    expect(contentKey(toFlightImport(stored, [self]))).toBe(contentKey(toFlightImport({ ...stored, typeRatingId: null }, [self])));
+  });
+});
+
 describe('writeCount', () => {
   it('conflicts are only written under the replace policy', () => {
     const a = fi('2025-03-01');

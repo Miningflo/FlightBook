@@ -29,6 +29,8 @@ function device(name: string, role: 'master' | 'viewer', o: { enabled?: boolean;
     getSettings: () => settings,
     updateSettings: async (p) => { Object.assign(settings, p); c.settingsChanged(); },
     buildSnapshot: async (): Promise<Snapshot> => { built.push(flights.n); return buildSnapshot({ exportedAt: '', deviceId: settings.deviceId, deviceName: settings.deviceName, settings: {}, aircraft: [], persons: [self], flights: Array.from({ length: flights.n }, (_, i) => flight(`2025-03-0${i + 1}`)), fstdSessions: [], previousExperience: [], attachments: [] }); },
+    readPendingChange: async () => settings.pendingChange ?? null,
+    clearPendingChange: async (token) => { if (settings.pendingChange === token) settings.pendingChange = null; },
     readViewerCache: async () => cache.v, writeViewerCache: async (e) => { cache.v = e; },
     now: () => (clock.t += 1000), isOnline: o.online, debounceMs: 20_000,
   };
@@ -128,6 +130,49 @@ describe('master', () => {
     expect(m.settings.driveEnabled).toBe(false);
     m.c.scheduler.dataChanged(); await vi.advanceTimersByTimeAsync(30_000);
     expect(snapshotsInDrive()).toHaveLength(0);
+  });
+  it('disconnect passes on whether Google removed the access, and forgets Drive even if it did not', async () => {
+    for (const [revoke, revoked] of [[async () => true, true], [async () => false, false], [async () => { throw new Error('offline'); }, false]] as const) {
+      const m = device('Phone', 'master', { enabled: true });
+      Object.assign(m.tokens, { revoke });
+      expect(await m.c.disconnect()).toEqual({ revoked });
+      expect(m.settings.driveEnabled).toBe(false);
+    }
+  });
+});
+
+describe('changes that are not backed up yet', () => {
+  const recent = Date.UTC(2025, 5, 1, 10) - 3_600_000;
+  it('are backed up on app open although the last backup is recent, and the marker is then cleared', async () => {
+    const m = device('Phone', 'master', { enabled: true });
+    Object.assign(m.settings, { lastBackupAt: recent, pendingChange: 'edit-1' });
+    m.c.scheduler.appOpened(); await flush();
+    expect(snapshotsInDrive()).toHaveLength(1);
+    expect(m.settings.pendingChange).toBeNull();
+  });
+  it('show the sign-in notice after a restart, and stay marked until a backup includes them', async () => {
+    const m = device('Phone', 'master', { enabled: true, silent: false });
+    Object.assign(m.settings, { lastBackupAt: recent, pendingChange: 'edit-1' });
+    m.c.scheduler.appOpened(); await flush();
+    expect(m.c.getState().backup.status).toBe('pending-signin');
+    expect(m.settings.pendingChange).toBe('edit-1');
+    await m.c.backupNow();
+    expect(m.settings.pendingChange).toBeNull();
+  });
+  it('are retried when the connection returns', async () => {
+    const m = device('Phone', 'master', { enabled: true });
+    m.settings.pendingChange = 'edit-1';
+    m.c.scheduler.backOnline(); await flush();
+    expect(snapshotsInDrive()).toHaveLength(1);
+  });
+  it('made while a backup is running stay marked', async () => {
+    const m = device('Phone', 'master', { enabled: true });
+    m.settings.pendingChange = 'before';
+    const running = m.c.backupNow();
+    await Promise.resolve(); await Promise.resolve();
+    m.settings.pendingChange = 'during';
+    await running;
+    expect(m.settings.pendingChange).toBe('during');
   });
 });
 

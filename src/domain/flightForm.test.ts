@@ -1,21 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyAircraft,
-  applyAuto,
-  autoCounts,
-  editableSnapshot,
-  setLandings,
-  setNightMinutes,
-  setTakeoffs,
-  resetToComputed,
-  emptyForm,
-  formFromFlight,
-  formToFlightInput,
-  hasErrors,
-  resetTotal,
-  setTotal,
-  updateForm,
-  validateForm,
+  applyAircraft, applyAuto, autoCounts, editableSnapshot, setLandings, setNightMinutes, setTakeoffs, resetToComputed, emptyForm, formFromFlight, formToFlightInput, hasErrors, resetTotal, setTotal, updateForm, validateForm, changeTakeoffDate,
 } from './flightForm';
 import { toggleRole } from './roles';
 import type { Aircraft, Flight } from './types';
@@ -358,5 +343,35 @@ describe('route sectors and supervised PIC time', () => {
     expect(validateForm(spicAsDual).find((i) => i.field === 'supervisedPic')!.message).toMatch(/SPIC time is entered as PIC/);
     expect(warnings(pic({ isSpic: true }))).not.toContain('supervisedPic');
     expect(warnings(pic())).not.toContain('supervisedPic');
+  });
+});
+
+describe('changing the take-off date', () => {
+  const set = (date: string, arrDate: string) => ({ ...emptyForm({ today: date, picName: 'SELF' }), arrDate });
+  it('keeps a hand-set landing date the same number of days after take-off', () => {
+    expect(changeTakeoffDate(set('2026-11-23', '2026-11-25'), '2026-11-10').arrDate).toBe('2026-11-12');
+  });
+  it('survives the field being cleared and filled again, without moving the landing date', () => {
+    const cleared = changeTakeoffDate(set('2026-11-23', '2026-11-25'), '');
+    expect(cleared.arrDate).toBe('2026-11-25');
+    expect(changeTakeoffDate(cleared, '2026-11-20')).toMatchObject({ date: '2026-11-20', arrDate: '2026-11-25' });
+  });
+  it('is not thrown off by a half-typed year', () => {
+    let s = set('2026-11-23', '2026-11-25');
+    for (const typed of ['0002-11-23', '0020-11-23', '0202-11-23', '2026-11-23']) s = changeTakeoffDate(s, typed);
+    expect(s.arrDate).toBe('2026-11-25');
+  });
+  it('leaves an automatic landing date automatic', () => {
+    expect(changeTakeoffDate(set('2026-11-23', ''), '2026-12-01').arrDate).toBe('');
+  });
+});
+
+describe('a total longer than the block time', () => {
+  const timed = () => updateForm(emptyForm({ today: '2026-01-10', picName: 'SELF' }), { depClock: '10:00', arrClock: '11:00' });
+  const warned = (min: number) => validateForm(setTotal(timed(), min)).some((i) => i.field === 'totalMin' && i.severity === 'warning');
+  it('is questioned, never blocked', () => {
+    expect(warned(900)).toBe(true);
+    expect(warned(60)).toBe(false);
+    expect(warned(45)).toBe(false);
   });
 });

@@ -99,9 +99,26 @@ describe('GisTokenProvider', () => {
     await t.provider.getToken({ interactive: true });
     t.provider.invalidate();
     expect(await t.provider.getToken({ interactive: true })).toBe('tok2');
+    expect(await t.provider.revoke()).toBe(true);
+    expect(t.revoked).toEqual(['tok2']);
+    await expect(t.provider.getToken()).rejects.toBeInstanceOf(NeedsSignInError); // the revoked token is forgotten
+  });
+  it('revoke gets a new token when none is held (after an hour, or a restart), so access really is removed', async () => {
+    const t = setup((cfg, n) => cfg.callback({ access_token: `tok${n}`, expires_in: 3600 }));
+    expect(await t.provider.revoke()).toBe(true);
+    expect(t.revoked).toEqual(['tok1']);
+    t.advance(7200 * 1000);
     await t.provider.revoke();
-    expect(t.revoked).toEqual(['tok2']);
-    await t.provider.revoke(); // nothing to revoke: no second call
-    expect(t.revoked).toEqual(['tok2']);
+    expect(t.revoked).toEqual(['tok1', 'tok2']);
+  });
+  it('revoke says when access could not be removed', async () => {
+    const closed = setup((cfg) => cfg.error_callback?.({ type: 'popup_closed' }));
+    expect(await closed.provider.revoke()).toBe(false);
+    expect(closed.revoked).toEqual([]);
+    const refused = new GisTokenProvider('cid', 's', { loadScript: async () => {}, accounts: () => ({ oauth2: {
+      initTokenClient: (cfg) => ({ requestAccessToken: () => cfg.callback({ access_token: 't', expires_in: 3600 }) }),
+      revoke: (_t, done) => done?.({ successful: false }),
+    } }) });
+    expect(await refused.revoke()).toBe(false);
   });
 });

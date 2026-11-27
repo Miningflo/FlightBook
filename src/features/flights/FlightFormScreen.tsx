@@ -6,6 +6,7 @@ import {
   type FlightFormState,
   applyAircraft,
   applyAuto,
+  changeTakeoffDate,
   editableSnapshot,
   setLandings,
   setNightMinutes,
@@ -21,7 +22,7 @@ import {
   validateForm,
 } from '../../domain/flightForm';
 import { setRoleMinutes, toggleRole } from '../../domain/roles';
-import { addDays, dateOfTimestamp, daysBetween, effectiveArrDate, formatHHMM, resolveBlockTimes } from '../../domain/time';
+import { dateOfTimestamp, effectiveArrDate, formatHHMM, resolveBlockTimes } from '../../domain/time';
 import { computeNight } from '../../domain/night';
 import {
   defaultsFromHistory,
@@ -31,6 +32,7 @@ import { Dialog, DurationField, Field, Stepper, keepFocus } from '../../ui/compo
 import { MoonIcon } from '../../ui/Icons';
 import { routeSectorApplies } from '../../domain/currency';
 import { type Route, currencyRoute } from '../../hooks';
+import { useDiscardGuard } from '../../ui/useDiscardGuard';
 
 /**
  * `from`: opened from a list on the Currency screen. Saving, cancelling and deleting then go back to that
@@ -59,16 +61,10 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const dirty = editableSnapshot(form) !== editableSnapshot(initial);
-  useEffect(() => {
-    if (!dirty) return;
-    const on = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    window.addEventListener('beforeunload', on);
-    return () => window.removeEventListener('beforeunload', on);
-  }, [dirty]);
+  const discardDialog = useDiscardGuard(dirty, 'Your unsaved changes to this flight will be lost.');
 
   // --- Airports + night time (phase 2) ---
   const [airportInfo, setAirportInfo] = useState<{ count: number; dep?: Airport; arr?: Airport } | null>(null);
@@ -112,11 +108,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
   const landingHint = !form.arrDate
     ? (autoLandingDate && autoLandingDate !== form.date ? 'Next day: the flight crossed midnight UTC.' : 'Same day. Change it if you landed on another date.')
     : (landingDate === form.date ? 'Same day.' : landingDate > form.date ? 'Set by hand.' : 'Before take-off: check this date.');
-  const onDate = (value: string) => setForm((st) => {
-    // Keep a hand-set landing date the same number of days after take-off.
-    const shifted = st.arrDate && value ? addDays(value, daysBetween(st.date, st.arrDate)) : st.arrDate;
-    return updateForm(st, { date: value, arrDate: shifted });
-  });
+  const onDate = (value: string) => setForm((st) => changeTakeoffDate(st, value));
   const onLandingDate = (value: string) => setForm((st) => {
     // Back to automatic when it matches what the automatic rule gives.
     const auto = effectiveArrDate(st.date, st.depClock, st.arrClock);
@@ -129,9 +121,8 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
   };
   const onRole = (r: Role) => setForm((s) => updateForm(s, { roles: toggleRole(s.roles, r, s.totalMin) }));
 
-  const cancel = () => (dirty ? setConfirmDiscard(true) : leave());
   const backTo: Route | null = from ? currencyRoute(from) : null;
-  const leave = () => go(backTo ?? (editing ? { name: 'flight', id: flight.id } : { name: 'list' }), { replace: true });
+  const cancel = () => go(backTo ?? (editing ? { name: 'flight', id: flight.id } : { name: 'list' }), { replace: true });
 
   const save = async () => {
     setSubmitted(true);
@@ -145,7 +136,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
       const input = formToFlightInput(form, { attachmentIds: flight?.attachmentIds, previousOverrides: flight?.overrides, typeRatingIds: typeRatings.map((t) => t.id) });
       const saved = await writer.saveFlight(input, flight?.id);
       await reload();
-      go(backTo ?? { name: 'flight', id: saved.id }, { replace: true });
+      go(backTo ?? { name: 'flight', id: saved.id }, { replace: true, force: true });
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -157,7 +148,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
     if (!flight) return;
     await writer.deleteFlight(flight.id);
     await reload();
-    go(backTo ?? { name: 'list' }, { replace: true });
+    go(backTo ?? { name: 'list' }, { replace: true, force: true });
   };
 
   return (
@@ -192,6 +183,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
           </div>
         </div>
         {err('totalMin') && <div className="msg error" role="alert">{err('totalMin')}</div>}
+        {warn('totalMin') && <div className="msg warning">{warn('totalMin')}</div>}
       </div>
 
       <div className="card">
@@ -346,13 +338,7 @@ export function FlightFormScreen({ flight, from }: { flight?: Flight; from?: Cla
         <button type="submit" className="btn filled" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Save flight'}</button>
       </div>
 
-      <Dialog open={confirmDiscard} title="Discard changes?" onClose={() => setConfirmDiscard(false)}
-        actions={<>
-          <button type="button" className="btn text" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
-          <button type="button" className="btn tonal" onClick={() => { setConfirmDiscard(false); leave(); }}>Discard</button>
-        </>}>
-        Your unsaved changes to this flight will be lost.
-      </Dialog>
+      {discardDialog}
       <Dialog open={confirmDelete} title="Delete this flight?" onClose={() => setConfirmDelete(false)}
         actions={<>
           <button type="button" className="btn text" onClick={() => setConfirmDelete(false)}>Cancel</button>

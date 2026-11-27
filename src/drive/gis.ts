@@ -10,7 +10,7 @@ export interface GoogleAccounts {
       callback: (r: GoogleTokenResponse) => void;
       error_callback?: (e: { type?: string; message?: string }) => void;
     }): GoogleTokenClient;
-    revoke(token: string, done?: () => void): void;
+    revoke(token: string, done?: (r?: { successful?: boolean }) => void): void;
   };
 }
 
@@ -100,11 +100,23 @@ export class GisTokenProvider implements TokenProvider {
 
   invalidate(): void { this.token = null; }
 
-  async revoke(): Promise<void> {
-    const t = this.token?.value;
-    this.token = null;
-    if (!t) return;
-    await this.deps.loadScript();
-    await new Promise<void>((resolve) => this.deps.accounts().oauth2.revoke(t, () => resolve()));
+  /**
+   * Ask Google to remove the app's access. Google needs a valid token for that, and one is only held in memory
+   * for about an hour, so without one a new one is requested first: call this from a tap. Resolves false when
+   * access could not be removed (offline, the window was closed or blocked), so the caller can say so.
+   */
+  async revoke(): Promise<boolean> {
+    try {
+      const token = await this.getToken({ interactive: true });
+      await this.deps.loadScript();
+      return await new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), this.deps.timeoutMs);
+        this.deps.accounts().oauth2.revoke(token, (r) => { clearTimeout(timer); resolve(r?.successful !== false); });
+      });
+    } catch {
+      return false;
+    } finally {
+      this.token = null;
+    }
   }
 }

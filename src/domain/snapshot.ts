@@ -2,6 +2,9 @@ import type { Aircraft, ClassRating, Flight, FstdSession, IsoDate, MedicalClass,
 import { type FlightImport, type ImportBundle, toFlightImport, validateFlightImport } from './records';
 import { validateExperience } from './experience';
 import { validateFstd } from './fstd';
+import {
+  AIRCRAFT_SHAPE, ATTACHMENT_SHAPE, EXPERIENCE_SHAPE, FLIGHT_SHAPE, FSTD_SHAPE, PERSON_SHAPE, type Shape, readLicenceData, shapeProblem,
+} from './snapshotShape';
 
 /**
  * Full JSON backup ("snapshot") of the logbook. It carries a schema version so that older
@@ -103,45 +106,74 @@ export interface SnapshotProblem {
   message: string;
 }
 
+export interface ReadSnapshot {
+  /** Flights, simulator sessions and previous experience that are valid, as portable records. */
+  bundle: ImportBundle;
+  /** Everything that is valid, as stored in the snapshot. */
+  records: Pick<Snapshot, 'aircraft' | 'persons' | 'flights' | 'fstdSessions' | 'previousExperience' | 'attachments' | 'settings'>;
+  /** Everything that was left out, and why. */
+  problems: SnapshotProblem[];
+}
+
+/** A record's name in a problem list, from whatever can be read of it. */
+const nameOf = (kind: string, r: unknown, ...keys: string[]): string =>
+  [kind, ...keys.map((k) => (r as Record<string, unknown> | null)?.[k]).filter((v) => typeof v === 'string' && v !== '')].join(' ');
+
+/**
+ * Read a snapshot record by record. Nothing unreadable or invalid is passed on, and everything left out is
+ * reported in `problems`.
+ */
+export function readSnapshot(s: Snapshot): ReadSnapshot {
+  const problems: SnapshotProblem[] = [];
+  const sound = <T>(list: T[], shape: Shape, label: (r: T) => string, rules: (r: T) => string[] = () => []): T[] =>
+    list.filter((r) => {
+      const shapeBad = shapeProblem(r, shape);
+      const bad = shapeBad ? [shapeBad] : rules(r);
+      if (bad.length > 0) problems.push({ record: label(r), message: bad.join('; ') });
+      return bad.length === 0;
+    });
+  const errors = (issues: { severity: string; message: string }[]) => issues.filter((i) => i.severity === 'error').map((i) => i.message);
+
+  const aircraft = sound(s.aircraft, AIRCRAFT_SHAPE, (a) => nameOf('aircraft', a, 'registration'));
+  const persons = sound(s.persons, PERSON_SHAPE, (p) => nameOf('person', p, 'name'));
+  const personIds = new Set(persons.map((p) => p.id));
+  const imports = new Map<Flight, FlightImport>();
+  const flights = sound(s.flights, FLIGHT_SHAPE, (f) => nameOf('flight', f, 'date', 'registration'), (f) => {
+    if (!personIds.has(f.picNameId)) return ['its PIC record is missing from the backup'];
+    const imp = toFlightImport(f, persons);
+    imports.set(f, imp);
+    return validateFlightImport(imp);
+  });
+  const fstdSessions = sound(s.fstdSessions, FSTD_SHAPE, (x) => nameOf('simulator session', x, 'date'), (x) => errors(validateFstd(x)));
+  const previousExperience = sound(s.previousExperience, EXPERIENCE_SHAPE, (x) => nameOf('previous experience', x, 'source'), (x) => errors(validateExperience(x)));
+  const attachments = sound(s.attachments, ATTACHMENT_SHAPE, (a) => nameOf('attachment', a, 'name'));
+  const licence = readLicenceData(s.settings);
+  problems.push(...licence.problems.map((message) => ({ record: 'licence data', message })));
+
+  return {
+    bundle: { flights: flights.map((f) => imports.get(f)!), fstd: fstdSessions, experience: previousExperience },
+    records: { aircraft, persons, flights, fstdSessions, previousExperience, attachments, settings: licence.settings },
+    problems,
+  };
+}
+
 /** Records of a snapshot as an import bundle, plus every record-level problem found. */
 export function snapshotToBundle(s: Snapshot): { bundle: ImportBundle; problems: SnapshotProblem[] } {
-  const problems: SnapshotProblem[] = [];
-  const flights: FlightImport[] = [];
-  const personIds = new Set(s.persons.map((p) => p.id));
-  for (const f of s.flights) {
-    const label = `flight ${f.date ?? '?'} ${f.registration ?? ''}`.trim();
-    if (!personIds.has(f.picNameId)) { problems.push({ record: label, message: 'its PIC record is missing from the backup' }); continue; }
-    const imp = toFlightImport(f, s.persons);
-    const bad = validateFlightImport(imp);
-    if (bad.length > 0) problems.push({ record: label, message: bad.join('; ') });
-    else flights.push(imp);
-  }
-  const fstd = s.fstdSessions.filter((x) => {
-    const bad = validateFstd(x).filter((i) => i.severity === 'error');
-    if (bad.length > 0) problems.push({ record: `simulator session ${x.date}`, message: bad.map((i) => i.message).join('; ') });
-    return bad.length === 0;
-  });
-  const experience = s.previousExperience.filter((x) => {
-    const bad = validateExperience(x).filter((i) => i.severity === 'error');
-    if (bad.length > 0) problems.push({ record: `previous experience "${x.source}"`, message: bad.map((i) => i.message).join('; ') });
-    return bad.length === 0;
-  });
-  return { bundle: { flights, fstd, experience }, problems };
+  const { bundle, problems } = readSnapshot(s);
+  return { bundle, problems };
 }
 
 /**
- * The records of a snapshot that are safe to show (a viewer displays them directly). Invalid records are
- * left out and COUNTED, so the screen can say that some were hidden instead of silently showing less.
+ * The parts of a snapshot that are safe to show (a viewer displays them directly). What cannot be read is
+ * left out and COUNTED, so the screen can say that something was hidden instead of silently showing less.
  */
-export function snapshotRecords(s: Snapshot): { flights: Flight[]; fstd: FstdSession[]; experience: PreviousExperience[]; hidden: number } {
-  const { bundle } = snapshotToBundle(s);
-  const okFlights = new Set(bundle.flights.map((f) => f.id));
-  const okFstd = new Set(bundle.fstd.map((f) => f.id));
-  const okExp = new Set(bundle.experience.map((f) => f.id));
-  const flights = s.flights.filter((f) => okFlights.has(f.id));
-  const fstd = s.fstdSessions.filter((f) => okFstd.has(f.id));
-  const experience = s.previousExperience.filter((f) => okExp.has(f.id));
-  return { flights, fstd, experience, hidden: s.flights.length - flights.length + s.fstdSessions.length - fstd.length + s.previousExperience.length - experience.length };
+export function snapshotRecords(s: Snapshot) {
+  const { records, problems } = readSnapshot(s);
+  return {
+    flights: records.flights, fstd: records.fstdSessions, experience: records.previousExperience,
+    aircraft: records.aircraft, persons: records.persons, settings: records.settings,
+    hidden: problems.length,
+  };
 }
 
 // ---- base64 for attachments (browser and Node) ----

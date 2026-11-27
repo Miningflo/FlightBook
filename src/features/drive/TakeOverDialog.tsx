@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../AppContext';
+import { takeOver } from '../../drive/takeOver';
 import type { MasterInspection } from '../../drive/backupService';
 import { applyReplace } from '../../db/importer';
 import { db } from '../../driveRuntime';
@@ -12,13 +13,12 @@ import { errorText, formatWhen } from './format';
  * older data the newest snapshot.
  */
 export function TakeOverDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
-  const { drive, updateSettings, reload } = useApp();
+  const { drive, data, updateSettings, reload } = useApp();
   const ref = useRef<HTMLDialogElement>(null);
   const [inspection, setInspection] = useState<MasterInspection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
-  const wasMaster = useRef<boolean | null>(null);
 
   useEffect(() => { ref.current?.showModal(); }, []);
   useEffect(() => {
@@ -32,21 +32,23 @@ export function TakeOverDialog({ onClose, onDone }: { onClose: () => void; onDon
 
   const run = async (label: string, restoreFirst: boolean) => {
     setWorking(label); setError(null);
+    const c = drive.controller;
+    const newest = inspection?.newest;
     try {
-      // From here this device acts as the master (its own role is set first so the master-only steps are allowed).
-      wasMaster.current = drive.state.enabled; // (kept for the message only)
-      await updateSettings({ isMaster: true, setupDone: true });
-      if (restoreFirst && inspection?.newest) {
-        const c = drive.controller;
-        await c.saveSafetyCopy(); // a copy of what is on this device, kept in Drive, before anything is replaced
-        await applyReplace(db, await c.downloadSnapshot(inspection.newest.id));
-        await reload();
-      }
-      await drive.controller.claimMaster();
-      await drive.controller.backupNow();
+      await takeOver({
+        wasMaster: data.settings.isMaster,
+        setMaster: (isMaster) => updateSettings(isMaster ? { isMaster, setupDone: true } : { isMaster }),
+        restore: restoreFirst && newest ? async () => {
+          await c.saveSafetyCopy(); // a copy of what is on this device, kept in Drive, before anything is replaced
+          await applyReplace(db, await c.downloadSnapshot(newest.id));
+          await reload();
+        } : undefined,
+        claim: async () => { await c.claimMaster(); },
+        backUp: () => c.backupNow(),
+      });
       onDone(restoreFirst ? 'Restored the newest snapshot and took over as master.' : 'This device is now the master logbook.');
     } catch (e) {
-      setError(`${errorText(e)} ${restoreFirst ? 'Your data was not replaced unless it says so above.' : ''}`.trim());
+      setError(errorText(e));
       setWorking(null);
     }
   };
@@ -64,7 +66,7 @@ export function TakeOverDialog({ onClose, onDone }: { onClose: () => void; onDon
           {stale && (
             <div className="banner error" role="alert">
               Google Drive has a newer snapshot from <b>{inspection.newest!.deviceName ?? 'another device'}</b> ({formatWhen(inspection.newest!.createdTime)}). This device's data may be behind it.
-              Taking over with older data would make the older data the newest backup.
+              Taking over with older data would make the older data the newest backup. The other device&rsquo;s last snapshot of each day stays in Drive and can still be restored.
             </div>
           )}
           {!stale && <p className="hint">Nothing in Google Drive is newer than this device's own backups.</p>}
@@ -75,7 +77,7 @@ export function TakeOverDialog({ onClose, onDone }: { onClose: () => void; onDon
         {stale && <button type="button" className="btn filled" disabled={!!working} onClick={() => void run('restore', true)}>
           {working === 'restore' ? 'Restoring…' : 'Restore the newest snapshot, then take over (recommended)'}</button>}
         {stale && (
-          <label className="switch-row"><span className="hint">I understand that newer changes made elsewhere may be buried</span><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /></label>
+          <label className="switch-row"><span className="hint">I understand that newer changes made elsewhere will not be in this device&rsquo;s backups</span><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /></label>
         )}
         <button type="button" className={stale ? 'btn tonal' : 'btn filled'} disabled={!!working || !inspection || (stale && !ack)} onClick={() => void run('takeover', false)}>
           {working === 'takeover' ? 'Taking over…' : 'Take over with the data on this device'}</button>

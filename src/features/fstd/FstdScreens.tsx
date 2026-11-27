@@ -6,6 +6,7 @@ import { formatHHMM, utcDateOf } from '../../domain/time';
 import { Dialog, DurationField, Field } from '../../ui/components';
 import { PlusIcon } from '../../ui/Icons';
 import { formatDate } from '../flights/format';
+import { useDiscardGuard } from '../../ui/useDiscardGuard';
 
 export function FstdList() {
   const { data, go, canEdit } = useApp();
@@ -42,6 +43,8 @@ export function FstdForm({ session }: { session?: FstdSession }) {
   const [submitted, setSubmitted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const discardDialog = useDiscardGuard(JSON.stringify(d) !== JSON.stringify(initial), 'Your unsaved changes to this session will be lost.');
   const issues = validateFstd(d);
   const err = (f: string) => (submitted ? issues.find((i) => i.field === f && i.severity === 'error')?.message : undefined);
   const warn = issues.find((i) => i.field === 'totalMin' && i.severity === 'warning')?.message;
@@ -49,14 +52,15 @@ export function FstdForm({ session }: { session?: FstdSession }) {
 
   const save = async () => {
     setSubmitted(true);
-    if (issues.some((i) => i.severity === 'error')) return;
+    if (saving || issues.some((i) => i.severity === 'error')) return;
+    setSaving(true);
     try {
       await writer.saveFstd(normalizeFstd(d), session?.id);
       await reload();
-      go({ name: 'fstd' }, { replace: true });
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      go({ name: 'fstd' }, { replace: true, force: true });
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); setSaving(false); }
   };
-  const remove = async () => { if (session) { await writer.deleteFstd(session.id); await reload(); go({ name: 'fstd' }, { replace: true }); } };
+  const remove = async () => { if (session) { await writer.deleteFstd(session.id); await reload(); go({ name: 'fstd' }, { replace: true, force: true }); } };
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void save(); }} noValidate>
@@ -72,9 +76,10 @@ export function FstdForm({ session }: { session?: FstdSession }) {
       {session && <button type="button" className="btn danger" onClick={() => setConfirmDelete(true)}>Delete session…</button>}
       {error && <div className="msg error" role="alert">Could not save: {error}</div>}
       <div className="actionbar">
-        <button type="button" className="btn text" onClick={() => go({ name: 'fstd' })}>Cancel</button>
-        <button type="submit" className="btn filled">{session ? 'Save changes' : 'Save session'}</button>
+        <button type="button" className="btn text" onClick={() => go({ name: 'fstd' }, { replace: true })}>Cancel</button>
+        <button type="submit" className="btn filled" disabled={saving}>{saving ? 'Saving…' : session ? 'Save changes' : 'Save session'}</button>
       </div>
+      {discardDialog}
       <Dialog open={confirmDelete} title="Delete this session?" onClose={() => setConfirmDelete(false)}
         actions={<><button type="button" className="btn text" onClick={() => setConfirmDelete(false)}>Cancel</button><button type="button" className="btn danger" onClick={() => void remove()}>Delete</button></>}>
         This permanently removes the session from this device. It cannot be undone, except by restoring a backup.

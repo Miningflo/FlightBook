@@ -1,5 +1,6 @@
 import { LogbookDB, defaultSettings } from './db/db';
 import { DexieRepository } from './db/repository';
+import { clearPendingChange, readPendingChange } from './db/changes';
 import { DriveController } from './drive/controller';
 import { DRIVE_SCOPE, GOOGLE_CLIENT_ID, driveConfigured } from './drive/config';
 import { GisTokenProvider } from './drive/gis';
@@ -33,6 +34,8 @@ export const drive: DriveController = new DriveController({
   getSettings: () => bridge.settings ?? BEFORE_LOAD,
   updateSettings: async (patch) => { await repo.updateSettings(patch); await bridge.reload(); },
   buildSnapshot: () => snapshotFromDb(db),
+  readPendingChange: () => readPendingChange(db),
+  clearPendingChange: (token) => clearPendingChange(db, token),
   readViewerCache: () => db.viewerCache.get('latest'),
   writeViewerCache: async (e) => { await db.viewerCache.put(e); },
   isOnline: () => navigator.onLine,

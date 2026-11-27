@@ -47,6 +47,7 @@ export async function inspectMaster(reader: DriveReader, me: DeviceIdentity, opt
  */
 export class BackupService {
   private folderId: string | null = null;
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly writer: DriveWriter,
@@ -54,6 +55,16 @@ export class BackupService {
   ) {}
 
   private now(): Date { return this.deps.now ? this.deps.now() : new Date(); }
+
+  /**
+   * Run the jobs that write to Drive one at a time. Two at once (an automatic backup while the master role is
+   * being claimed) could each find no folder or no master.json and both create one.
+   */
+  private exclusive<T>(job: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(job);
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
 
   /** Find the backup folder, creating it only when `create` is set (and nobody else has made one). */
   private async folder(opts: DriveOptions, create: boolean): Promise<string | null> {
@@ -70,7 +81,11 @@ export class BackupService {
   }
 
   /** Become the master: write master.json. The caller has already got the user's explicit confirmation if needed. */
-  async claim(opts: DriveOptions = {}): Promise<MasterFile> {
+  claim(opts: DriveOptions = {}): Promise<MasterFile> {
+    return this.exclusive(() => this.writeMasterFile(opts));
+  }
+
+  private async writeMasterFile(opts: DriveOptions): Promise<MasterFile> {
     const folder = (await this.folder(opts, true))!;
     const files = await this.writer.listFolder(folder, opts);
     const file = buildMasterFile(this.deps.device(), this.now());
@@ -85,27 +100,36 @@ export class BackupService {
    * Write one snapshot, then prune. Before writing it checks master.json: if another device holds the role,
    * NOTHING is written and MasterMismatchError is thrown. If nobody holds it, this device claims it.
    */
-  async runBackup(opts: DriveOptions = {}): Promise<{ file: SnapshotFileInfo; pruned: number; warnings: string[] }> {
+  runBackup(opts: DriveOptions = {}): Promise<{ file: SnapshotFileInfo; pruned: number; warnings: string[] }> {
+    return this.exclusive(() => this.writeBackup(opts));
+  }
+
+  private async writeBackup(opts: DriveOptions): Promise<{ file: SnapshotFileInfo; pruned: number; warnings: string[] }> {
     const folder = (await this.folder(opts, true))!;
     const files = await this.writer.listFolder(folder, opts);
     const { read } = await readMasterFile(this.writer, files, opts);
     const decision = decideClaim(this.deps.device(), read);
     if (decision.kind === 'takeover') throw new MasterMismatchError(decision.current);
-    if (decision.kind === 'claim') await this.claim(opts);
+    if (decision.kind === 'claim') await this.writeMasterFile(opts);
 
     const snapshot = await this.deps.buildSnapshot();
     const created = await this.upload(folder, SNAPSHOT_PREFIX, snapshot, new Set(files.map((f) => f.name)), 'snapshot', opts);
-    // one snapshot per day: this one replaces any earlier one from today
-    const { pruned, warnings } = await this.prune(dailyRetentionPlan([...files, created], KEEP_SNAPSHOT_DAYS).prune, opts);
+    // one snapshot per day and device: this one replaces any earlier one this device wrote today
+    const { pruned, warnings } = await this.prune(dailyRetentionPlan([...files, created], KEEP_SNAPSHOT_DAYS, created).prune, opts);
     return { file: toInfo(created), pruned, warnings };
   }
 
   /** A copy of the current logbook taken just before a "replace everything" restore. Kept apart from the daily snapshots. */
-  async saveSafetyCopy(opts: DriveOptions = {}): Promise<SnapshotFileInfo> {
+  saveSafetyCopy(opts: DriveOptions = {}): Promise<SnapshotFileInfo> {
+    return this.exclusive(() => this.writeSafetyCopy(opts));
+  }
+
+  private async writeSafetyCopy(opts: DriveOptions): Promise<SnapshotFileInfo> {
     const folder = (await this.folder(opts, true))!;
     const files = await this.writer.listFolder(folder, opts);
     const created = await this.upload(folder, PRE_RESTORE_PREFIX, await this.deps.buildSnapshot(), new Set(files.map((f) => f.name)), 'prerestore', opts);
-    await this.prune(retentionPlan([...files, created], KEEP_PRE_RESTORE, PRE_RESTORE_PREFIX).prune, opts);
+    // never the copy just written, even if the clock was set back and older ones have later names
+    await this.prune(retentionPlan([...files, created], KEEP_PRE_RESTORE, PRE_RESTORE_PREFIX).prune.filter((f) => f !== created), opts);
     return toInfo(created);
   }
 

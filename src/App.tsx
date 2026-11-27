@@ -1,19 +1,20 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppContext, type AppContextValue, type AppData } from './AppContext';
-import { applyImport, applyReplace, readBundle } from './db/importer';
+import { masterPortability } from './db/portability';
 import { OnlinePhotoStore } from './features/photos/photoStore';
 import { AirportStore } from './features/airports/airportStore';
-import { snapshotFromDb } from './features/export/backup';
 import { ExportScreen } from './features/export/ExportScreen';
 import { bridge, db, drive, repo } from './driveRuntime';
-import { parentRoute, useMediaQuery, useRoute, useScrollMemory } from './hooks';
+import { parentRoute, routeToHash, useMediaQuery, useRoute, useScrollMemory } from './hooks';
 import { registerServiceWorker } from './pwa/register';
 import { runAlertCheck } from './pwa/alerts';
 import { newestFirst } from './domain/suggestions';
 import { snapshotRecords, snapshotToBundle } from './domain/snapshot';
+import { licenceAfterReplace } from './domain/replacePlan';
 import { BackIcon, EditIcon, PlusIcon, SettingsIcon } from './ui/Icons';
 import { Snackbar } from './ui/components';
 import { NavBar } from './ui/NavBar';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 import { TotalsScreen } from './features/totals/TotalsScreen';
 import { CurrencyScreen } from './features/currency/CurrencyScreen';
 // the map (with its coastline data) loads when first opened; it is still precached for offline use
@@ -30,12 +31,7 @@ import { applyMapColor } from './features/map/mapColors';
 const onlinePhotos = new OnlinePhotoStore(db);
 const airports = new AirportStore(db);
 
-const masterPortability: AppContextValue['portability'] = {
-  readBundle: () => readBundle(db),
-  snapshot: () => snapshotFromDb(db),
-  apply: (...args) => applyImport(db, ...args),
-  replace: (snapshot) => applyReplace(db, snapshot),
-};
+const writablePortability = masterPortability(db, () => drive.scheduler.dataChanged());
 const viewerRefusal = () => Promise.reject(new Error('This device is a read-only viewer; it cannot change the logbook.'));
 
 export function App() {
@@ -99,11 +95,12 @@ export function App() {
     if (local.settings.isMaster) return local;
     return {
       flights: newestFirst(viewerRecords?.flights ?? []),
-      aircraft: viewerSnap?.aircraft ?? [], persons: viewerSnap?.persons ?? [],
+      aircraft: viewerRecords?.aircraft ?? [], persons: viewerRecords?.persons ?? [],
       fstd: viewerRecords?.fstd ?? [], previousExperience: viewerRecords?.experience ?? [],
-      settings: { ...local.settings, pilotName: viewerSnap?.settings.pilotName ?? local.settings.pilotName, licenceNumber: viewerSnap?.settings.licenceNumber ?? local.settings.licenceNumber, address: viewerSnap?.settings.address ?? local.settings.address, sepLandExpiry: viewerSnap ? viewerSnap.settings.sepLandExpiry ?? null : local.settings.sepLandExpiry, classExpiry: viewerSnap ? viewerSnap.settings.classExpiry ?? {} : local.settings.classExpiry, irExpiry: viewerSnap ? viewerSnap.settings.irExpiry ?? null : local.settings.irExpiry, medicalClass: viewerSnap ? viewerSnap.settings.medicalClass ?? null : local.settings.medicalClass, medicalExpiry: viewerSnap ? viewerSnap.settings.medicalExpiry ?? null : local.settings.medicalExpiry, languageLevel: viewerSnap ? viewerSnap.settings.languageLevel ?? null : local.settings.languageLevel, languageExpiry: viewerSnap ? viewerSnap.settings.languageExpiry ?? null : local.settings.languageExpiry, typeRatings: viewerSnap ? viewerSnap.settings.typeRatings ?? [] : local.settings.typeRatings },
+      // the holder details and licence dates come from the snapshot; without one, from this device
+      settings: viewerRecords ? { ...local.settings, ...licenceAfterReplace(viewerRecords.settings, local.settings) } : local.settings,
     };
-  }, [local, viewerRecords, viewerSnap]);
+  }, [local, viewerRecords]);
 
   // Theme preference is applied on <html>; "system" leaves the OS to decide.
   useEffect(() => {
@@ -122,7 +119,7 @@ export function App() {
       await repo.updateSettings(patch);
       await reload();
     };
-    const portability: AppContextValue['portability'] = canEdit ? masterPortability : {
+    const portability: AppContextValue['portability'] = canEdit ? writablePortability : {
       readBundle: async () => (viewerSnap ? snapshotToBundle(viewerSnap).bundle : { flights: [], fstd: [], experience: [] }),
       snapshot: async () => { if (!viewerSnap) throw new Error('No logbook has been loaded from Google Drive yet.'); return viewerSnap; },
       apply: viewerRefusal, replace: viewerRefusal,
@@ -232,7 +229,7 @@ export function App() {
         </header>
         <main className={`content${contentWide ? ' wide' : ''}${route.name === 'map' && !gated ? ' fill' : ''}`}>
           {!gated && <DriveBanners hiddenRecords={viewerRecords?.hidden ?? 0} />}
-          {body}
+          <ErrorBoundary resetKey={routeToHash(route)}>{body}</ErrorBoundary>
         </main>
         {showNav && !wide && <NavBar route={route} go={go} />}
         {showFab && (

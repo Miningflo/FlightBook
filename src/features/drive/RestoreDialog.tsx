@@ -3,7 +3,8 @@ import { useApp } from '../../AppContext';
 import type { SnapshotFileInfo } from '../../domain/driveRules';
 import { planImport } from '../../domain/importPlan';
 import { planReplace, type ReplacePlan } from '../../domain/replacePlan';
-import { type Snapshot, snapshotToBundle } from '../../domain/snapshot';
+import { type Snapshot, readSnapshot } from '../../domain/snapshot';
+import { attachmentRecords } from '../../db/importer';
 import { ImportDialog, type PendingImport } from '../export/ImportDialog';
 import { errorText, formatSize, formatWhen } from './format';
 
@@ -11,7 +12,7 @@ type Step = { kind: 'list' } | { kind: 'preview'; info: SnapshotFileInfo; snapsh
 
 /** Restore from a Drive snapshot (master only): pick one, see exactly what would change, then confirm. */
 export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
-  const { drive, portability, reload } = useApp();
+  const { drive, portability, reload, data } = useApp();
   const ref = useRef<HTMLDialogElement>(null);
   const [files, setFiles] = useState<SnapshotFileInfo[] | null>(null);
   const [copies, setCopies] = useState<SnapshotFileInfo[]>([]);
@@ -37,8 +38,9 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
     setBusy('preview'); setError(null);
     try {
       const snapshot = await drive.controller.downloadSnapshot(info.id);
-      const { bundle, problems } = snapshotToBundle(snapshot);
-      setStep({ kind: 'preview', info, snapshot, plan: planReplace(bundle, await portability.readBundle()), problems: problems.map((p) => `${p.record}: ${p.message}`) });
+      const { bundle, records, problems } = readSnapshot(snapshot);
+      const plan = planReplace(bundle, await portability.readBundle(), { incoming: records.settings, current: data.settings });
+      setStep({ kind: 'preview', info, snapshot, plan, problems: problems.map((p) => `${p.record}: ${p.message}`) });
       setAck(false);
     } catch (e) { setError(errorText(e)); } finally { setBusy(null); }
   };
@@ -56,10 +58,10 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
 
   const addMissing = async () => {
     if (step.kind !== 'preview') return;
-    const { bundle, problems } = snapshotToBundle(step.snapshot);
+    const { bundle, records, problems } = readSnapshot(step.snapshot);
     setMerge({
       kind: 'backup', fileName: step.info.name, plan: planImport(bundle, await portability.readBundle()),
-      extras: { settings: step.snapshot.settings }, errors: problems.map((p) => ({ where: p.record, message: p.message })), ignoredColumns: [],
+      extras: { settings: records.settings, attachments: attachmentRecords(records.attachments) }, errors: problems.map((p) => ({ where: p.record, message: p.message })), ignoredColumns: [],
     });
   };
 
@@ -102,11 +104,17 @@ export function RestoreDialog({ onClose, onDone }: { onClose: () => void; onDone
               {d(step.plan.flights.added + step.plan.fstd.added + step.plan.experience.added, 'record will be added', 'records will be added')}
               {d(step.plan.flights.changed + step.plan.fstd.changed + step.plan.experience.changed, 'record will be changed back to the snapshot version', 'records will be changed back to the snapshot version')}
               {d(step.plan.flights.removed + step.plan.fstd.removed + step.plan.experience.removed, 'record on this device is NOT in the snapshot and will be removed', 'records on this device are NOT in the snapshot and will be removed')}
-              {!step.plan.destructive && step.plan.flights.added + step.plan.fstd.added + step.plan.experience.added === 0 && <li>nothing would change</li>}
+              {d(step.plan.licence.length, 'licence detail will change (listed below)', 'licence details will change (listed below)')}
+              {!step.plan.destructive && step.plan.licence.length === 0 && step.plan.flights.added + step.plan.fstd.added + step.plan.experience.added === 0 && <li>nothing would change</li>}
             </ul>
             <p className="hint">Flights: +{step.plan.flights.added} / changed {step.plan.flights.changed} / removed {step.plan.flights.removed} · Simulator: +{step.plan.fstd.added} / {step.plan.fstd.changed} / −{step.plan.fstd.removed} · Previous experience: +{step.plan.experience.added} / {step.plan.experience.changed} / −{step.plan.experience.removed}</p>
+            {step.plan.licence.length > 0 && (
+              <ul className="hint" aria-label="Licence details that will change">
+                {step.plan.licence.map((c) => <li key={`${c.label}|${c.from}|${c.to}`}>{c.label}: {c.from || 'not set'} → <b>{c.to || 'removed'}</b></li>)}
+              </ul>
+            )}
             <p className="hint">Before anything is replaced, a copy of what is on this device is saved to Google Drive.</p>
-            {step.plan.destructive && <label className="switch-row"><span>I understand records may be removed or changed</span><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /></label>}
+            {step.plan.destructive && <label className="switch-row"><span>I understand records or licence details may be removed or changed</span><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /></label>}
           </div>
         </>
       )}

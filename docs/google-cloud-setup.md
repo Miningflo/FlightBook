@@ -71,5 +71,5 @@ once; every device and every address the app is served from shares it. This take
 
 ## Privacy
 Only the browser and Google are involved. The backup files are in *your* Drive, readable by you. The app requests no
-access to your other files, e-mail or contacts. **Disconnect Google Drive** in Settings revokes the grant; you can also
-remove the app at <https://myaccount.google.com/permissions>.
+access to your other files, e-mail or contacts. **Disconnect Google Drive** in Settings revokes the grant for all your
+devices (it may ask you to sign in once more to do so, and says if it could not); you can also remove the app at <https://myaccount.google.com/permissions>.

@@ -21,6 +21,17 @@ describe('alertOutcome', () => {
     expect(better.state).toEqual({ a: 'green' });
     expect(alertOutcome([item('a', 'red')], better.state).fresh).toHaveLength(1);
   });
+  it('notifies about a flight left without a type rating when it first appears, but not on the first run', () => {
+    const stranded = [flight(today, { aircraftClass: 'OTHER' })];
+    expect(alertOutcome(watchedItems(stranded, {}, today), undefined).fresh).toEqual([]);
+    const clean = alertOutcome(watchedItems([], {}, today), undefined);
+    const after = alertOutcome(watchedItems(stranded, {}, today), clean.state);
+    expect(after.fresh.map((i) => i.key)).toEqual(['TYPE:unassigned']);
+    expect(alertOutcome(watchedItems(stranded, {}, today), after.state).fresh).toEqual([]);
+    // fixed, then another: it notifies again
+    const fixed = alertOutcome(watchedItems([], {}, today), after.state);
+    expect(alertOutcome(watchedItems(stranded, {}, today), fixed.state).fresh).toHaveLength(1);
+  });
   it('treats an item with no earlier level as new, not as worse', () => {
     expect(alertOutcome([item('a', 'red')], { b: 'green' }).fresh).toEqual([]);
   });
@@ -209,5 +220,12 @@ describe('per-type currency (FCL.060 counts per "type or class")', () => {
   });
   it('says nothing about unassigned flights when there are none', () => {
     expect(watchedItems([other(today, 't')], { typeRatings: [t] }, today).map((i) => i.key)).not.toContain('TYPE:unassigned');
+  });
+});
+
+describe('licence dates that cannot be read', () => {
+  it('are left out instead of breaking the check', () => {
+    const settings = { sepLandExpiry: 'soon', irExpiry: '31/12/2027', medicalExpiry: '2027-13-01', languageLevel: 4 as const, languageExpiry: 'x', typeRatings: [{ id: 't', name: 'BE20', expiry: '??' }] };
+    expect(watchedItems([], settings, today)).toEqual([]);
   });
 });

@@ -601,7 +601,8 @@ function TypeRatingsCard({ today, cls }: { today: IsoDate; cls: ClassRating }) {
               <StatusPill status={c.status} label={label} />
             </div>
             <div className="hint">
-              {c.state === 'expired' ? `Expired on ${formatShortDate(t.expiry)} — it has to be renewed.`
+              {c.state === 'not-set' ? 'The expiry date cannot be read. Enter it again.'
+                : c.state === 'expired' ? `Expired on ${formatShortDate(t.expiry)} — it has to be renewed.`
                 : c.state === 'window-not-open' ? `Valid until ${formatShortDate(t.expiry)}. The check may be taken from ${c.windowStart ? formatShortDate(c.windowStart) : ''}.`
                 : `Proficiency check due · ${days} day${days === 1 ? '' : 's'} to expiry (${formatShortDate(t.expiry)}).`}
             </div>

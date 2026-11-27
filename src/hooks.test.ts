@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { parentRoute, parseHash, routeToHash, scrollKey, scrollTarget, type Route } from './hooks';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createRouter, parentRoute, parseHash, routeToHash, scrollKey, scrollTarget, setLeaveGuard, type Route, type RouterWindow } from './hooks';
 
 describe('parentRoute: the Back button goes UP, not through browser history', () => {
   it('a saved flight goes back to the home list, and an edit form goes back to its flight', () => {
@@ -72,5 +72,77 @@ describe('the Currency class and the way back from fixing a flight', () => {
   });
   it('switching class chips keeps one scroll position for the Currency screen', () => {
     expect(scrollKey({ name: 'currency', cls: 'OTHER' }, false)).toBe(scrollKey({ name: 'currency' }, false));
+  });
+});
+
+describe('asking before a form is left', () => {
+  /** A browser history of addresses, enough to see where each navigation really ends up. */
+  function browser(...start: string[]) {
+    const stack = [...start];
+    let at = stack.length - 1;
+    const shown: Route[] = [];
+    const win: RouterWindow = {
+      location: {
+        get hash() { return stack[at]!; },
+        set hash(h: string) { stack.splice(++at, stack.length, h); router.onHashChange(); },
+      },
+      history: {
+        pushState: (_d, _u, url) => { stack.splice(++at, stack.length, url); },
+        replaceState: (_d, _u, url) => { stack[at] = url; },
+        back: () => { if (at > 0) { at--; router.onHashChange(); } },
+      },
+    };
+    const router = createRouter(win, (r) => shown.push(r));
+    return { ...router, back: win.history.back, where: () => stack[at], shown };
+  }
+  let release = () => {};
+  afterEach(() => release());
+  function guard() {
+    const asked: (() => void)[] = [];
+    release = setLeaveGuard((proceed) => asked.push(proceed));
+    return asked;
+  }
+
+  it("the browser's Back stays on the form until confirmed, then goes where it was headed", () => {
+    const b = browser('#/', '#/new');
+    const asked = guard();
+    b.back();
+    expect(b.where()).toBe('#/new');
+    expect(b.shown).toEqual([]);
+    b.back(); // "keep editing", then Back again: asks again
+    expect(asked).toHaveLength(2);
+    asked[1]!();
+    expect(b.where()).toBe('#/');
+    expect(b.shown).toEqual([{ name: 'list' }]);
+  });
+  it("the app's own buttons ask too", () => {
+    const b = browser('#/', '#/new');
+    const asked = guard();
+    b.go({ name: 'list' }, { replace: true });
+    b.go({ name: 'settings' });
+    expect(b.where()).toBe('#/new');
+    asked[0]!();
+    expect(b.where()).toBe('#/');
+  });
+  it('a typed address asks, and confirming goes there', () => {
+    const b = browser('#/', '#/new');
+    const asked = guard();
+    b.go({ name: 'new' }); // staying on the same screen is not leaving
+    expect(asked).toHaveLength(0);
+    b.go({ name: 'totals' });
+    asked[0]!();
+    expect(b.where()).toBe('#/totals');
+  });
+  it('saving leaves without asking', () => {
+    const b = browser('#/', '#/new');
+    const asked = guard();
+    b.go({ name: 'flight', id: 'a' }, { replace: true, force: true });
+    expect(asked).toHaveLength(0);
+    expect(b.where()).toBe('#/flight/a');
+  });
+  it('without a guard nothing changes', () => {
+    const b = browser('#/', '#/new');
+    b.back();
+    expect(b.shown).toEqual([{ name: 'list' }]);
   });
 });

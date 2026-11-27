@@ -41,6 +41,32 @@ describe('planReplace: what a replace-everything restore would do', () => {
   });
 });
 
+describe('planReplace: holder details and licence dates', () => {
+  const none = { flights: [], fstd: [], experience: [] };
+  const current = { pilotName: 'A. Pilot', medicalExpiry: '2027-01-01', medicalClass: 'CLASS2' as const, typeRatings: [{ id: 't', name: 'BE20', expiry: '2027-03-03' }] };
+  it('a restore that would clear or change them is destructive, and lists them', () => {
+    const plan = planReplace(none, none, { incoming: { irExpiry: '2027-05-05' }, current });
+    expect(plan.destructive).toBe(true);
+    expect(plan.licence).toEqual(expect.arrayContaining([
+      { label: 'Medical expiry', from: '2027-01-01', to: '' },
+      { label: 'Type rating BE20', from: 'BE20, expires 2027-03-03', to: '' },
+      { label: 'Instrument rating expiry', from: '', to: '2027-05-05' },
+    ]));
+    // the holder's name is kept when the snapshot has none, so it is not listed
+    expect(plan.licence.map((c) => c.label)).not.toContain("Holder's name");
+  });
+  it('only adding them is not destructive', () => {
+    const plan = planReplace(none, none, { incoming: { medicalExpiry: '2027-01-01' }, current: {} });
+    expect(plan.destructive).toBe(false);
+    expect(plan.licence).toHaveLength(1);
+  });
+  it('unset in different ways is the same as unset', () => {
+    const plan = planReplace(none, none, { incoming: { classExpiry: {}, irExpiry: null, typeRatings: [] }, current: {} });
+    expect(plan.licence).toEqual([]);
+    expect(plan.destructive).toBe(false);
+  });
+});
+
 describe('applyReplace', () => {
   let n = 0;
   let a: LogbookDB, b: LogbookDB;

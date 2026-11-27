@@ -1,6 +1,6 @@
 import type { ClassRating, Flight, IsoDate, Minutes } from './types';
 import { CLASS_RATINGS } from './types';
-import { addDays, addMonths, dateOfTimestamp, daysBetween } from './time';
+import { addDays, addMonths, dateOfTimestamp, daysBetween, isValidIsoDate } from './time';
 import { DEFAULT_RULES, type LanguageLevel, type Rules } from './rules';
 
 /**
@@ -29,7 +29,12 @@ export interface Events {
 
 const repeat = (date: IsoDate, n: number): IsoDate[] => Array.from({ length: Math.max(0, n) }, () => date);
 
-/** Take-offs and landings of one class, expanded to one entry per event. A landing is dated by its arrival. */
+/**
+ * An expiry date as entered, or null if there is none that can be read. Date arithmetic throws on anything
+ * else, and an earlier version could import a badly written date; "not set" lets the screen ask for it again.
+ */
+export const readableDate = (d: IsoDate | null | undefined): IsoDate | null => (d && isValidIsoDate(d) ? d : null);
+
 /**
  * What a currency is counted over. FCL.060(b) says "an aircraft of the same type or class", so these
  * are the two things the regulation recognises, and the app follows it rather than always using class:
@@ -45,6 +50,7 @@ export const byType = (typeRatingId: string): CurrencyScope => ({ kind: 'type', 
 export const inScope = (f: Flight, scope: CurrencyScope): boolean =>
   scope.kind === 'class' ? f.aircraftClass === scope.cls : f.typeRatingId === scope.typeRatingId;
 
+/** Take-offs and landings in the scope, expanded to one entry per event. A landing is dated by its arrival. */
 export function collectEvents(flights: Flight[], scope: CurrencyScope, night: boolean): Events {
   const out: Events = { takeoffs: [], landings: [] };
   for (const f of flights) {
@@ -133,8 +139,9 @@ export interface SepCheck {
 export const EXPERIENCE_REVALIDATION_CLASSES: readonly ClassRating[] = ['SEP_LAND', 'SEP_SEA', 'TMG'];
 export const isExperienceClass = (cls: ClassRating): boolean => EXPERIENCE_REVALIDATION_CLASSES.includes(cls);
 
-export function sepRevalidation(flights: Flight[], expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES, cls: ClassRating = 'SEP_LAND'): SepCheck {
+export function sepRevalidation(flights: Flight[], entered: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES, cls: ClassRating = 'SEP_LAND'): SepCheck {
   const r = rules.sep;
+  const expiry = readableDate(entered);
   if (!expiry) return { id: 'sep', status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null, progress: [] };
 
   // Window: the 12 months before expiry. The anniversary day itself is excluded (conservative).
@@ -189,7 +196,8 @@ export interface ProficiencyCheck {
  * same for class ratings (FCL.740.A(a)(1), (b)(3)) and for the instrument rating (FCL.625(b)(1)), so both
  * go through here and only the window and the red threshold differ.
  */
-function checkWindowStatus(expiry: IsoDate | null | undefined, today: IsoDate, windowMonths: number, redDaysLeft: number): ProficiencyCheck {
+function checkWindowStatus(entered: IsoDate | null | undefined, today: IsoDate, windowMonths: number, redDaysLeft: number): ProficiencyCheck {
+  const expiry = readableDate(entered);
   if (!expiry) return { id: 'check', status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null };
   const windowStart = addDays(addMonths(expiry, -windowMonths), 1);
   const daysToExpiry = daysBetween(today, expiry);
@@ -243,7 +251,8 @@ export function currencyClasses(flights: Flight[], ratings: readonly { id: strin
 }
 
 /** Route sectors for a type rating (FCL.740.A(a)(2)), counted per rating since each flight names its rating. */
-export function typeRouteSectors(flights: Flight[], typeRatingId: string, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+export function typeRouteSectors(flights: Flight[], typeRatingId: string, entered: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+  const expiry = readableDate(entered);
   if (!expiry) return null;
   return sectorProgress(flights.filter((f) => f.typeRatingId === typeRatingId), expiry, today, rules);
 }
@@ -266,13 +275,13 @@ export function irStatus(expiry: IsoDate | null | undefined, today: IsoDate, rul
  * the dangerous way to be wrong; showing night currency to someone who is in fact exempt is not.
  */
 export function nightExemptByIr(settings: { irExpiry?: IsoDate | null }, today: IsoDate): boolean {
-  const e = settings.irExpiry;
+  const e = readableDate(settings.irExpiry);
   return !!e && daysBetween(today, e) >= 0;
 }
 
 /** Expiry date of a class rating from the settings (SEP (land) has its own field for backward compatibility). */
 export function classExpiryOf(s: { sepLandExpiry?: IsoDate | null; classExpiry?: Partial<Record<ClassRating, IsoDate>> }, cls: ClassRating): IsoDate | null {
-  return cls === 'SEP_LAND' ? s.sepLandExpiry ?? null : s.classExpiry?.[cls] ?? null;
+  return readableDate(cls === 'SEP_LAND' ? s.sepLandExpiry : s.classExpiry?.[cls]);
 }
 
 /** Settings patch that sets (or clears, with null) the expiry date of a class rating. */
@@ -319,7 +328,8 @@ function sectorProgress(candidates: Flight[], expiry: IsoDate, today: IsoDate, r
   return { flights: inWindow.length, sectors, unmarked, need: r.sectors, windowStart, met: sectors >= r.sectors };
 }
 
-export function routeSectors(flights: Flight[], cls: ClassRating, expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+export function routeSectors(flights: Flight[], cls: ClassRating, entered: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): SectorProgress | null {
+  const expiry = readableDate(entered);
   if (!expiry || !SECTOR_CLASSES.includes(cls)) return null;
   return sectorProgress(flights.filter((f) => f.aircraftClass === cls), expiry, today, rules);
 }
@@ -341,10 +351,11 @@ export interface ValidityCheck {
 }
 
 function validityStatus(
-  expiry: IsoDate | null | undefined,
+  entered: IsoDate | null | undefined,
   today: IsoDate,
   o: { windowStart?: IsoDate | null; amberDaysLeft: number; redDaysLeft: number },
 ): ValidityCheck {
+  const expiry = readableDate(entered);
   if (!expiry) return { status: 'unknown', state: 'not-set', expiry: null, windowStart: null, daysToExpiry: null };
   const daysToExpiry = daysBetween(today, expiry);
   const windowStart = o.windowStart ?? null;
@@ -356,7 +367,8 @@ function validityStatus(
 }
 
 /** Medical certificate (MED.A.045). The 45-day revalidation window is regulatory; the colours are ours. */
-export function medicalStatus(expiry: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ValidityCheck {
+export function medicalStatus(entered: IsoDate | null | undefined, today: IsoDate, rules: Rules = DEFAULT_RULES): ValidityCheck {
+  const expiry = readableDate(entered);
   return validityStatus(expiry, today, {
     windowStart: expiry ? addDays(expiry, -rules.medical.revalidationWindowDays) : null,
     amberDaysLeft: rules.app.licenceAmberDaysLeft,

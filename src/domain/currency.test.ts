@@ -398,3 +398,17 @@ describe('typeRouteSectors', () => {
     expect(r.unmarked).toHaveLength(1);
   });
 });
+
+describe('an expiry date that cannot be read (imported by an earlier version)', () => {
+  const bad = '31/12/2027';
+  it('counts as not entered everywhere, so the screen asks for it again', () => {
+    expect(classExpiryOf({ sepLandExpiry: bad }, 'SEP_LAND')).toBeNull();
+    expect(classExpiryOf({ classExpiry: { MEP_LAND: bad } }, 'MEP_LAND')).toBeNull();
+    expect(sepRevalidation([], bad, '2026-01-01').state).toBe('not-set');
+    for (const s of [proficiencyCheckStatus, irStatus, typeRatingStatus, medicalStatus]) expect(s(bad, '2026-01-01').state).toBe('not-set');
+    expect(languageStatus(4, bad, '2026-01-01').state).toBe('not-set');
+    expect(nightExemptByIr({ irExpiry: bad }, '2026-01-01')).toBe(false);
+    expect(routeSectors([], 'MEP_LAND', bad, '2026-01-01')).toBeNull();
+    expect(typeRouteSectors([], 't', bad, '2026-01-01')).toBeNull();
+  });
+});

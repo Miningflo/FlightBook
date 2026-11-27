@@ -30,7 +30,7 @@ export function DriveBanners({ hiddenRecords }: { hiddenRecords: number }) {
         <button type="button" className="btn text" disabled={v.status === 'loading' || busy} onClick={() => void tap(() => controller.refreshViewer(true))}>Refresh</button>
         {v.error && <div className="msg error" role="alert">{v.error} Showing the last good copy.</div>}
         {msg && <div className="msg error" role="alert">{msg}</div>}
-        {hiddenRecords > 0 && <div className="msg warning">{hiddenRecords} record{hiddenRecords === 1 ? '' : 's'} in this snapshot could not be read and {hiddenRecords === 1 ? 'is' : 'are'} not shown.</div>}
+        {hiddenRecords > 0 && <div className="msg warning">{hiddenRecords} item{hiddenRecords === 1 ? '' : 's'} in this snapshot could not be read and {hiddenRecords === 1 ? 'is' : 'are'} not shown.</div>}
       </div>
     );
   }

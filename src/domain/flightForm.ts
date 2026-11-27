@@ -14,7 +14,7 @@ import {
   emptyRoleState,
   roleStateFromFlight,
 } from './roles';
-import { blockMinutes, clockOfTimestamp, dateOfTimestamp, resolveBlockTimes } from './time';
+import { addDays, blockMinutes, clockOfTimestamp, dateOfTimestamp, daysBetween, formatHHMM, isValidIsoDate, resolveBlockTimes } from './time';
 import { normalizeRegistration } from './suggestions';
 import { routeSectorApplies } from './currency';
 
@@ -179,6 +179,20 @@ export function updateForm(state: FlightFormState, patch: Partial<FlightFormStat
   return next;
 }
 
+/** The longest gap between take-off and a hand-set landing date that follows a change of the take-off date. */
+const MAX_SHIFTED_DAYS = 31;
+
+/**
+ * A new take-off date. A hand-set landing date stays the same number of days after take-off. That is only
+ * worked out between real dates a plausible flight apart: while the date field is empty or half typed (the year
+ * reads "0202" on the way to "2026") the landing date is left as it was, for validation to question.
+ */
+export function changeTakeoffDate(state: FlightFormState, date: IsoDate): FlightFormState {
+  const gap = state.arrDate && isValidIsoDate(state.date) && isValidIsoDate(date) ? daysBetween(state.date, state.arrDate) : null;
+  const arrDate = gap !== null && Math.abs(gap) <= MAX_SHIFTED_DAYS ? addDays(date, gap) : state.arrDate;
+  return updateForm(state, { date, arrDate });
+}
+
 /** Set an explicit total. Setting it back to block time returns to automatic mode. */
 export function setTotal(state: FlightFormState, totalMin: Minutes): FlightFormState {
   const block = blockMinutes(state.date, state.depClock, state.arrClock, state.arrDate);
@@ -305,6 +319,8 @@ export function validateForm(s: FlightFormState): ValidationIssue[] {
   if (!s.picName.trim()) err('picName', 'Name of PIC is required (use SELF if you were PIC).');
 
   if (s.totalMin <= 0) err('totalMin', 'Total flight time must be greater than zero.');
+  const block = blockMinutes(s.date, s.depClock, s.arrClock, s.arrDate);
+  if (block !== null && block > 0 && s.totalMin > block) warn('totalMin', `The total is longer than the ${formatHHMM(block)} between off-blocks and on-blocks. Check it.`);
 
   const counts: [string, number][] = [
     ['takeoffsDay', s.takeoffsDay],

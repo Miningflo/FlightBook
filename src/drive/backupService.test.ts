@@ -282,3 +282,44 @@ describe('robustness', () => {
     expect(qs("x' or name != '")).toBe("'x\\' or name != \\''");
   });
 });
+
+describe('deleting old snapshots never destroys another copy of the data', () => {
+  const flightsIn = () => ours().map((f) => `${f.appProperties?.device}:${(JSON.parse(f.content) as { flights: unknown[] }).flights.length}`).sort();
+
+  it("a new master's backup keeps the previous master's snapshot of the same day", async () => {
+    await master('phone-1', 'Galaxy', CLIENT, 5).runBackup();
+    const laptop = master('laptop', 'Laptop', CLIENT, 0);
+    await laptop.claim();
+    await laptop.runBackup();
+    await laptop.runBackup(); // and its own later ones still replace only its own
+    expect(flightsIn()).toEqual(['laptop:0', 'phone-1:5']);
+  });
+  it('keeps the snapshot just written when the clock has been set back, instead of deleting it', async () => {
+    await master().runBackup();
+    clock -= 5 * 3_600_000;
+    const second = await master('phone-1', 'Galaxy', CLIENT, 4).runBackup();
+    expect(ours().map((f) => f.id)).toEqual([second.file.id]);
+    expect(flightsIn()).toEqual(['phone-1:4']);
+  });
+  it('keeps the safety copy just written when the clock has been set back', async () => {
+    const svc = master();
+    await svc.runBackup();
+    for (let i = 0; i < KEEP_PRE_RESTORE; i++) await svc.saveSafetyCopy();
+    clock -= 5 * 3_600_000;
+    const copy = await svc.saveSafetyCopy();
+    expect(drive.files.has(copy.id)).toBe(true);
+  });
+  it('an automatic backup running while the role is claimed makes one folder and one master.json', async () => {
+    const svc = master();
+    await Promise.all([svc.runBackup(), svc.claim(), svc.runBackup()]);
+    const names = [...drive.files.values()].map((f) => f.name);
+    expect(names.filter((n) => n === BACKUP_FOLDER_NAME)).toHaveLength(1);
+    expect(names.filter((n) => n === MASTER_FILE_NAME)).toHaveLength(1);
+  });
+  it('one failed job does not stop the ones after it', async () => {
+    const svc = master();
+    drive.failNext(403);
+    const [a, b] = await Promise.allSettled([svc.runBackup(), svc.runBackup()]);
+    expect([a.status, b.status]).toEqual(['rejected', 'fulfilled']);
+  });
+});

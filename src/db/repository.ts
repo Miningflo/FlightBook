@@ -6,6 +6,7 @@ import type { ExperienceDraft } from '../domain/experience';
 import type { FlightInput } from '../domain/flightForm';
 import { uuid } from '../domain/id';
 import { newestFirst, normalizeRegistration, personKey } from '../domain/suggestions';
+import { LOGBOOK_SETTINGS, markChanged } from './changes';
 
 /** Read side. Implemented by the Dexie master repo now and by the snapshot viewer repo in phase 5. */
 export interface LogbookRepository {
@@ -69,7 +70,7 @@ export class DexieRepository implements WritableLogbookRepository {
   }
 
   deleteFstd(id: string): Promise<void> {
-    return this.notify(this.db.fstdSessions.delete(id));
+    return this.notify(this.deleteRecord(this.db.fstdSessions, id));
   }
 
   savePreviousExperience(input: ExperienceDraft, existingId?: string): Promise<PreviousExperience> {
@@ -77,7 +78,7 @@ export class DexieRepository implements WritableLogbookRepository {
   }
 
   deletePreviousExperience(id: string): Promise<void> {
-    return this.notify(this.db.previousExperience.delete(id));
+    return this.notify(this.deleteRecord(this.db.previousExperience, id));
   }
 
   /** Run `onWrite` once a change has been committed (never when it failed). */
@@ -91,13 +92,21 @@ export class DexieRepository implements WritableLogbookRepository {
   private saveRecord<T extends { id: string; createdAt: number; updatedAt: number }>(
     table: import('dexie').Table<T, string>, input: Omit<T, 'id' | 'createdAt' | 'updatedAt'>, existingId: string | undefined, what: string,
   ): Promise<T> {
-    return this.db.transaction('rw', table, async () => {
+    return this.db.transaction('rw', table, this.db.settings, async () => {
       const now = Date.now();
       const existing = existingId ? await table.get(existingId) : undefined;
       if (existingId && !existing) throw new Error(`${what} ${existingId} not found; refusing to create a duplicate`);
       const record = { ...input, id: existing?.id ?? uuid(), createdAt: existing?.createdAt ?? now, updatedAt: now } as T;
       await table.put(record);
+      await markChanged(this.db);
       return record;
+    });
+  }
+
+  private deleteRecord<T>(table: import('dexie').Table<T, string>, id: string): Promise<void> {
+    return this.db.transaction('rw', table, this.db.settings, async () => {
+      await table.delete(id);
+      await markChanged(this.db);
     });
   }
 
@@ -110,10 +119,15 @@ export class DexieRepository implements WritableLogbookRepository {
   }
 
   async updateSettings(patch: Partial<Omit<Settings, 'key'>>): Promise<Settings> {
-    const next = { ...(await this.getSettings()), ...patch };
-    await this.db.settings.put(next);
-    if ('pilotName' in patch || 'licenceNumber' in patch || 'address' in patch || 'sepLandExpiry' in patch || 'classExpiry' in patch || 'irExpiry' in patch
-      || 'medicalClass' in patch || 'medicalExpiry' in patch || 'languageLevel' in patch || 'languageExpiry' in patch || 'typeRatings' in patch) this.onWrite?.();
+    const logbookData = LOGBOOK_SETTINGS.some((k) => k in patch);
+    // read and write in one transaction: two changes at the same moment must not overwrite each other
+    const next = await this.db.transaction('rw', this.db.settings, async () => {
+      const merged = { ...(await this.getSettings()), ...patch };
+      await this.db.settings.put(merged);
+      if (logbookData) await markChanged(this.db);
+      return merged;
+    });
+    if (logbookData) this.onWrite?.();
     return next;
   }
 
@@ -123,7 +137,7 @@ export class DexieRepository implements WritableLogbookRepository {
 
   private async saveFlightImpl(input: FlightInput, existingId?: string): Promise<Flight> {
     const { db } = this;
-    return db.transaction('rw', db.flights, db.aircraft, db.persons, async () => {
+    return db.transaction('rw', db.flights, db.aircraft, db.persons, db.settings, async () => {
       const now = Date.now();
       const existing = existingId ? await db.flights.get(existingId) : undefined;
       if (existingId && !existing) throw new Error(`Flight ${existingId} not found; refusing to create a duplicate`);
@@ -184,6 +198,7 @@ export class DexieRepository implements WritableLogbookRepository {
         updatedAt: now,
       };
       await db.flights.put(flight);
+      await markChanged(db);
       return flight;
     });
   }
@@ -194,9 +209,10 @@ export class DexieRepository implements WritableLogbookRepository {
 
   private async deleteFlightImpl(id: string): Promise<void> {
     const { db } = this;
-    await db.transaction('rw', db.flights, db.attachments, async () => {
+    await db.transaction('rw', db.flights, db.attachments, db.settings, async () => {
       await db.attachments.where('flightId').equals(id).delete();
       await db.flights.delete(id);
+      await markChanged(db);
     });
   }
 }

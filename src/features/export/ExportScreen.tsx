@@ -4,11 +4,10 @@ import { buildDocument } from '../../domain/pdfLayout';
 import { decodeExperience, decodeFlights, decodeFstd, detectCsvKind, encodeExperience, encodeFlights, encodeFstd } from '../../domain/csvCodec';
 import type { ImportBundle } from '../../domain/records';
 import { type ImportPlan, planImport } from '../../domain/importPlan';
-import { SnapshotError, base64ToBytes, parseSnapshot, serializeSnapshot, snapshotToBundle } from '../../domain/snapshot';
+import { SnapshotError, parseSnapshot, readSnapshot, serializeSnapshot } from '../../domain/snapshot';
 import { uuid } from '../../domain/id';
 import { utcDateOf } from '../../domain/time';
-import type { Attachment } from '../../domain/types';
-import type { ImportExtras } from '../../db/importer';
+import { type ImportExtras, attachmentRecords } from '../../db/importer';
 import { Field } from '../../ui/components';
 import { ImportDialog, type PendingImport } from './ImportDialog';
 import type { PdfReport } from './pdfRender';
@@ -89,12 +88,10 @@ export function ExportScreen() {
       if (file.name.toLowerCase().endsWith('.json') || text.trimStart().startsWith('{')) {
         kind = 'backup';
         try {
-          const snap = parseSnapshot(text);
-          const { bundle: b, problems } = snapshotToBundle(snap);
-          bundle = b;
-          errors.push(...problems.map((p) => ({ where: p.record, message: p.message })));
-          const attachments: Attachment[] = snap.attachments.map((a) => ({ id: a.id, flightId: a.flightId, mime: a.mime, name: a.name, createdAt: a.createdAt, updatedAt: a.updatedAt, blob: new Blob([base64ToBytes(a.data) as BlobPart], { type: a.mime }) }));
-          extras = { attachments, settings: snap.settings };
+          const read = readSnapshot(parseSnapshot(text));
+          bundle = read.bundle;
+          errors.push(...read.problems.map((p) => ({ where: p.record, message: p.message })));
+          extras = { attachments: attachmentRecords(read.records.attachments), settings: read.records.settings };
         } catch (e) {
           throw e instanceof SnapshotError ? e : new Error('Could not read this file as a backup.');
         }
@@ -121,7 +118,7 @@ export function ExportScreen() {
       <h2 className="section-label">Backup</h2>
       <div className="card">
         <div className="main">Full backup (JSON)</div>
-        <p className="hint">Everything in the logbook: flights, simulator sessions, previous experience, aircraft, people, the logbook holder's details and the class rating expiry dates. It contains personal data; keep the file somewhere safe. Restoring it adds what is missing and never changes existing records unless you choose to.</p>
+        <p className="hint">Everything in the logbook: flights, simulator sessions, previous experience, aircraft, people, the logbook holder's details, and your rating, medical and language dates. It contains personal data; keep the file somewhere safe. Restoring it adds what is missing and never changes existing records unless you choose to.</p>
         <button type="button" className="btn tonal" disabled={busy !== null} onClick={() => void exportBackup()}>{busy === 'backup' ? 'Preparing…' : 'Download backup'}</button>
       </div>
 
@@ -142,7 +139,7 @@ export function ExportScreen() {
         <details className="rules"><summary><span className="chip unverified">Check with your authority</span><span>About the layout</span></summary>
           <ul>
             <li>The twelve columns and their order match AMC1 FCL.050 "Pilot logbook", checked against the EASA Easy Access Rules for Aircrew (October 2026). PICUS and SPIC appear in the remarks column, and landings are printed but take-offs are not, because the AMC has no column for either.</li>
-            <li><strong>Two things differ from the AMC.</strong> Simulator sessions are printed as a separate section; the AMC keeps them in the same table, as column 11. And the AMC's logbook opens with your name, <em>licence number</em> and <em>address</em>, where this prints your name only.</li>
+            <li>Simulator sessions share the table with the flights, in date order, as column 11. The holder's name, licence number and address are printed on every page rather than once at the front, and dates show four-digit years.</li>
             <li>FCL.050 itself only requires a reliable record "in a form and manner established by the competent authority", and this AMC is one acceptable means of showing that, not the only one. Check what the authority that issued your licence wants before using the printout as your logbook of record.</li>
             <li>The built-in PDF font covers Latin letters only; other characters are replaced and counted above.</li>
           </ul>

@@ -14,6 +14,8 @@ export interface SchedulerOptions {
   /** Do one backup. Throws NeedsSignInError / MasterMismatchError / DriveUnreachableError / other. */
   run: (interactive: boolean) => Promise<void>;
   getLastBackupAt: () => number | null;
+  /** The logbook has changes no backup includes yet. Stored with the logbook, so it survives a restart. */
+  hasUnbackedChanges?: () => boolean;
   /** True only on the master device with Drive connected. Everything else is a no-op. */
   isActive: () => boolean;
   isOnline?: () => boolean;
@@ -44,12 +46,14 @@ export class BackupScheduler {
   private now(): number { return (this.o.now ?? Date.now)(); }
   private online(): boolean { return this.o.isOnline ? this.o.isOnline() : true; }
 
-  /** On app start. */
+  /** On app start: back up changes left over from last time, or if the last backup is over a day old. */
   appOpened(): void {
     if (!this.o.isActive()) return;
     const last = this.o.getLastBackupAt();
-    if (last === null || this.now() - last >= (this.o.intervalMs ?? BACKUP_INTERVAL_MS)) void this.attempt(false);
+    if (this.unbacked() || last === null || this.now() - last >= (this.o.intervalMs ?? BACKUP_INTERVAL_MS)) void this.attempt(false);
   }
+
+  private unbacked(): boolean { return this.o.hasUnbackedChanges?.() ?? false; }
 
   /** A logbook record was saved or deleted. */
   dataChanged(): void {
@@ -65,7 +69,7 @@ export class BackupScheduler {
   /** The device is back online: retry what could not be done. */
   backOnline(): void {
     if (!this.o.isActive()) return;
-    if (this.state.status === 'offline' || this.dirty) void this.attempt(false);
+    if (this.state.status === 'offline' || this.dirty || this.unbacked()) void this.attempt(false);
   }
 
   /** "Backup now": runs immediately and may show Google's sign-in popup (it is a tap). */

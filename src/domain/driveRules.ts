@@ -9,8 +9,8 @@ export const MASTER_FILE_NAME = 'master.json';
 export const SNAPSHOT_PREFIX = 'flightbook-snapshot-';
 export const PRE_RESTORE_PREFIX = 'flightbook-prerestore-';
 /**
- * Snapshots kept in the backup folder: one per day (the last of that day), for this many days. Counted in
- * days that have a snapshot, not calendar days, so a few weeks without flying never empties the history.
+ * Snapshots kept in the backup folder: one per day and device (the last of that day), for this many days.
+ * Counted in days that have a snapshot, not calendar days, so a few weeks without flying never empties the history.
  */
 export const KEEP_SNAPSHOT_DAYS = 30;
 /** Safety copies made just before a "replace everything" restore. */
@@ -114,17 +114,31 @@ export function retentionPlan<T extends { name: string }>(files: T[], keep: numb
 }
 
 /**
- * One snapshot per day: the newest of each of the `days` most recent days (UTC, from the file name) that
- * have one; everything else may be deleted. A burst of edits therefore costs one file, not thirty, and
- * cannot push older days out. The newest snapshot of all is always kept. Files that are not ours are in
- * neither list.
+ * One snapshot per day and per device: the newest of each device's snapshots on each of the `days` most
+ * recent days (UTC, from the file name) that have one; everything else may be deleted. A burst of edits
+ * therefore costs one file, not thirty, and cannot push older days out.
+ *
+ * Per device, because deleting is permanent: after another device takes over as master, its first backup
+ * must not delete what the previous master wrote that day, which may be the only copy of the newer data.
+ * A file that does not say which device wrote it is never grouped with one that does.
+ *
+ * `justWritten` is the file the caller has only now uploaded. It is always kept and counts as its device's
+ * snapshot for its day, even when a file with a later name exists (the device's clock was set back).
+ *
+ * Files that are not ours are in neither list.
  */
-export function dailyRetentionPlan<T extends { name: string }>(files: T[], days: number, prefix = SNAPSHOT_PREFIX): RetentionPlan<T> {
+export function dailyRetentionPlan<T extends { name: string; appProperties?: Record<string, string>; deviceId?: string }>(
+  files: T[], days: number, justWritten?: T, prefix = SNAPSHOT_PREFIX,
+): RetentionPlan<T> {
   const plan: RetentionPlan<T> = { keep: [], prune: [] };
+  const seenDays = new Set<string>();
   const seen = new Set<string>();
-  for (const f of sortNewestFirst(files, prefix)) {
+  const sorted = sortNewestFirst(files, prefix);
+  const ordered = justWritten ? [...sorted.filter((f) => f === justWritten), ...sorted.filter((f) => f !== justWritten)] : sorted;
+  for (const f of ordered) {
     const day = NAME_RE(prefix).exec(f.name)![1]!.slice(0, 8);
-    if (!seen.has(day) && seen.size < days) { seen.add(day); plan.keep.push(f); } else plan.prune.push(f);
+    const key = `${day}|${f.appProperties?.device ?? f.deviceId ?? ''}`;
+    if (!seen.has(key) && (seenDays.has(day) || seenDays.size < days)) { seenDays.add(day); seen.add(key); plan.keep.push(f); } else plan.prune.push(f);
   }
   return plan;
 }
